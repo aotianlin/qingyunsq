@@ -4,10 +4,10 @@ import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
 import com.campusforum.tenant.TenantContext;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.LongValue;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -26,17 +26,23 @@ public class MyBatisPlusConfig {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
 
         // 多租户 SQL 自动改写（仅 multi 模式启用）
-        interceptor.addInnerInterceptor(new TenantLineInnerInterceptor(() ->
-                new LongValue(TenantContext.getTenantId())) {
+        interceptor.addInnerInterceptor(new TenantLineInnerInterceptor(new TenantLineHandler() {
             @Override
-            protected Expression getTenantId(org.apache.ibatis.mapping.MappedStatement ms,
-                                             String tableName) {
-                if (TENANT_IGNORE_TABLES.contains(tableName)) {
-                    return null;
-                }
-                return new LongValue(TenantContext.getTenantId());
+            public Expression getTenantId() {
+                Long tenantId = TenantContext.getTenantId();
+                return new LongValue(tenantId != null ? tenantId : 1L);
             }
-        });
+
+            @Override
+            public String getTenantIdColumn() {
+                return "tenant_id";
+            }
+
+            @Override
+            public boolean ignoreTable(String tableName) {
+                return TENANT_IGNORE_TABLES.contains(tableName);
+            }
+        }));
 
         // 分页插件
         PaginationInnerInterceptor pagination = new PaginationInnerInterceptor(DbType.MYSQL);
