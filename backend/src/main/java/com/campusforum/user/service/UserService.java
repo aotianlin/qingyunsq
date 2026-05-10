@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -149,6 +150,42 @@ public class UserService {
         user.setStatus(1);
         userMapper.updateById(user);
         log.info("User unbanned: id={}", userId);
+    }
+
+    public List<UserVO> listUsers(String keyword, String role, Integer status, Long cursor, int limit) {
+        int size = Math.min(limit, 50);
+        LambdaQueryWrapper<User> qw = new LambdaQueryWrapper<>();
+        if (cursor != null) {
+            qw.lt(User::getId, cursor);
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            qw.and(w -> w.like(User::getNickname, keyword)
+                    .or().like(User::getEmail, keyword)
+                    .or().like(User::getStudentNo, keyword));
+        }
+        if (role != null && !role.isBlank()) {
+            qw.eq(User::getRole, role);
+        }
+        if (status != null) {
+            qw.eq(User::getStatus, status);
+        }
+        qw.orderByDesc(User::getId);
+        qw.last("LIMIT " + size);
+        return userMapper.selectList(qw).stream().map(this::toVO).toList();
+    }
+
+    @Transactional
+    public void changeRole(Long userId, String role) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        if (!List.of("USER", "TENANT_ADMIN").contains(role)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "无效的角色");
+        }
+        user.setRole(role);
+        userMapper.updateById(user);
+        log.info("User role changed: id={}, role={}", userId, role);
     }
 
     private UserVO toVO(User user) {

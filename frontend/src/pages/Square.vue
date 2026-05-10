@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { NCard, NButton, NTag, NSpace, NSpin, NEmpty } from 'naive-ui';
 import { getPosts } from '@/api/posts';
@@ -48,8 +48,17 @@ function goDetail(id: number) {
   router.push(`/posts/${id}`);
 }
 
+const isAdmin = computed(() => {
+  const role = localStorage.getItem('role');
+  return role === 'TENANT_ADMIN' || role === 'SUPER_ADMIN';
+});
+
 function goCreate() {
   router.push('/posts/new');
+}
+
+function goAdmin() {
+  router.push('/admin');
 }
 
 function scrollToListEnd(e: Event) {
@@ -66,7 +75,12 @@ onMounted(() => loadPosts(true));
   <div class="square" @scroll="scrollToListEnd">
     <div class="square-header">
       <h2>全校广场</h2>
-      <NButton type="primary" @click="goCreate">发帖</NButton>
+      <NSpace>
+        <NButton v-if="isAdmin" secondary type="warning" size="small" @click="goAdmin">
+          管理后台
+        </NButton>
+        <NButton type="primary" @click="goCreate">发帖</NButton>
+      </NSpace>
     </div>
 
     <NSpace class="sort-bar">

@@ -110,10 +110,36 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
-    path: '/admin/users',
-    name: 'admin-users',
-    component: () => import('@/pages/AdminUsers.vue'),
+    path: '/admin',
+    component: () => import('@/pages/admin/AdminLayout.vue'),
     meta: { requiresAuth: true, requiresAdmin: true },
+    children: [
+      {
+        path: '',
+        name: 'admin-dashboard',
+        component: () => import('@/pages/admin/AdminDashboard.vue'),
+      },
+      {
+        path: 'users',
+        name: 'admin-users',
+        component: () => import('@/pages/admin/AdminUsers.vue'),
+      },
+      {
+        path: 'posts',
+        name: 'admin-posts',
+        component: () => import('@/pages/admin/AdminPosts.vue'),
+      },
+      {
+        path: 'spaces',
+        name: 'admin-spaces',
+        component: () => import('@/pages/admin/AdminSpaces.vue'),
+      },
+      {
+        path: 'audit-logs',
+        name: 'admin-audit-logs',
+        component: () => import('@/pages/admin/AdminAuditLog.vue'),
+      },
+    ],
   },
   {
     path: '/:pathMatch(.*)*',

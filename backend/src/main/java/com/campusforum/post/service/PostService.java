@@ -191,6 +191,56 @@ public class PostService {
         }
     }
 
+    @Transactional
+    public void togglePin(Long postId) {
+        Post post = postMapper.selectById(postId);
+        if (post != null) {
+            post.setIsPinned(post.getIsPinned() == 1 ? 0 : 1);
+            postMapper.updateById(post);
+        }
+    }
+
+    @Transactional
+    public void toggleEssence(Long postId) {
+        Post post = postMapper.selectById(postId);
+        if (post != null) {
+            post.setIsEssence(post.getIsEssence() == 1 ? 0 : 1);
+            postMapper.updateById(post);
+        }
+    }
+
+    @Transactional
+    public void setStatus(Long postId, Integer status) {
+        Post post = postMapper.selectById(postId);
+        if (post != null) {
+            post.setStatus(status);
+            postMapper.updateById(post);
+        }
+    }
+
+    public List<PostVO> listPostsForAdmin(String keyword, Integer status, String scope, Long cursor, int limit) {
+        int size = Math.min(limit, 50);
+        LambdaQueryWrapper<Post> qw = new LambdaQueryWrapper<>();
+        if (cursor != null) {
+            qw.lt(Post::getId, cursor);
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            qw.and(w -> w.like(Post::getTitle, keyword)
+                    .or().like(Post::getContent, keyword));
+        }
+        if (status != null) {
+            qw.eq(Post::getStatus, status);
+        }
+        if (scope != null && !scope.isBlank()) {
+            qw.eq(Post::getScope, scope);
+        }
+        qw.orderByDesc(Post::getId);
+        qw.last("LIMIT " + size);
+
+        Long currentUserId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
+        return postMapper.selectList(qw).stream().map(p -> toVO(p, currentUserId)).toList();
+    }
+
     private PostVO toVO(Post post, Long currentUserId) {
         User author = userMapper.selectById(post.getAuthorId());
         UserVO authorVO = null;

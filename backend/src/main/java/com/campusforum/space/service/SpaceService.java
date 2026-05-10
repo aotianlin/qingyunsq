@@ -284,6 +284,40 @@ public class SpaceService {
         log.info("Space dismissed: id={}", spaceId);
     }
 
+    @Transactional
+    public void setStatus(Long spaceId, Integer status) {
+        Space space = spaceMapper.selectById(spaceId);
+        if (space != null) {
+            space.setStatus(status);
+            spaceMapper.updateById(space);
+            log.info("Space status changed: id={}, status={}", spaceId, status);
+        }
+    }
+
+    public List<SpaceVO> listSpacesForAdmin(String keyword, String category, Integer status, Long cursor, int limit) {
+        int size = Math.min(limit, 50);
+        LambdaQueryWrapper<Space> qw = new LambdaQueryWrapper<>();
+        if (cursor != null) {
+            qw.lt(Space::getId, cursor);
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            qw.like(Space::getName, keyword);
+        }
+        if (category != null && !category.isBlank()) {
+            qw.eq(Space::getCategory, category);
+        }
+        if (status != null) {
+            qw.eq(Space::getStatus, status);
+        }
+        qw.orderByDesc(Space::getId);
+        qw.last("LIMIT " + size);
+
+        Long currentUserId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
+        return spaceMapper.selectList(qw).stream()
+                .map(s -> toVO(s, currentUserId, null, false))
+                .toList();
+    }
+
     private void checkOwnership(Long spaceId, Long userId, Space space) {
         Space s = space != null ? space : spaceMapper.selectById(spaceId);
         SpaceMember member = memberMapper.selectOne(new LambdaQueryWrapper<SpaceMember>()
