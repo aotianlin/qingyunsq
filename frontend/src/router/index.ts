@@ -27,6 +27,17 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/users/:id',
+    name: 'user-page',
+    component: () => import('@/pages/UserPage.vue'),
+  },
+  {
+    path: '/admin/users',
+    name: 'admin-users',
+    component: () => import('@/pages/AdminUsers.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
     component: () => import('@/pages/NotFound.vue'),
@@ -40,10 +51,13 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token');
+  const role = localStorage.getItem('role');
 
   if (to.meta.requiresAuth && !token) {
     next('/login');
   } else if (to.meta.guest && token) {
+    next('/');
+  } else if (to.meta.requiresAdmin && role !== 'TENANT_ADMIN' && role !== 'SUPER_ADMIN') {
     next('/');
   } else {
     next();

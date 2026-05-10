@@ -7,6 +7,7 @@ import com.campusforum.common.ErrorCode;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.LoginRequest;
 import com.campusforum.user.dto.RegisterRequest;
+import com.campusforum.user.dto.UpdateProfileRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
@@ -105,6 +106,49 @@ public class UserService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
         return toVO(user);
+    }
+
+    @Transactional
+    public UserVO updateProfile(Long userId, UpdateProfileRequest req) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        if (req.getNickname() != null) user.setNickname(req.getNickname());
+        if (req.getAvatarUrl() != null) user.setAvatarUrl(req.getAvatarUrl());
+        if (req.getBio() != null) user.setBio(req.getBio());
+        if (req.getCollege() != null) user.setCollege(req.getCollege());
+        if (req.getMajor() != null) user.setMajor(req.getMajor());
+        if (req.getGrade() != null) user.setGrade(req.getGrade());
+
+        userMapper.updateById(user);
+        log.info("User profile updated: id={}", userId);
+        return toVO(user);
+    }
+
+    @Transactional
+    public void banUser(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        if (user.getStatus() == 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "该用户已被封禁");
+        }
+        user.setStatus(0);
+        userMapper.updateById(user);
+        log.info("User banned: id={}", userId);
+    }
+
+    @Transactional
+    public void unbanUser(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        user.setStatus(1);
+        userMapper.updateById(user);
+        log.info("User unbanned: id={}", userId);
     }
 
     private UserVO toVO(User user) {
