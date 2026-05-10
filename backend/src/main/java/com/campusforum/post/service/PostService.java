@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.notify.service.NotifyService;
 import com.campusforum.post.domain.Post;
 import com.campusforum.post.domain.Reaction;
 import com.campusforum.post.dto.CreatePostRequest;
@@ -36,6 +37,7 @@ public class PostService {
     private final ReactionMapper reactionMapper;
     private final UserMapper userMapper;
     private final QaQuestionMapper qaQuestionMapper;
+    private final NotifyService notifyService;
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
@@ -177,6 +179,12 @@ public class PostService {
                 if (post != null) {
                     post.setLikeCount(post.getLikeCount() + 1);
                     postMapper.updateById(post);
+
+                    // 通知帖子作者（不通知自己）
+                    User liker = userMapper.selectById(userId);
+                    String likerName = liker != null ? liker.getNickname() : "有人";
+                    notifyService.create(post.getAuthorId(), userId, "LIKE",
+                            "点赞通知", likerName + " 赞了你的帖子", "/posts/" + post.getId());
                 }
             }
             return true;

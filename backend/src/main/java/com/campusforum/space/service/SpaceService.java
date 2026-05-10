@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.notify.service.NotifyService;
 import com.campusforum.space.domain.Space;
 import com.campusforum.space.domain.SpaceMember;
 import com.campusforum.space.dto.*;
@@ -28,6 +29,7 @@ public class SpaceService {
     private final SpaceMapper spaceMapper;
     private final SpaceMemberMapper memberMapper;
     private final UserMapper userMapper;
+    private final NotifyService notifyService;
 
     @Transactional
     public SpaceVO create(Long userId, CreateSpaceRequest req) {
@@ -150,6 +152,13 @@ public class SpaceService {
         if (memberStatus == 1) {
             space.setMemberCount(space.getMemberCount() + 1);
             spaceMapper.updateById(space);
+        } else {
+            // REVIEW 模式，通知空间主审核
+            User applicant = userMapper.selectById(userId);
+            String applicantName = applicant != null ? applicant.getNickname() : "有人";
+            notifyService.create(space.getOwnerId(), userId, "JOIN",
+                    "申请通知", applicantName + " 申请加入 " + space.getName(),
+                    "/spaces/" + spaceId + "/members");
         }
 
         log.info("User {} joined space {}", userId, spaceId);

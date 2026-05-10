@@ -3,6 +3,7 @@ package com.campusforum.post.service;
 import cn.dev33.satoken.stp.StpUtil;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.notify.service.NotifyService;
 import com.campusforum.post.domain.Comment;
 import com.campusforum.post.dto.CommentVO;
 import com.campusforum.post.dto.CreateCommentRequest;
@@ -30,6 +31,7 @@ public class CommentService {
     private final CommentMapper commentMapper;
     private final PostMapper postMapper;
     private final UserMapper userMapper;
+    private final NotifyService notifyService;
 
     @Transactional
     public CommentVO create(Long userId, CreateCommentRequest req) {
@@ -49,6 +51,25 @@ public class CommentService {
         if (post != null) {
             post.setCommentCount(post.getCommentCount() + 1);
             postMapper.updateById(post);
+        }
+
+        // 通知
+        User commenter = userMapper.selectById(userId);
+        String commenterName = commenter != null ? commenter.getNickname() : "有人";
+
+        if (post != null && !post.getAuthorId().equals(userId)) {
+            // 评论帖子，通知帖子作者
+            notifyService.create(post.getAuthorId(), userId, "COMMENT",
+                    "评论通知", commenterName + " 评论了你的帖子", "/posts/" + post.getId());
+        }
+
+        if (req.getParentId() != null) {
+            // 回复评论，通知父评论作者
+            Comment parentComment = commentMapper.selectById(req.getParentId());
+            if (parentComment != null && !parentComment.getAuthorId().equals(userId)) {
+                notifyService.create(parentComment.getAuthorId(), userId, "REPLY",
+                        "回复通知", commenterName + " 回复了你", "/posts/" + req.getPostId());
+            }
         }
 
         log.info("Comment created: id={}, postId={}", comment.getId(), req.getPostId());

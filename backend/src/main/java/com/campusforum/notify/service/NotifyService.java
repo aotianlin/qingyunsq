@@ -1,0 +1,106 @@
+package com.campusforum.notify.service;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.campusforum.notify.domain.Notification;
+import com.campusforum.notify.dto.NotificationVO;
+import com.campusforum.notify.mapper.NotificationMapper;
+import com.campusforum.user.domain.User;
+import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.mapper.UserMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class NotifyService {
+
+    private final NotificationMapper notificationMapper;
+    private final UserMapper userMapper;
+
+    @Transactional
+    public void create(Long receiverId, Long senderId, String type, String title, String content, String redirectUrl) {
+        if (receiverId.equals(senderId)) return;
+
+        Notification notif = new Notification();
+        notif.setReceiverId(receiverId);
+        notif.setSenderId(senderId);
+        notif.setType(type);
+        notif.setTitle(title);
+        notif.setContent(content);
+        notif.setRedirectUrl(redirectUrl);
+        notif.setIsRead(0);
+
+        notificationMapper.insert(notif);
+        log.debug("Notification created: type={}, receiver={}", type, receiverId);
+    }
+
+    public List<NotificationVO> list(Long userId, Long cursor, int limit) {
+        int size = Math.min(limit, 50);
+        LambdaQueryWrapper<Notification> qw = new LambdaQueryWrapper<>();
+        qw.eq(Notification::getReceiverId, userId);
+        if (cursor != null) {
+            qw.lt(Notification::getId, cursor);
+        }
+        qw.orderByDesc(Notification::getId);
+        qw.last("LIMIT " + size);
+
+        return notificationMapper.selectList(qw).stream().map(this::toVO).toList();
+    }
+
+    public long getUnreadCount(Long userId) {
+        return notificationMapper.selectCount(new LambdaQueryWrapper<Notification>()
+                .eq(Notification::getReceiverId, userId)
+                .eq(Notification::getIsRead, 0));
+    }
+
+    @Transactional
+    public void markRead(Long notificationId, Long userId) {
+        Notification notif = notificationMapper.selectById(notificationId);
+        if (notif == null || !notif.getReceiverId().equals(userId)) return;
+        notif.setIsRead(1);
+        notificationMapper.updateById(notif);
+    }
+
+    @Transactional
+    public void markAllRead(Long userId) {
+        List<Notification> unread = notificationMapper.selectList(new LambdaQueryWrapper<Notification>()
+                .eq(Notification::getReceiverId, userId)
+                .eq(Notification::getIsRead, 0));
+        for (Notification n : unread) {
+            n.setIsRead(1);
+            notificationMapper.updateById(n);
+        }
+    }
+
+    private NotificationVO toVO(Notification n) {
+        UserVO senderVO = null;
+        if (n.getSenderId() != null) {
+            User sender = userMapper.selectById(n.getSenderId());
+            if (sender != null) {
+                senderVO = UserVO.builder()
+                        .id(sender.getId())
+                        .nickname(sender.getNickname())
+                        .avatarUrl(sender.getAvatarUrl())
+                        .build();
+            }
+        }
+
+        return NotificationVO.builder()
+                .id(n.getId())
+                .receiverId(n.getReceiverId())
+                .senderId(n.getSenderId())
+                .sender(senderVO)
+                .type(n.getType())
+                .title(n.getTitle())
+                .content(n.getContent())
+                .redirectUrl(n.getRedirectUrl())
+                .isRead(n.getIsRead() == 1)
+                .createdAt(n.getCreatedAt())
+                .build();
+    }
+}

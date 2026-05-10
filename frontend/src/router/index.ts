@@ -104,6 +104,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/notifications',
+    name: 'notifications',
+    component: () => import('@/pages/Notifications.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/admin/users',
     name: 'admin-users',
     component: () => import('@/pages/AdminUsers.vue'),

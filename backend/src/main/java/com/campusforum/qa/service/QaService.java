@@ -3,11 +3,16 @@ package com.campusforum.qa.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.notify.service.NotifyService;
+import com.campusforum.post.domain.Comment;
 import com.campusforum.post.domain.Post;
+import com.campusforum.post.mapper.CommentMapper;
 import com.campusforum.post.mapper.PostMapper;
 import com.campusforum.qa.domain.QaQuestion;
 import com.campusforum.qa.dto.QaQuestionVO;
 import com.campusforum.qa.mapper.QaQuestionMapper;
+import com.campusforum.user.domain.User;
+import com.campusforum.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,6 +27,9 @@ public class QaService {
 
     private final QaQuestionMapper qaQuestionMapper;
     private final PostMapper postMapper;
+    private final CommentMapper commentMapper;
+    private final UserMapper userMapper;
+    private final NotifyService notifyService;
 
     public QaQuestionVO getByPostId(Long postId) {
         QaQuestion qa = qaQuestionMapper.selectOne(new LambdaQueryWrapper<QaQuestion>()
@@ -56,6 +64,15 @@ public class QaService {
         qa.setAcceptedCommentId(commentId);
         qa.setSolvedAt(LocalDateTime.now());
         qaQuestionMapper.updateById(qa);
+
+        // 通知被采纳的回答者
+        Comment acceptedComment = commentMapper.selectById(commentId);
+        if (acceptedComment != null && !acceptedComment.getAuthorId().equals(userId)) {
+            User questioner = userMapper.selectById(userId);
+            String questionerName = questioner != null ? questioner.getNickname() : "提问者";
+            notifyService.create(acceptedComment.getAuthorId(), userId, "ACCEPT",
+                    "采纳通知", questionerName + " 采纳了你的回答", "/posts/" + postId);
+        }
 
         log.info("Answer accepted: postId={}, commentId={}", postId, commentId);
         return toVO(qa);
