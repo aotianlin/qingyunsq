@@ -68,6 +68,24 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/checkin',
+    name: 'checkin',
+    component: () => import('@/pages/CheckinChallenges.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/checkin/new',
+    name: 'checkin-create',
+    component: () => import('@/pages/CheckinChallengeCreate.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/checkin/:id',
+    name: 'checkin-detail',
+    component: () => import('@/pages/CheckinChallengeDetail.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/admin/users',
     name: 'admin-users',
     component: () => import('@/pages/AdminUsers.vue'),

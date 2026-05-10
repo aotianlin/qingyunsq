@@ -14,6 +14,8 @@ public enum ErrorCode {
     POST_NOT_FOUND(10201, "帖子不存在"),
     COMMENT_NOT_FOUND(10301, "评论不存在"),
     BOUNTY_ALREADY_SETTLED(10401, "悬赏积分已结算"),
+    CHALLENGE_NOT_FOUND(10501, "打卡挑战不存在"),
+    ALREADY_CHECKED_IN(10502, "今日已打卡"),
 
     // 4xxxx 客户端错误
     BAD_REQUEST(40000, "请求参数错误"),
