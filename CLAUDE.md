@@ -147,24 +147,14 @@ CampusForum/
 | X4 搜索服务  | MySQL FULLTEXT 全局搜索                           | 5   |
 | X3 AI 能力 | AiService接口/MockAiService(摘要/审核/标签/问答)        | 9   |
 | X1 多租户   | TenantContext/TenantLineInnerInterceptor/隔离测试 | 4   |
+| X5 积分系统  | PointsService 流水记录、登录/发帖/打卡/采纳自动奖励          | 7   |
+| 举报系统    | 用户举报创建、管理后台处理/驳回                             | 5   |
+| WebSocket | 通知创建后实时推送到在线用户                                | —   |
 
 
-**总计 57 个测试全部通过，前端构建成功。**
+**总计 69 个测试全部通过，前端构建成功。P0 任务全部完成。**
 
 ### 下一步待做（按优先级）
-
-#### 优先级 P0 — 核心功能补全
-
-1. **X5 积分系统** — 自动积分流水
-  - 已有: `users.points` 字段 + `points_logs` 表
-  - 待做: 在关键行为（登录/发帖/被采纳/被点赞/连续打卡）中自动记录积分流水并更新用户 points 字段
-  - 涉及: UserService, PostService, QaService, CheckinService 加积分逻辑
-2. **举报系统** — 内容举报与处理
-  - 已有: `reports` 表
-  - 待做: ReportController + ReportService，前端举报按钮 + 管理后台举报处理
-3. **WebSocket 实时推送** — 通知实时到达
-  - 已有: `/ws/notify` WebSocket 端点配置
-  - 待做: NotifyService 在创建通知后通过 WebSocket 推送给在线用户
 
 #### 优先级 P1 — 增强功能
 
@@ -192,6 +182,9 @@ CampusForum/
 | --------------------------------------- | ------------------------------------------ |
 | `admin/security/AdminStpInterface.java` | SaToken 权限映射（role→permission）              |
 | `admin/service/AuditLogService.java`    | 审计日志（记录所有 admin 写操作）                       |
+| `points/service/PointsService.java`     | 积分流水 + 余额查询，登录/发帖/打卡/采纳自动奖励             |
+| `report/service/ReportService.java`     | 用户举报创建、管理员处理/驳回                            |
+| `notify/websocket/SessionRegistry.java` | WebSocket 会话管理，按 userId 推送消息                |
 | `infra/MyBatisPlusConfig.java`          | TenantLineInnerInterceptor（自动注入 tenant_id） |
 | `tenant/TenantInterceptor.java`         | 请求级租户上下文设置                                 |
 | `ai/service/AiService.java`             | AI 接口（可插拔，当前 MockAiService）                |
@@ -205,11 +198,11 @@ CampusForum/
 | 表                                    | 状态                              |
 | ------------------------------------ | ------------------------------- |
 | `users` ~ `notifications`            | 已有 Service/Controller，完整 CRUD   |
+| `points_logs`                        | 已实现 PointsService 自动记录          |
+| `reports`                            | 已实现 ReportService 创建/处理         |
 | `audit_logs`                         | 仅 AdminAuditLogController（只读查询） |
-| `reports`                            | 仅有表，无 Service/Controller        |
 | `sensitive_words`                    | 仅有表，无 Service/Controller        |
 | `achievements` + `user_achievements` | 仅有表，无 Service/Controller        |
-| `points_logs`                        | 仅有表，无自动记录逻辑                     |
 | `tenants`                            | 仅有表，仅在 standalone 模式使用          |
 
 
