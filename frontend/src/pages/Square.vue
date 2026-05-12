@@ -76,6 +76,7 @@ onMounted(() => loadPosts(true));
     <div class="square-header">
       <h2>全校广场</h2>
       <NSpace>
+        <NButton size="small" @click="router.push('/search')">搜索</NButton>
         <NButton v-if="isAdmin" secondary type="warning" size="small" @click="goAdmin">
           管理后台
         </NButton>
