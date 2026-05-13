@@ -26,7 +26,8 @@ public class AdminStpInterface implements StpInterface {
             "tenant:post:manage",
             "tenant:space:manage",
             "tenant:audit:log",
-            "tenant:report:manage"
+            "tenant:report:manage",
+            "tenant:sensitive:manage"
     );
 
     private static final List<String> SUPER_ADMIN_PERMISSIONS;

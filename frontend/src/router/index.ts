@@ -162,6 +162,11 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-reports',
         component: () => import('@/pages/admin/AdminReports.vue'),
       },
+      {
+        path: 'sensitive-words',
+        name: 'admin-sensitive-words',
+        component: () => import('@/pages/admin/AdminSensitiveWords.vue'),
+      },
     ],
   },
   {

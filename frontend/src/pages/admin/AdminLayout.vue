@@ -5,7 +5,7 @@ import { NLayout, NLayoutSider, NLayoutContent, NMenu, NButton, NStatistic } fro
 import { renderIcon } from '@/utils/render-icon';
 import {
   GridOutline, PeopleOutline, DocumentTextOutline,
-  AlbumsOutline, ClipboardOutline, FlagOutline, ArrowBackOutline,
+  AlbumsOutline, ClipboardOutline, FlagOutline, ShieldCheckmarkOutline, ArrowBackOutline,
 } from '@vicons/ionicons5';
 import type { MenuOption } from 'naive-ui';
 import type { Component } from 'vue';
@@ -21,6 +21,7 @@ const menuOptions: MenuOption[] = [
   { label: '空间管理', key: '/admin/spaces', icon: renderIcon(AlbumsOutline) },
   { label: '审计日志', key: '/admin/audit-logs', icon: renderIcon(ClipboardOutline) },
   { label: '举报管理', key: '/admin/reports', icon: renderIcon(FlagOutline) },
+  { label: '敏感词', key: '/admin/sensitive-words', icon: renderIcon(ShieldCheckmarkOutline) },
 ];
 
 const activeKey = computed(() => {
@@ -31,6 +32,7 @@ const activeKey = computed(() => {
   if (path.startsWith('/admin/spaces')) return '/admin/spaces';
   if (path.startsWith('/admin/audit-logs')) return '/admin/audit-logs';
   if (path.startsWith('/admin/reports')) return '/admin/reports';
+  if (path.startsWith('/admin/sensitive-words')) return '/admin/sensitive-words';
   return '/admin';
 });
 
