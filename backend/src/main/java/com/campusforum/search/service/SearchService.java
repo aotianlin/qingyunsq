@@ -13,11 +13,15 @@ import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SearchService {
@@ -26,6 +30,7 @@ public class SearchService {
     private final UserMapper userMapper;
     private final ResourceMapper resourceMapper;
     private final SpaceMapper spaceMapper;
+    private final MeiliSearchClient meiliSearchClient;
 
     public List<SearchResultVO> search(String keyword, String type, String sort, Long cursor, int limit) {
         int size = Math.min(limit, 50);
@@ -52,6 +57,12 @@ public class SearchService {
     }
 
     private List<SearchResultVO> searchPosts(String keyword, String sort, Long cursor, int limit) {
+        // Try MeiliSearch first, fall back to MySQL FULLTEXT
+        List<SearchResultVO> meiliResults = searchPostsViaMeiliSearch(keyword, limit);
+        if (!meiliResults.isEmpty()) {
+            return meiliResults;
+        }
+
         LambdaQueryWrapper<Post> qw = new LambdaQueryWrapper<>();
         qw.eq(Post::getStatus, 1);
         qw.apply("MATCH(title, content) AGAINST({0} IN NATURAL LANGUAGE MODE)", keyword);
@@ -80,6 +91,47 @@ public class SearchService {
                     .viewCount(p.getViewCount())
                     .build();
         }).toList();
+    }
+
+    private List<SearchResultVO> searchPostsViaMeiliSearch(String keyword, int limit) {
+        List<Map<String, Object>> hits = meiliSearchClient.search("posts", keyword, limit);
+        if (hits.isEmpty()) return List.of();
+
+        return hits.stream().map(hit -> {
+            Long postId = toLong(hit.get("id"));
+            Long authorId = toLong(hit.get("authorId"));
+            User author = authorId != null ? userMapper.selectById(authorId) : null;
+            String content = (String) hit.getOrDefault("content", "");
+            return SearchResultVO.builder()
+                    .type("POST")
+                    .id(postId)
+                    .title((String) hit.getOrDefault("title", ""))
+                    .description(content.length() > 200 ? content.substring(0, 200) + "..." : content)
+                    .author(toUserVO(author))
+                    .createdAt(toLocalDateTime(hit.get("createdAt")))
+                    .likeCount(toInt(hit.get("likeCount")))
+                    .commentCount(toInt(hit.get("commentCount")))
+                    .viewCount(toInt(hit.get("viewCount")))
+                    .build();
+        }).toList();
+    }
+
+    private Long toLong(Object val) {
+        if (val == null) return null;
+        if (val instanceof Number n) return n.longValue();
+        try { return Long.parseLong(val.toString()); } catch (NumberFormatException e) { return null; }
+    }
+
+    private Integer toInt(Object val) {
+        if (val == null) return 0;
+        if (val instanceof Number n) return n.intValue();
+        try { return Integer.parseInt(val.toString()); } catch (NumberFormatException e) { return 0; }
+    }
+
+    private LocalDateTime toLocalDateTime(Object val) {
+        if (val == null) return null;
+        if (val instanceof LocalDateTime dt) return dt;
+        try { return LocalDateTime.parse(val.toString().replace("Z", "")); } catch (Exception e) { return null; }
     }
 
     private List<SearchResultVO> searchUsers(String keyword, Long cursor, int limit) {

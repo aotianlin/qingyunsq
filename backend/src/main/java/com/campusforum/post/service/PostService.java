@@ -8,6 +8,7 @@ import com.campusforum.achievement.service.AchievementService;
 import com.campusforum.notify.service.NotifyService;
 import com.campusforum.points.service.PointsService;
 import com.campusforum.post.domain.Post;
+import com.campusforum.search.service.MeiliSearchClient;
 import com.campusforum.post.domain.Reaction;
 import com.campusforum.post.dto.CreatePostRequest;
 import com.campusforum.post.dto.PostPageRequest;
@@ -28,7 +29,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -42,6 +45,7 @@ public class PostService {
     private final NotifyService notifyService;
     private final PointsService pointsService;
     private final AchievementService achievementService;
+    private final MeiliSearchClient meiliSearchClient;
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
@@ -81,6 +85,7 @@ public class PostService {
         log.info("Post created: id={}, authorId={}", post.getId(), userId);
         pointsService.award(userId, 5, "POST", "发表帖子 #" + post.getId());
         achievementService.onPostCreated(userId);
+        meiliSearchClient.indexDocument("posts", buildPostDoc(post));
         return toVO(post, userId);
     }
 
@@ -147,6 +152,7 @@ public class PostService {
         }
 
         postMapper.deleteById(postId);
+        meiliSearchClient.deleteDocument("posts", postId);
         log.info("Post deleted: id={}", postId);
     }
 
@@ -209,6 +215,7 @@ public class PostService {
         if (post != null) {
             post.setIsPinned(post.getIsPinned() == 1 ? 0 : 1);
             postMapper.updateById(post);
+            meiliSearchClient.indexDocument("posts", buildPostDoc(post));
         }
     }
 
@@ -218,6 +225,7 @@ public class PostService {
         if (post != null) {
             post.setIsEssence(post.getIsEssence() == 1 ? 0 : 1);
             postMapper.updateById(post);
+            meiliSearchClient.indexDocument("posts", buildPostDoc(post));
         }
     }
 
@@ -227,6 +235,7 @@ public class PostService {
         if (post != null) {
             post.setStatus(status);
             postMapper.updateById(post);
+            meiliSearchClient.indexDocument("posts", buildPostDoc(post));
         }
     }
 
@@ -310,5 +319,21 @@ public class PostService {
                 .createdAt(post.getCreatedAt())
                 .updatedAt(post.getUpdatedAt())
                 .build();
+    }
+
+    private Map<String, Object> buildPostDoc(Post post) {
+        Map<String, Object> doc = new HashMap<>();
+        doc.put("id", post.getId());
+        doc.put("title", post.getTitle());
+        doc.put("content", post.getContent());
+        doc.put("authorId", post.getAuthorId());
+        doc.put("createdAt", post.getCreatedAt());
+        doc.put("likeCount", post.getLikeCount());
+        doc.put("commentCount", post.getCommentCount());
+        doc.put("viewCount", post.getViewCount());
+        doc.put("status", post.getStatus());
+        doc.put("scope", post.getScope());
+        doc.put("type", post.getType());
+        return doc;
     }
 }
