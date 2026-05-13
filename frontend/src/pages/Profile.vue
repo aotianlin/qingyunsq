@@ -2,13 +2,16 @@
 import { ref, onMounted } from 'vue';
 import { NButton, NCard, NInput, NTag, NSpace, useMessage } from 'naive-ui';
 import { getMyProfile, updateProfile } from '@/api/users';
+import { getUserAchievements } from '@/api/achievement';
 import { useAuthStore } from '@/stores/auth';
 import type { UserVO } from '@/types/user';
+import type { AchievementVO } from '@/types/achievement';
 
 const message = useMessage();
 const authStore = useAuthStore();
 
 const user = ref<UserVO | null>(null);
+const achievements = ref<AchievementVO[]>([]);
 const loading = ref(true);
 const editing = ref(false);
 const saving = ref(false);
@@ -26,6 +29,7 @@ async function loadProfile() {
   try {
     user.value = await getMyProfile();
     authStore.setUser(user.value);
+    achievements.value = await getUserAchievements(user.value.id);
   } catch {
     message.error('获取用户信息失败');
   } finally {
@@ -96,6 +100,25 @@ onMounted(loadProfile);
           <div v-if="user.bio" class="bio">
             <p>{{ user.bio }}</p>
           </div>
+
+          <div v-if="achievements.length" class="achievements">
+            <h4>成就徽章</h4>
+            <div class="badge-grid">
+              <div
+                v-for="a in achievements"
+                :key="a.id"
+                class="badge-item"
+                :class="{ locked: !a.awarded }"
+              >
+                <div class="badge-icon">
+                  {{ a.awarded ? (a.code?.charAt(0) || '🏆') : '🔒' }}
+                </div>
+                <div class="badge-name">{{ a.name }}</div>
+                <div class="badge-desc">{{ a.description }}</div>
+              </div>
+            </div>
+          </div>
+
           <NSpace class="actions">
             <NTag :type="user.role === 'TENANT_ADMIN' ? 'error' : 'info'">
               {{ user.role === 'USER' ? '普通用户' : '管理员' }}
@@ -171,6 +194,45 @@ onMounted(loadProfile);
   padding: 12px;
   background: #f9f9f9;
   border-radius: 8px;
+}
+.achievements {
+  margin-top: 16px;
+}
+.achievements h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: #333;
+}
+.badge-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.badge-item {
+  width: 100px;
+  padding: 10px 6px;
+  border-radius: 8px;
+  background: #f0faf0;
+  text-align: center;
+}
+.badge-item.locked {
+  background: #f5f5f5;
+  opacity: 0.5;
+}
+.badge-icon {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+.badge-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 2px;
+}
+.badge-desc {
+  font-size: 10px;
+  color: #999;
+  line-height: 1.3;
 }
 .actions { margin-top: 16px; }
 .edit-form { max-width: 400px; }

@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.achievement.service.AchievementService;
 import com.campusforum.notify.service.NotifyService;
 import com.campusforum.points.service.PointsService;
 import com.campusforum.post.domain.Post;
@@ -40,6 +41,7 @@ public class PostService {
     private final QaQuestionMapper qaQuestionMapper;
     private final NotifyService notifyService;
     private final PointsService pointsService;
+    private final AchievementService achievementService;
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
@@ -78,6 +80,7 @@ public class PostService {
 
         log.info("Post created: id={}, authorId={}", post.getId(), userId);
         pointsService.award(userId, 5, "POST", "发表帖子 #" + post.getId());
+        achievementService.onPostCreated(userId);
         return toVO(post, userId);
     }
 
@@ -187,6 +190,7 @@ public class PostService {
                     if (!post.getAuthorId().equals(userId)) {
                         pointsService.award(post.getAuthorId(), 1, "LIKED",
                                 "帖子 #" + post.getId() + " 被点赞");
+                        achievementService.onPostLiked(post.getAuthorId());
                     }
                     // 通知帖子作者（不通知自己）
                     User liker = userMapper.selectById(userId);

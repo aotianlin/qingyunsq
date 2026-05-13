@@ -3,6 +3,7 @@ package com.campusforum.qa.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.achievement.service.AchievementService;
 import com.campusforum.notify.service.NotifyService;
 import com.campusforum.points.service.PointsService;
 import com.campusforum.post.domain.Comment;
@@ -32,6 +33,7 @@ public class QaService {
     private final UserMapper userMapper;
     private final NotifyService notifyService;
     private final PointsService pointsService;
+    private final AchievementService achievementService;
 
     public QaQuestionVO getByPostId(Long postId) {
         QaQuestion qa = qaQuestionMapper.selectOne(new LambdaQueryWrapper<QaQuestion>()
@@ -78,6 +80,7 @@ public class QaService {
                 if (spent) {
                     pointsService.award(acceptedComment.getAuthorId(), bounty, "ACCEPTED",
                             "回答被采纳 #" + postId);
+                    achievementService.onAnswerAccepted(acceptedComment.getAuthorId());
                 }
             }
             User questioner = userMapper.selectById(userId);

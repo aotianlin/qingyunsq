@@ -3,6 +3,7 @@ package com.campusforum.post.service;
 import cn.dev33.satoken.stp.StpUtil;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.achievement.service.AchievementService;
 import com.campusforum.notify.service.NotifyService;
 import com.campusforum.post.domain.Comment;
 import com.campusforum.post.dto.CommentVO;
@@ -32,6 +33,7 @@ public class CommentService {
     private final PostMapper postMapper;
     private final UserMapper userMapper;
     private final NotifyService notifyService;
+    private final AchievementService achievementService;
 
     @Transactional
     public CommentVO create(Long userId, CreateCommentRequest req) {
@@ -45,6 +47,7 @@ public class CommentService {
         comment.setStatus(1);
 
         commentMapper.insert(comment);
+        achievementService.onCommentCreated(userId);
 
         // 更新帖子评论数
         var post = postMapper.selectById(req.getPostId());
