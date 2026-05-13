@@ -1,25 +1,67 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { NCard, NTag } from 'naive-ui';
+import { NCard, NButton, NSpace, useMessage } from 'naive-ui';
 import { getUserById } from '@/api/users';
+import { follow, unfollow, isFollowing, getFollowCounts } from '@/api/follows';
+import { useAuthStore } from '@/stores/auth';
 import type { UserVO } from '@/types/user';
 
 const route = useRoute();
+const message = useMessage();
+const authStore = useAuthStore();
+
 const user = ref<UserVO | null>(null);
 const loading = ref(true);
+const following = ref(false);
+const followLoading = ref(false);
+const followerCount = ref(0);
+const followingCount = ref(0);
+
+const currentUserId = authStore.user?.id;
 
 onMounted(async () => {
   const id = Number(route.params.id);
-  if (id) {
-    try {
-      user.value = await getUserById(id);
-    } catch {
-      user.value = null;
+  if (!id) { loading.value = false; return; }
+  try {
+    const [u, counts] = await Promise.all([
+      getUserById(id),
+      getFollowCounts(id),
+    ]);
+    user.value = u;
+    followerCount.value = counts.followers;
+    followingCount.value = counts.following;
+
+    if (currentUserId && currentUserId !== id) {
+      following.value = await isFollowing(id);
     }
+  } catch {
+    user.value = null;
   }
   loading.value = false;
 });
+
+async function toggleFollow() {
+  if (!user.value) return;
+  followLoading.value = true;
+  try {
+    if (following.value) {
+      await unfollow(user.value.id);
+      following.value = false;
+      followerCount.value--;
+      message.success('已取消关注');
+    } else {
+      await follow(user.value.id);
+      following.value = true;
+      followerCount.value++;
+      message.success('关注成功');
+    }
+  } catch {
+    message.error('操作失败');
+  } finally {
+    followLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -43,10 +85,27 @@ onMounted(async () => {
             <span class="stat-value">{{ user.points }}</span>
             <span class="stat-label">积分</span>
           </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ followerCount }}</span>
+            <span class="stat-label">粉丝</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ followingCount }}</span>
+            <span class="stat-label">关注</span>
+          </div>
         </div>
         <div v-if="user.bio" class="bio">
           <p>{{ user.bio }}</p>
         </div>
+        <NSpace v-if="currentUserId && currentUserId !== user.id" class="actions">
+          <NButton
+            :type="following ? 'default' : 'primary'"
+            :loading="followLoading"
+            @click="toggleFollow"
+          >
+            {{ following ? '已关注' : '关注' }}
+          </NButton>
+        </NSpace>
       </NCard>
     </template>
     <template v-else>
@@ -98,5 +157,6 @@ onMounted(async () => {
   background: #f9f9f9;
   border-radius: 8px;
 }
+.actions { margin-top: 16px; }
 .not-found { text-align: center; color: #999; margin-top: 80px; }
 </style>

@@ -340,3 +340,16 @@ CREATE TABLE points_logs (
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_user_time (user_id, created_at)
 ) ENGINE=InnoDB COMMENT='积分流水';
+
+-- ============================================================
+-- 18. follows 用户关注
+-- ============================================================
+CREATE TABLE follows (
+  id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id   BIGINT UNSIGNED NOT NULL,
+  follower_id BIGINT UNSIGNED NOT NULL COMMENT '关注者',
+  followee_id BIGINT UNSIGNED NOT NULL COMMENT '被关注者',
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_follow (follower_id, followee_id),
+  KEY idx_followee (followee_id)
+) ENGINE=InnoDB COMMENT='用户关注';

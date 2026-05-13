@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { NButton, NCard, NInput, NTag, NSpace, useMessage } from 'naive-ui';
 import { getMyProfile, updateProfile } from '@/api/users';
 import { getUserAchievements } from '@/api/achievement';
+import { getFollowCounts } from '@/api/follows';
 import { useAuthStore } from '@/stores/auth';
 import type { UserVO } from '@/types/user';
 import type { AchievementVO } from '@/types/achievement';
@@ -15,6 +16,8 @@ const achievements = ref<AchievementVO[]>([]);
 const loading = ref(true);
 const editing = ref(false);
 const saving = ref(false);
+const followerCount = ref(0);
+const followingCount = ref(0);
 
 const editForm = ref({
   nickname: '',
@@ -29,7 +32,13 @@ async function loadProfile() {
   try {
     user.value = await getMyProfile();
     authStore.setUser(user.value);
-    achievements.value = await getUserAchievements(user.value.id);
+    const [achs, counts] = await Promise.all([
+      getUserAchievements(user.value.id),
+      getFollowCounts(user.value.id),
+    ]);
+    achievements.value = achs;
+    followerCount.value = counts.followers;
+    followingCount.value = counts.following;
   } catch {
     message.error('获取用户信息失败');
   } finally {
@@ -95,6 +104,14 @@ onMounted(loadProfile);
             <div class="stat-item">
               <span class="stat-value">{{ user.points }}</span>
               <span class="stat-label">积分</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ followerCount }}</span>
+              <span class="stat-label">粉丝</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ followingCount }}</span>
+              <span class="stat-label">关注</span>
             </div>
           </div>
           <div v-if="user.bio" class="bio">
