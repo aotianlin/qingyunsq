@@ -1,10 +1,12 @@
 package com.campusforum.ai.service;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 
 @Service
+@ConditionalOnProperty(name = "ai.provider", havingValue = "mock", matchIfMissing = true)
 public class MockAiService implements AiService {
 
     private static final Set<String> RISK_KEYWORDS = Set.of(
