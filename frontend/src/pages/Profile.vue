@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { NButton, NCard, NInput, NTag, NSpace, useMessage } from 'naive-ui';
 import { getMyProfile, updateProfile } from '@/api/users';
 import { getUserAchievements } from '@/api/achievement';
@@ -8,6 +9,7 @@ import { useAuthStore } from '@/stores/auth';
 import type { UserVO } from '@/types/user';
 import type { AchievementVO } from '@/types/achievement';
 
+const router = useRouter();
 const message = useMessage();
 const authStore = useAuthStore();
 
@@ -105,11 +107,11 @@ onMounted(loadProfile);
               <span class="stat-value">{{ user.points }}</span>
               <span class="stat-label">积分</span>
             </div>
-            <div class="stat-item">
+            <div class="stat-item clickable" @click="router.push(`/users/${user.id}/follows`)">
               <span class="stat-value">{{ followerCount }}</span>
               <span class="stat-label">粉丝</span>
             </div>
-            <div class="stat-item">
+            <div class="stat-item clickable" @click="router.push(`/users/${user.id}/follows`)">
               <span class="stat-value">{{ followingCount }}</span>
               <span class="stat-label">关注</span>
             </div>
@@ -206,6 +208,7 @@ onMounted(loadProfile);
 }
 .stat-value { font-size: 24px; font-weight: bold; color: #18a058; }
 .stat-label { font-size: 12px; color: #999; }
+.stat-item.clickable { cursor: pointer; }
 .bio {
   margin: 16px 0;
   padding: 12px;

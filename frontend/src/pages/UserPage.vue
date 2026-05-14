@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { NCard, NButton, NSpace, useMessage } from 'naive-ui';
 import { getUserById } from '@/api/users';
 import { follow, unfollow, isFollowing, getFollowCounts } from '@/api/follows';
@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth';
 import type { UserVO } from '@/types/user';
 
 const route = useRoute();
+const router = useRouter();
 const message = useMessage();
 const authStore = useAuthStore();
 
@@ -85,11 +86,11 @@ async function toggleFollow() {
             <span class="stat-value">{{ user.points }}</span>
             <span class="stat-label">积分</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item clickable" @click="router.push(`/users/${user.id}/follows`)">
             <span class="stat-value">{{ followerCount }}</span>
             <span class="stat-label">粉丝</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item clickable" @click="router.push(`/users/${user.id}/follows`)">
             <span class="stat-value">{{ followingCount }}</span>
             <span class="stat-label">关注</span>
           </div>
@@ -151,6 +152,7 @@ async function toggleFollow() {
 }
 .stat-value { font-size: 24px; font-weight: bold; color: #18a058; }
 .stat-label { font-size: 12px; color: #999; }
+.stat-item.clickable { cursor: pointer; }
 .bio {
   margin: 16px 0;
   padding: 12px;

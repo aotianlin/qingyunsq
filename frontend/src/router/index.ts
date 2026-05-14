@@ -32,6 +32,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/UserPage.vue'),
   },
   {
+    path: '/users/:id/follows',
+    name: 'follows-list',
+    component: () => import('@/pages/FollowsList.vue'),
+  },
+  {
     path: '/square',
     name: 'square',
     component: () => import('@/pages/Square.vue'),
