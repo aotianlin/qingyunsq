@@ -129,7 +129,7 @@ CampusForum/
 - **分页**：游标分页优先（`id < lastId limit n`），避免深翻页 OFFSET
 - **时间格式**：ISO 8601
 
-## 当前状态（2026-05-12）
+## 当前状态（2026-05-14）
 
 ### 已完成
 
@@ -137,72 +137,72 @@ CampusForum/
 | 模块       | 内容                                            | 测试数 |
 | -------- | --------------------------------------------- | --- |
 | M1 用户系统  | 注册/登录/个人资料/CAS预留                              | 4   |
-| M2 全校广场  | 发帖/帖子流/详情/评论/点赞/游标分页                          | 5   |
-| M3 学习空间  | 空间CRUD/成员管理/加入/审核                             | 4   |
+| M2 全校广场  | 发帖/帖子流/详情/评论/点赞/游标分页/置顶有效期                      | 5   |
+| M3 学习空间  | 空间CRUD/成员管理/加入/审核/空间内帖子审核                       | 4   |
 | M4 自律打卡  | 挑战创建/每日打卡/连续统计/排行榜                            | 5   |
-| M5 资源分享  | 文件上传/分类下载/本地存储                                | 5   |
+| M5 资源分享  | 文件上传/分类下载/本地存储/MinIO/OSS                     | 5   |
 | M6 问答系统  | 悬赏提问/回答采纳                                     | 4   |
-| M7 通知中心  | 点赞/评论/回复/采纳/申请通知+已读                           | 7   |
-| M8 管理后台  | 仪表盘/用户/帖子/空间管理/审计日志                           | 5   |
-| X4 搜索服务  | MySQL FULLTEXT 全局搜索                           | 5   |
-| X3 AI 能力 | AiService接口/MockAiService(摘要/审核/标签/问答)        | 9   |
+| M7 通知中心  | 点赞/评论/回复/采纳/申请通知+已读+WebSocket实时推送             | 7   |
+| M8 管理后台  | 仪表盘/用户/帖子/空间/租户/审计/敏感词/举报/AI配置/批量操作             | 5   |
+| X4 搜索服务  | MeiliSearch + MySQL FULLTEXT 双模搜索             | 5   |
+| X3 AI 能力 | AiService 可插拔（OpenAI/Mock），摘要/审核/标签/问答          | 9   |
 | X1 多租户   | TenantContext/TenantLineInnerInterceptor/隔离测试 | 4   |
 | X5 积分系统  | PointsService 流水记录、登录/发帖/打卡/采纳自动奖励          | 7   |
-| 举报系统    | 用户举报创建、管理后台处理/驳回                             | 5   |
-| WebSocket | 通知创建后实时推送到在线用户                                | —   |
+| 举报系统    | 用户举报创建、管理后台处理/驳回/批量操作                        | 5   |
+| 成就系统    | 徽章自动触发（发帖/点赞/采纳/打卡）、种子数据、个人主页展示              | 8   |
+| 敏感词管理  | 内容过滤、Admin CRUD 管理页                          | 5   |
+| 用户关注    | 关注/取关/粉丝列表/关注列表/计数                           | 8   |
+| 租户管理    | Tenant CRUD、品牌设置、AI 配置                       | —   |
+| Knife4j  | OpenAPI 文档自动生成，/doc.html 可访问                 | —   |
+| CI/CD   | GitHub Actions — JDK 21、自动化测试                | —   |
 
 
-**总计 69 个测试全部通过，前端构建成功。P0 任务全部完成。**
+**总计 87 个测试全部通过，前端构建成功。P0/P1 任务全部完成。**
 
-### 下一步待做（按优先级）
+### 可选后续增强
 
-#### 优先级 P1 — 增强功能
-
-1. **成就系统** — 徽章自动触发
-  - 已有: `achievements` + `user_achievements` 表
-  - 待做: AchievementService 检查触发条件 → 授予徽章 → 个人主页展示
-2. **敏感词管理** — 内容自动审核
-  - 已有: `sensitive_words` 表
-  - 待做: SensitiveWordService 内容过滤 + 管理后台 CRUD
-3. **OpenAI Compat 实现** — 真实 AI 接入
-  - 已有: AiService 接口 + MockAiService
-  - 待做: OpenAiCompatService（LangChain4j 调用 OpenAI/DeepSeek/Ollama）
-4. **MeiliSearch 实际集成** — 搜索引擎切换
-  - 已有: MySQL FULLTEXT（当前默认）
-  - 待做: MeiliSearchService impl, 索引管理, 搜索切换
-5. **Knife4j/Swagger API 文档** — 接口自动文档
-6. **用户关注系统** — 关注/取关/关注流
-  - 待做: follows 表 + FollowController + FollowService
-7. **GitHub Actions CI/CD** — 自动化测试与部署
+- **CAS/OAuth 单点登录** — 对接高校统一认证
+- **PWA 离线支持** — Service Worker 缓存策略优化
+- **数据统计面板** — 用户增长/内容趋势图表
+- **国际化 i18n** — 中英文切换
 
 ### 关键代码位置
 
 
-| 文件                                      | 作用                                         |
-| --------------------------------------- | ------------------------------------------ |
-| `admin/security/AdminStpInterface.java` | SaToken 权限映射（role→permission）              |
-| `admin/service/AuditLogService.java`    | 审计日志（记录所有 admin 写操作）                       |
-| `points/service/PointsService.java`     | 积分流水 + 余额查询，登录/发帖/打卡/采纳自动奖励             |
-| `report/service/ReportService.java`     | 用户举报创建、管理员处理/驳回                            |
-| `notify/websocket/SessionRegistry.java` | WebSocket 会话管理，按 userId 推送消息                |
-| `infra/MyBatisPlusConfig.java`          | TenantLineInnerInterceptor（自动注入 tenant_id） |
-| `tenant/TenantInterceptor.java`         | 请求级租户上下文设置                                 |
-| `ai/service/AiService.java`             | AI 接口（可插拔，当前 MockAiService）                |
-| `search/service/SearchService.java`     | 统一搜索入口（FULLTEXT + LIKE）                    |
-| `infra/CampusMetaObjectHandler.java`    | MyBatis-Plus 自动填充（createdAt/updatedAt）     |
+| 文件                                      | 作用                                               |
+| --------------------------------------- | ------------------------------------------------ |
+| `admin/security/AdminStpInterface.java` | SaToken 权限映射（role→permission）                    |
+| `admin/service/AuditLogService.java`    | 审计日志（记录所有 admin 写操作）                             |
+| `points/service/PointsService.java`     | 积分流水 + 余额查询，登录/发帖/打卡/采纳自动奖励                   |
+| `report/service/ReportService.java`     | 用户举报创建、管理员处理/驳回                                  |
+| `notify/websocket/SessionRegistry.java` | WebSocket 会话管理，按 userId 推送消息                      |
+| `infra/MyBatisPlusConfig.java`          | TenantLineInnerInterceptor（自动注入 tenant_id）       |
+| `tenant/TenantInterceptor.java`         | 请求级租户上下文设置                                       |
+| `ai/service/AiService.java`             | AI 接口（可插拔，MockAiService / OpenAiCompatService）   |
+| `ai/service/OpenAiCompatService.java`   | LangChain4j OpenAI 兼容协议实现（DeepSeek/Ollama/智谱） |
+| `search/service/SearchService.java`     | 统一搜索入口（MeiliSearch + MySQL FULLTEXT）            |
+| `search/service/MeiliSearchClient.java` | MeiliSearch REST 客户端（索引/搜索/删除）                   |
+| `infra/CampusMetaObjectHandler.java`    | MyBatis-Plus 自动填充（createdAt/updatedAt）           |
+| `infra/MinioStorageService.java`        | MinIO/S3 存储适配（条件装配）                              |
+| `infra/OssStorageService.java`          | 阿里云 OSS 存储适配（条件装配）                               |
+| `follow/service/FollowService.java`     | 关注/取关/粉丝列表/关注列表                                  |
+| `achievement/service/AchievementService.java` | 徽章自动触发、用户成就查询                                |
+| `sensitive/service/SensitiveWordService.java` | 敏感词内容过滤、管理 CRUD                              |
+| `tenant/service/TenantService.java`     | 租户 CRUD、品牌设置、AI 配置                               |
 
 
 ### 数据库表状态
 
 
-| 表                                    | 状态                              |
-| ------------------------------------ | ------------------------------- |
-| `users` ~ `notifications`            | 已有 Service/Controller，完整 CRUD   |
-| `points_logs`                        | 已实现 PointsService 自动记录          |
-| `reports`                            | 已实现 ReportService 创建/处理         |
-| `audit_logs`                         | 仅 AdminAuditLogController（只读查询） |
-| `sensitive_words`                    | 仅有表，无 Service/Controller        |
-| `achievements` + `user_achievements` | 仅有表，无 Service/Controller        |
-| `tenants`                            | 仅有表，仅在 standalone 模式使用          |
+| 表                                    | 状态                                   |
+| ------------------------------------ | ------------------------------------ |
+| `users` ~ `notifications`            | 已有 Service/Controller，完整 CRUD        |
+| `points_logs`                        | PointsService 自动记录                    |
+| `reports`                            | ReportService 创建/处理/批量               |
+| `audit_logs`                         | AuditLogService 记录 + Admin 只读查询      |
+| `sensitive_words`                    | SensitiveWordService 过滤 + Admin CRUD |
+| `achievements` + `user_achievements` | AchievementService 自动触发 + 种子数据       |
+| `tenants`                            | TenantService 完整 CRUD + 品牌/AI 配置     |
+| `follows`                            | FollowService 关注/取关/列表/计数           |
 
 
