@@ -49,3 +49,12 @@ export async function getMe(): Promise<UserVO> {
 export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
   await request({ method: 'PUT', url: '/auth/password', data: { oldPassword, newPassword } });
 }
+
+export async function forgotPassword(email: string): Promise<{ message: string; token: string }> {
+  const res = await request<{ message: string; token: string }>({ method: 'POST', url: '/auth/forgot-password', data: { email } });
+  return res.data;
+}
+
+export async function resetPassword(email: string, token: string, newPassword: string): Promise<void> {
+  await request({ method: 'POST', url: '/auth/reset-password', data: { email, token, newPassword } });
+}

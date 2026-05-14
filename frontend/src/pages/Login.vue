@@ -50,6 +50,9 @@ async function handleLogin() {
       <div class="link-text">
         <router-link to="/register">没有账号？立即注册</router-link>
       </div>
+      <div class="link-text">
+        <router-link to="/forgot-password">忘记密码？</router-link>
+      </div>
     </NCard>
   </div>
 </template>

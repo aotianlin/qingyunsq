@@ -21,6 +21,12 @@ const routes: RouteRecordRaw[] = [
     meta: { guest: true },
   },
   {
+    path: '/forgot-password',
+    name: 'forgot-password',
+    component: () => import('@/pages/ForgotPassword.vue'),
+    meta: { guest: true },
+  },
+  {
     path: '/profile',
     name: 'profile',
     component: () => import('@/pages/Profile.vue'),

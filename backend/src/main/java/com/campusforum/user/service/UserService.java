@@ -17,8 +17,10 @@ import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.List;
 
 @Slf4j
@@ -111,6 +113,45 @@ public class UserService {
         }
         user.setPasswordHash(BCrypt.hashpw(newPwd, BCrypt.gensalt(10)));
         userMapper.updateById(user);
+    }
+
+    private static final SecureRandom secureRandom = new SecureRandom();
+    private static final Base64.Encoder base64Encoder = Base64.getUrlEncoder().withoutPadding();
+
+    public String forgotPassword(String email) {
+        User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getEmail, email));
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        byte[] bytes = new byte[32];
+        secureRandom.nextBytes(bytes);
+        String token = base64Encoder.encodeToString(bytes);
+        user.setResetToken(token);
+        user.setResetTokenExpires(LocalDateTime.now().plusHours(1));
+        userMapper.updateById(user);
+        log.info("Password reset token generated for user {}, token={}", user.getId(), token);
+        return token;
+    }
+
+    @Transactional
+    public void resetPassword(String email, String token, String newPassword) {
+        User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getEmail, email));
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        if (user.getResetToken() == null || !user.getResetToken().equals(token)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "重置令牌无效");
+        }
+        if (user.getResetTokenExpires() == null || user.getResetTokenExpires().isBefore(LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "重置令牌已过期");
+        }
+        user.setPasswordHash(BCrypt.hashpw(newPassword, BCrypt.gensalt(10)));
+        user.setResetToken(null);
+        user.setResetTokenExpires(null);
+        userMapper.updateById(user);
+        log.info("Password reset for user {}", user.getId());
     }
 
     public UserVO getById(Long userId) {

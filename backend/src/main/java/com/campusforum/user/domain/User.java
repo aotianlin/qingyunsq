@@ -25,4 +25,6 @@ public class User extends BaseEntity {
     private Long points;
     private Integer status;
     private LocalDateTime lastLoginAt;
+    private String resetToken;
+    private LocalDateTime resetTokenExpires;
 }

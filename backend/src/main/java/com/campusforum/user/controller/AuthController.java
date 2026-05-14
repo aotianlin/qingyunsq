@@ -54,4 +54,16 @@ public class AuthController {
         userService.changePassword(userId, body.get("oldPassword"), body.get("newPassword"));
         return R.ok();
     }
+
+    @PostMapping("/forgot-password")
+    public R<Map<String, String>> forgotPassword(@RequestBody Map<String, String> body) {
+        String token = userService.forgotPassword(body.get("email"));
+        return R.ok(Map.of("message", "重置令牌已生成，请检查邮箱", "token", token));
+    }
+
+    @PostMapping("/reset-password")
+    public R<?> resetPassword(@RequestBody Map<String, String> body) {
+        userService.resetPassword(body.get("email"), body.get("token"), body.get("newPassword"));
+        return R.ok();
+    }
 }
