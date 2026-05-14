@@ -22,6 +22,7 @@ import com.campusforum.qa.mapper.QaQuestionMapper;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
+import com.campusforum.user.service.UserService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +52,7 @@ public class PostService {
     private final AchievementService achievementService;
     private final MeiliSearchClient meiliSearchClient;
     private final FollowService followService;
+    private final UserService userService;
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
@@ -109,6 +111,20 @@ public class PostService {
 
         // 解析 @提及 并发送通知
         notifyMentionedUsers(userId, content, "/posts/" + post.getId());
+
+        // QA 帖子：通知标签订阅者
+        if ("QA".equals(req.getType()) && req.getTags() != null && !req.getTags().isEmpty()) {
+            Set<Long> subscriberIds = userService.findSubscribedUserIds(req.getTags());
+            User author = userMapper.selectById(userId);
+            String authorName = author != null ? author.getNickname() : "有人";
+            for (Long subId : subscriberIds) {
+                if (!subId.equals(userId)) {
+                    notifyService.create(subId, userId, "TAG_SUBSCRIBE",
+                            "标签订阅", authorName + " 发布了你订阅标签的问答",
+                            "/posts/" + post.getId());
+                }
+            }
+        }
 
         return toVO(post, userId);
     }

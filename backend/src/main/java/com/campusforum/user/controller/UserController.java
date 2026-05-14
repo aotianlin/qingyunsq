@@ -44,6 +44,19 @@ public class UserController {
         return R.ok();
     }
 
+    @GetMapping("/me/tag-subscriptions")
+    public R<Set<String>> getTagSubscriptions() {
+        long userId = StpUtil.getLoginIdAsLong();
+        return R.ok(userService.getTagSubscriptions(userId));
+    }
+
+    @PutMapping("/me/tag-subscriptions")
+    public R<?> updateTagSubscriptions(@RequestBody Map<String, Set<String>> body) {
+        long userId = StpUtil.getLoginIdAsLong();
+        userService.updateTagSubscriptions(userId, body.getOrDefault("tags", Set.of()));
+        return R.ok();
+    }
+
     @GetMapping("/{id}")
     public R<UserVO> getById(@PathVariable Long id) {
         return R.ok(userService.getById(id));

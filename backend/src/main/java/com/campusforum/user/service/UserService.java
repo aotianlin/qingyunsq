@@ -284,6 +284,53 @@ public class UserService {
         userMapper.updateById(user);
     }
 
+    public Set<String> getTagSubscriptions(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null || user.getTagSubscriptions() == null) return new HashSet<>();
+        try {
+            return jsonMapper.readValue(user.getTagSubscriptions(), new TypeReference<Set<String>>() {});
+        } catch (JsonProcessingException e) {
+            return new HashSet<>();
+        }
+    }
+
+    @Transactional
+    public void updateTagSubscriptions(Long userId, Set<String> tags) {
+        User user = userMapper.selectById(userId);
+        if (user == null) throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        try {
+            user.setTagSubscriptions(jsonMapper.writeValueAsString(tags));
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR);
+        }
+        userMapper.updateById(user);
+    }
+
+    /**
+     * 查找订阅了指定标签的所有用户 ID。
+     */
+    public Set<Long> findSubscribedUserIds(List<String> tags) {
+        if (tags == null || tags.isEmpty()) return Set.of();
+        Set<Long> result = new HashSet<>();
+        List<User> allUsers = userMapper.selectList(new LambdaQueryWrapper<User>()
+                .isNotNull(User::getTagSubscriptions)
+                .ne(User::getTagSubscriptions, "")
+                .ne(User::getTagSubscriptions, "[]"));
+        for (User user : allUsers) {
+            try {
+                Set<String> subs = jsonMapper.readValue(user.getTagSubscriptions(),
+                        new TypeReference<Set<String>>() {});
+                for (String tag : tags) {
+                    if (subs.contains(tag)) {
+                        result.add(user.getId());
+                        break;
+                    }
+                }
+            } catch (JsonProcessingException ignored) {}
+        }
+        return result;
+    }
+
     private UserVO toVO(User user) {
         return UserVO.builder()
                 .id(user.getId())

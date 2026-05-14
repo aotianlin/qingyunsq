@@ -31,3 +31,12 @@ export async function getMuteSettings(): Promise<string[]> {
 export async function updateMuteSettings(mutedTypes: string[]): Promise<void> {
   await request({ method: 'PUT', url: '/users/me/mute-settings', data: { mutedTypes } });
 }
+
+export async function getTagSubscriptions(): Promise<string[]> {
+  const res = await request<string[]>({ method: 'GET', url: '/users/me/tag-subscriptions' });
+  return res.data;
+}
+
+export async function updateTagSubscriptions(tags: string[]): Promise<void> {
+  await request({ method: 'PUT', url: '/users/me/tag-subscriptions', data: { tags } });
+}

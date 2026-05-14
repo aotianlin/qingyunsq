@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NCard, NInput, NTag, NSpace, NCheckbox, useMessage } from 'naive-ui';
-import { getMyProfile, updateProfile, getMuteSettings, updateMuteSettings } from '@/api/users';
+import { getMyProfile, updateProfile, getMuteSettings, updateMuteSettings, getTagSubscriptions, updateTagSubscriptions } from '@/api/users';
 import { getUserAchievements } from '@/api/achievement';
 import { getFollowCounts } from '@/api/follows';
 import { useAuthStore } from '@/stores/auth';
@@ -21,6 +21,9 @@ const saving = ref(false);
 const followerCount = ref(0);
 const followingCount = ref(0);
 const muteTypes = ref<string[]>([]);
+const tagSubscriptions = ref<string[]>([]);
+const newTag = ref('');
+const tagSaving = ref(false);
 const notifTypes = [
   { key: 'LIKE', label: '点赞通知' },
   { key: 'COMMENT', label: '评论通知' },
@@ -28,6 +31,7 @@ const notifTypes = [
   { key: 'ACCEPT', label: '采纳通知' },
   { key: 'JOIN', label: '加入申请通知' },
   { key: 'MENTION', label: '@提及通知' },
+  { key: 'TAG_SUBSCRIBE', label: '标签订阅通知' },
 ];
 
 const editForm = ref({
@@ -54,6 +58,11 @@ async function loadProfile() {
       muteTypes.value = (await getMuteSettings()) || [];
     } catch {
       muteTypes.value = [];
+    }
+    try {
+      tagSubscriptions.value = (await getTagSubscriptions()) || [];
+    } catch {
+      tagSubscriptions.value = [];
     }
   } catch {
     message.error('获取用户信息失败');
@@ -105,6 +114,37 @@ async function toggleMute(type: string) {
     } catch {
       message.error('设置失败');
     }
+  }
+
+async function addTag() {
+    const tag = newTag.value.trim();
+    if (!tag) return;
+    if (tagSubscriptions.value.includes(tag)) {
+      message.warning('已订阅该标签');
+      return;
+    }
+    tagSaving.value = true;
+    try {
+      const updated = [...tagSubscriptions.value, tag];
+      await updateTagSubscriptions(updated);
+      tagSubscriptions.value = updated;
+      newTag.value = '';
+    } catch {
+      message.error('订阅失败');
+    }
+    tagSaving.value = false;
+  }
+
+  async function removeTag(tag: string) {
+    tagSaving.value = true;
+    try {
+      const updated = tagSubscriptions.value.filter(t => t !== tag);
+      await updateTagSubscriptions(updated);
+      tagSubscriptions.value = updated;
+    } catch {
+      message.error('取消订阅失败');
+    }
+    tagSaving.value = false;
   }
 
 onMounted(loadProfile);
@@ -176,6 +216,26 @@ onMounted(loadProfile);
             >
               {{ nt.label }}
             </NCheckbox>
+          </div>
+
+          <div class="tag-sub-section">
+            <h4>标签订阅</h4>
+            <p class="hint">订阅后，带该标签的问答发布时会通知你</p>
+            <div class="tag-input-row">
+              <NInput v-model:value="newTag" placeholder="输入标签名" size="small" style="width: 160px" />
+              <NButton size="small" type="primary" :loading="tagSaving" @click="addTag">订阅</NButton>
+            </div>
+            <NSpace v-if="tagSubscriptions.length" class="tag-list">
+              <NTag
+                v-for="tag in tagSubscriptions"
+                :key="tag"
+                closable
+                @close="removeTag(tag)"
+              >
+                {{ tag }}
+              </NTag>
+            </NSpace>
+            <p v-else class="no-tags">暂未订阅任何标签</p>
           </div>
 
           <NSpace class="actions">
@@ -296,6 +356,12 @@ onMounted(loadProfile);
 }
 .mute-section { margin-top: 16px; }
 .mute-section h4 { margin: 0 0 8px; font-size: 15px; color: #333; }
+.tag-sub-section { margin-top: 20px; }
+.tag-sub-section h4 { margin: 0 0 4px; font-size: 15px; color: #333; }
+.tag-sub-section .hint { margin: 0 0 8px; font-size: 12px; color: #999; }
+.tag-input-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.tag-list { margin-top: 4px; }
+.no-tags { font-size: 13px; color: #ccc; }
 .actions { margin-top: 16px; }
 .edit-form { max-width: 400px; }
 .edit-form label { display: block; margin: 12px 0 4px; font-size: 14px; color: #666; }

@@ -28,4 +28,5 @@ public class User extends BaseEntity {
     private String resetToken;
     private LocalDateTime resetTokenExpires;
     private String muteSettings;
+    private String tagSubscriptions;
 }
