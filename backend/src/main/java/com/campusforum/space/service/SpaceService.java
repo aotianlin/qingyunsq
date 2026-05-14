@@ -318,6 +318,18 @@ public class SpaceService {
                 .toList();
     }
 
+    public void checkSpaceAdmin(Long spaceId, Long userId) {
+        SpaceMember member = memberMapper.selectOne(new LambdaQueryWrapper<SpaceMember>()
+                .eq(SpaceMember::getSpaceId, spaceId)
+                .eq(SpaceMember::getUserId, userId)
+                .eq(SpaceMember::getStatus, 1));
+        boolean isAdmin = member != null &&
+                ("OWNER".equals(member.getRole()) || "ADMIN".equals(member.getRole()));
+        if (!isAdmin) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+    }
+
     private void checkOwnership(Long spaceId, Long userId, Space space) {
         Space s = space != null ? space : spaceMapper.selectById(spaceId);
         SpaceMember member = memberMapper.selectOne(new LambdaQueryWrapper<SpaceMember>()

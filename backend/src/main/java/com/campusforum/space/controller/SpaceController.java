@@ -2,6 +2,8 @@ package com.campusforum.space.controller;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.campusforum.common.R;
+import com.campusforum.post.dto.PostVO;
+import com.campusforum.post.service.PostService;
 import com.campusforum.space.dto.*;
 import com.campusforum.space.service.SpaceService;
 import jakarta.validation.Valid;
@@ -16,6 +18,7 @@ import java.util.List;
 public class SpaceController {
 
     private final SpaceService spaceService;
+    private final PostService postService;
 
     @PostMapping
     public R<SpaceVO> create(@Valid @RequestBody CreateSpaceRequest req) {
@@ -71,6 +74,32 @@ public class SpaceController {
         } else if ("remove".equals(action)) {
             spaceService.removeMember(id, operatorId, userId);
         }
+        return R.ok();
+    }
+
+    @GetMapping("/{id}/posts")
+    public R<List<PostVO>> spacePosts(@PathVariable Long id,
+                                       @RequestParam(required = false) Long cursor,
+                                       @RequestParam(defaultValue = "20") int limit) {
+        return R.ok(postService.pageBySpace(id, false, cursor, limit));
+    }
+
+    @GetMapping("/{id}/posts/all")
+    public R<List<PostVO>> spacePostsAll(@PathVariable Long id,
+                                          @RequestParam(required = false) Long cursor,
+                                          @RequestParam(defaultValue = "20") int limit) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        spaceService.checkSpaceAdmin(id, userId);
+        return R.ok(postService.pageBySpace(id, true, cursor, limit));
+    }
+
+    @PutMapping("/{id}/posts/{postId}/status")
+    public R<Void> setPostStatus(@PathVariable Long id,
+                                  @PathVariable Long postId,
+                                  @RequestParam Integer status) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        spaceService.checkSpaceAdmin(id, userId);
+        postService.setStatus(postId, status);
         return R.ok();
     }
 

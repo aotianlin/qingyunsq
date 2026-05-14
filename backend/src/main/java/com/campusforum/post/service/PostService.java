@@ -239,6 +239,23 @@ public class PostService {
         }
     }
 
+    public List<PostVO> pageBySpace(Long spaceId, boolean includeHidden, Long cursor, int limit) {
+        int size = Math.min(limit, 50);
+        LambdaQueryWrapper<Post> qw = new LambdaQueryWrapper<>();
+        qw.eq(Post::getSpaceId, spaceId);
+        if (!includeHidden) {
+            qw.eq(Post::getStatus, 1);
+        }
+        if (cursor != null) {
+            qw.lt(Post::getId, cursor);
+        }
+        qw.orderByDesc(Post::getId);
+        qw.last("LIMIT " + size);
+
+        Long currentUserId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
+        return postMapper.selectList(qw).stream().map(p -> toVO(p, currentUserId)).toList();
+    }
+
     public List<PostVO> listPostsForAdmin(String keyword, Integer status, String scope, Long cursor, int limit) {
         int size = Math.min(limit, 50);
         LambdaQueryWrapper<Post> qw = new LambdaQueryWrapper<>();
