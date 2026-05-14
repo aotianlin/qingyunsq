@@ -63,3 +63,8 @@ export async function getLeaderboard(id: number): Promise<LeaderboardEntry[]> {
 export async function deleteChallenge(id: number): Promise<void> {
   await request({ method: 'DELETE', url: `/checkin/challenges/${id}` });
 }
+
+export async function shareCheckinRecord(recordId: number): Promise<{ postId: number }> {
+  const res = await request<{ postId: number }>({ method: 'POST', url: `/checkin/records/${recordId}/share` });
+  return res.data;
+}

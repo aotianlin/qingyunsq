@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NCard, NButton, NTag, NSpace, NSpin, NInput, NEmpty, useMessage } from 'naive-ui';
-import { getChallengeById, checkin, getRecords, getLeaderboard, deleteChallenge } from '@/api/checkin';
+import { getChallengeById, checkin, getRecords, getLeaderboard, deleteChallenge, shareCheckinRecord } from '@/api/checkin';
 import { useAuthStore } from '@/stores/auth';
 import type { CheckinChallengeVO, CheckinRecordVO, LeaderboardEntry } from '@/types/checkin';
 
@@ -63,6 +63,16 @@ async function handleDelete() {
     router.replace('/checkin');
   } catch {
     message.error('删除失败');
+  }
+}
+
+async function handleShare(recordId: number) {
+  try {
+    const res = await shareCheckinRecord(recordId);
+    message.success('已分享到广场');
+    router.push(`/posts/${res.postId}`);
+  } catch {
+    message.error('分享失败');
   }
 }
 
@@ -166,6 +176,15 @@ onMounted(load);
               <span class="record-date">{{ r.checkinDate }}</span>
             </div>
             <p v-if="r.content" class="record-content">{{ r.content }}</p>
+            <NButton
+              v-if="r.userId === currentUserId"
+              size="tiny"
+              text
+              type="info"
+              @click="handleShare(r.id)"
+            >
+              分享到广场
+            </NButton>
           </div>
         </div>
       </NCard>

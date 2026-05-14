@@ -4,11 +4,13 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.campusforum.checkin.dto.*;
 import com.campusforum.checkin.service.CheckinService;
 import com.campusforum.common.R;
+import com.campusforum.post.domain.Post;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/checkin")
@@ -67,5 +69,12 @@ public class CheckinController {
         Long userId = StpUtil.getLoginIdAsLong();
         checkinService.delete(id, userId);
         return R.ok();
+    }
+
+    @PostMapping("/records/{id}/share")
+    public R<Map<String, Object>> shareToSquare(@PathVariable Long id) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        Post post = checkinService.shareToSquare(id, userId);
+        return R.ok(Map.of("postId", post.getId()));
     }
 }

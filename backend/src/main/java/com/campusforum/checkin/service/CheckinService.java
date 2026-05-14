@@ -11,6 +11,8 @@ import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
 import com.campusforum.achievement.service.AchievementService;
 import com.campusforum.points.service.PointsService;
+import com.campusforum.post.domain.Post;
+import com.campusforum.post.mapper.PostMapper;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
@@ -36,6 +38,7 @@ public class CheckinService {
     private final UserMapper userMapper;
     private final PointsService pointsService;
     private final AchievementService achievementService;
+    private final PostMapper postMapper;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -243,6 +246,42 @@ public class CheckinService {
         challenge.setStatus(0);
         challengeMapper.updateById(challenge);
         log.info("Checkin challenge deleted: id={}", challengeId);
+    }
+
+    @Transactional
+    public Post shareToSquare(Long recordId, Long userId) {
+        CheckinRecord record = recordMapper.selectById(recordId);
+        if (record == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+        if (!record.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        CheckinChallenge challenge = challengeMapper.selectById(record.getChallengeId());
+        String challengeName = challenge != null ? challenge.getName() : "打卡挑战";
+
+        String content = "[打卡分享] " + challengeName + " — " + record.getCheckinDate() + "\n";
+        if (record.getContent() != null && !record.getContent().isBlank()) {
+            content += record.getContent();
+        }
+
+        Post post = new Post();
+        post.setAuthorId(userId);
+        post.setScope("SQUARE");
+        post.setType("CHECKIN");
+        post.setTitle("[打卡] " + challengeName);
+        post.setContent(content);
+        post.setViewCount(0);
+        post.setLikeCount(0);
+        post.setCommentCount(0);
+        post.setIsPinned(0);
+        post.setIsEssence(0);
+        post.setStatus(1);
+
+        postMapper.insert(post);
+        log.info("Checkin record {} shared to square as post {}", recordId, post.getId());
+        return post;
     }
 
     private int calcStreak(List<CheckinRecord> records) {

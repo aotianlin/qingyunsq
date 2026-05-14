@@ -29,10 +29,11 @@ class ResourceServiceTest {
 
     private Long userId1;
     private Long userId2;
+    private long ts;
 
     @BeforeEach
     void setUp() {
-        long ts = System.currentTimeMillis();
+        ts = System.currentTimeMillis();
         RegisterRequest req = new RegisterRequest();
         req.setEmail("res-user1-" + ts + "@test.com");
         req.setPassword("Test123456");
@@ -48,9 +49,9 @@ class ResourceServiceTest {
 
     @Test
     void shouldUploadResource() {
+        byte[] content = ("PDF content " + ts).getBytes(StandardCharsets.UTF_8);
         MockMultipartFile file = new MockMultipartFile(
-                "file", "test.pdf", "application/pdf",
-                "PDF content".getBytes(StandardCharsets.UTF_8));
+                "file", "test.pdf", "application/pdf", content);
 
         UploadResourceRequest req = new UploadResourceRequest();
         req.setCollege("计算机学院");
@@ -72,21 +73,21 @@ class ResourceServiceTest {
     void shouldGetResourceById() {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "note.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "Word content".getBytes(StandardCharsets.UTF_8));
+                ("Word content "+ts).getBytes(StandardCharsets.UTF_8));
 
         UploadResourceRequest req = new UploadResourceRequest();
         ResourceVO uploaded = resourceService.upload(userId1, file, req);
 
         ResourceVO found = resourceService.getById(uploaded.getId());
         assertThat(found.getFileName()).isEqualTo("note.docx");
-        assertThat(found.getFileSize()).isEqualTo(12);
+        assertThat(found.getFileSize()).isEqualTo(("Word content " + ts).length());
     }
 
     @Test
     void shouldIncrementDownloadCount() {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "data.zip", "application/zip",
-                "zip data".getBytes(StandardCharsets.UTF_8));
+                ("zip data "+ts).getBytes(StandardCharsets.UTF_8));
 
         UploadResourceRequest req = new UploadResourceRequest();
         ResourceVO uploaded = resourceService.upload(userId1, file, req);
@@ -103,7 +104,7 @@ class ResourceServiceTest {
     void shouldListResources() {
         MockMultipartFile file1 = new MockMultipartFile(
                 "file", "a.pdf", "application/pdf",
-                "a".getBytes(StandardCharsets.UTF_8));
+                ("a "+ts).getBytes(StandardCharsets.UTF_8));
 
         UploadResourceRequest req = new UploadResourceRequest();
         req.setCollege("数学学院");
@@ -122,7 +123,7 @@ class ResourceServiceTest {
     void shouldDeleteResource() {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "tmp.txt", "text/plain",
-                "temp".getBytes(StandardCharsets.UTF_8));
+                ("temp "+ts).getBytes(StandardCharsets.UTF_8));
 
         UploadResourceRequest req = new UploadResourceRequest();
         ResourceVO uploaded = resourceService.upload(userId1, file, req);
