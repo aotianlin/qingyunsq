@@ -100,13 +100,6 @@
             <version>8.5.10</version>
         </dependency>
 
-        <!-- MeiliSearch -->
-        <dependency>
-            <groupId>com.meilisearch.sdk</groupId>
-            <artifactId>meilisearch-java</artifactId>
-            <version>0.14.4</version>
-        </dependency>
-
         <!-- Caffeine -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
