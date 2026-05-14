@@ -193,6 +193,13 @@ onMounted(loadPost);
               举报
             </NButton>
             <NButton
+              size="small"
+              type="info"
+              @click="router.push('/posts/new?quote=' + post.id)"
+            >
+              引用
+            </NButton>
+            <NButton
               v-if="currentUserId === post.authorId"
               size="small"
               type="error"

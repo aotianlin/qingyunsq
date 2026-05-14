@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { NButton, NInput, NSelect, NInputNumber, NCard, NSpace, NTag, useMessage } from 'naive-ui';
-import { createPost } from '@/api/posts';
+import { ref, computed, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { NButton, NInput, NSelect, NInputNumber, NCard, NSpace, NTag, NAlert, useMessage } from 'naive-ui';
+import { createPost, getPostById } from '@/api/posts';
+import type { PostVO } from '@/types/post';
 
 const router = useRouter();
+const route = useRoute();
 const message = useMessage();
 
 const title = ref('');
@@ -14,6 +16,23 @@ const bountyPoints = ref(0);
 const topicInput = ref('');
 const topics = ref<string[]>([]);
 const loading = ref(false);
+const quotePostId = ref<number | undefined>();
+const quotedPost = ref<PostVO | null>(null);
+
+const quoteIdParam = route.query.quote;
+if (quoteIdParam) {
+  quotePostId.value = Number(quoteIdParam);
+}
+
+onMounted(async () => {
+  if (quotePostId.value) {
+    try {
+      quotedPost.value = await getPostById(quotePostId.value);
+    } catch {
+      message.warning('引用的帖子不存在');
+    }
+  }
+});
 
 const typeOptions = [
   { label: '普通帖子', value: 'NORMAL' },
@@ -52,6 +71,7 @@ async function submit() {
       scope: 'SQUARE',
       type: postType.value,
       bountyPoints: isQa.value ? bountyPoints.value : undefined,
+      quotePostId: quotePostId.value,
     });
     message.success('发布成功');
     router.push(`/posts/${post.id}`);
@@ -70,6 +90,26 @@ function cancel() {
   <div class="create-page">
     <NCard title="发帖">
       <div class="form">
+        <NAlert
+          v-if="quotedPost"
+          type="info"
+          title="引用帖子"
+          :bordered="false"
+        >
+          <template #header>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              引用 @{{ quotedPost.author?.nickname || '匿名' }} 的帖子
+              <NButton size="tiny" text type="error" @click="quotedPost = null; quotePostId = undefined;">
+                取消引用
+              </NButton>
+            </div>
+          </template>
+          <div class="quoted-preview">
+            <strong>{{ quotedPost.title || '无标题' }}</strong>
+            <p>{{ quotedPost.content.slice(0, 200) }}{{ quotedPost.content.length > 200 ? '...' : '' }}</p>
+          </div>
+        </NAlert>
+
         <NSelect v-model:value="postType" :options="typeOptions" />
 
         <NInput v-model:value="title" placeholder="标题（可选）" class="field" maxlength="255" />
@@ -139,6 +179,17 @@ function cancel() {
 }
 .topic-list {
   flex-wrap: wrap;
+}
+.quoted-preview {
+  max-height: 120px;
+  overflow: hidden;
+  font-size: 13px;
+  color: #666;
+}
+.quoted-preview p {
+  margin: 4px 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 .actions {
   margin-top: 8px;

@@ -50,6 +50,7 @@ export interface CreatePostRequest {
   topics?: string[];
   tags?: string[];
   bountyPoints?: number;
+  quotePostId?: number;
 }
 
 export interface CreateCommentRequest {

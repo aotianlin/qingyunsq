@@ -56,8 +56,23 @@ public class PostService {
         post.setScope(req.getScope());
         post.setSpaceId(req.getSpaceId());
         post.setType(req.getType());
+
+        String content = req.getContent();
+        if (req.getQuotePostId() != null) {
+            Post quoted = postMapper.selectById(req.getQuotePostId());
+            if (quoted == null || quoted.getDeleted() == 1) {
+                throw new BusinessException(ErrorCode.POST_NOT_FOUND);
+            }
+            User quotedAuthor = userMapper.selectById(quoted.getAuthorId());
+            String quotedName = quotedAuthor != null ? quotedAuthor.getNickname() : "未知用户";
+            content = "> **" + quotedName + "** 的原帖：\n> " +
+                    (quoted.getTitle() != null ? "**" + quoted.getTitle() + "**\n> " : "") +
+                    quoted.getContent().replace("\n", "\n> ") +
+                    "\n\n" + (content != null ? content : "");
+            post.setType("QUOTE");
+        }
         post.setTitle(req.getTitle());
-        post.setContent(req.getContent());
+        post.setContent(content);
         post.setViewCount(0);
         post.setLikeCount(0);
         post.setCommentCount(0);
