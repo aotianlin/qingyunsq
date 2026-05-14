@@ -106,6 +106,7 @@ async function toggleFollow() {
           >
             {{ following ? '已关注' : '关注' }}
           </NButton>
+          <NButton size="small" @click="router.push('/messages?peer=' + user.id)">发私信</NButton>
         </NSpace>
       </NCard>
     </template>

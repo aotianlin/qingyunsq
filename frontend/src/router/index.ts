@@ -139,6 +139,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/messages',
+    name: 'messages',
+    component: () => import('@/pages/Messages.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/admin',
     component: () => import('@/pages/admin/AdminLayout.vue'),
     meta: { requiresAuth: true, requiresAdmin: true },
