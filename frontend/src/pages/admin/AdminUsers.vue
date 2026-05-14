@@ -4,7 +4,7 @@ import {
   NDataTable, NButton, NSelect, NInput, NSpace, NModal, NTag, NPopconfirm, useMessage,
 } from 'naive-ui';
 import type { DataTableColumns } from 'naive-ui';
-import { getAdminUsers, banUser, unbanUser, changeUserRole } from '@/api/admin';
+import { getAdminUsers, banUser, unbanUser, changeUserRole, batchSetUserStatus } from '@/api/admin';
 import type { AdminUserItem } from '@/api/admin';
 
 const message = useMessage();
@@ -15,6 +15,8 @@ const hasMore = ref(true);
 const keyword = ref('');
 const roleFilter = ref<string | null>(null);
 const statusFilter = ref<number | null>(null);
+
+const checkedRowKeys = ref<number[]>([]);
 
 const roleModalShow = ref(false);
 const roleModalUserId = ref<number | null>(null);
@@ -73,6 +75,26 @@ async function handleUnban(row: AdminUserItem) {
   } catch {
     message.error('操作失败');
   }
+}
+
+async function batchBan() {
+  if (checkedRowKeys.value.length === 0) { message.warning('请先选择用户'); return; }
+  try {
+    await batchSetUserStatus(checkedRowKeys.value, 0);
+    users.value.forEach(u => { if (checkedRowKeys.value.includes(u.id)) u.status = 0; });
+    checkedRowKeys.value = [];
+    message.success(`已封禁 ${checkedRowKeys.value.length} 个用户`);
+  } catch { message.error('操作失败'); }
+}
+
+async function batchUnban() {
+  if (checkedRowKeys.value.length === 0) { message.warning('请先选择用户'); return; }
+  try {
+    await batchSetUserStatus(checkedRowKeys.value, 1);
+    users.value.forEach(u => { if (checkedRowKeys.value.includes(u.id)) u.status = 1; });
+    checkedRowKeys.value = [];
+    message.success('已解禁');
+  } catch { message.error('操作失败'); }
 }
 
 function openRoleModal(row: AdminUserItem) {
@@ -156,7 +178,20 @@ onMounted(() => loadUsers(true));
       <NButton type="primary" @click="search">搜索</NButton>
     </NSpace>
 
-    <NDataTable :columns="columns" :data="users" :loading="loading" :bordered="false" />
+    <NSpace v-if="checkedRowKeys.length" style="margin-bottom: 12px;">
+      <span>已选 {{ checkedRowKeys.length }} 项</span>
+      <NButton size="small" type="warning" @click="batchBan">批量封禁</NButton>
+      <NButton size="small" type="success" @click="batchUnban">批量解禁</NButton>
+    </NSpace>
+
+    <NDataTable
+      :columns="columns"
+      :data="users"
+      :loading="loading"
+      :bordered="false"
+      :row-key="(row: AdminUserItem) => row.id"
+      v-model:checked-row-keys="checkedRowKeys"
+    />
 
     <div v-if="hasMore" style="text-align: center; padding: 16px;">
       <NButton text type="primary" :loading="loading" @click="loadMore">加载更多</NButton>

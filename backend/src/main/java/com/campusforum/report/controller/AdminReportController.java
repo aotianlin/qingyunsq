@@ -35,4 +35,18 @@ public class AdminReportController {
         reportService.handle(id, status, note);
         return R.ok();
     }
+
+    @PutMapping("/batch-handle")
+    @SaCheckPermission("tenant:report:manage")
+    public R<Void> batchHandle(@RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<Long> ids = ((List<Number>) body.get("ids")).stream()
+                .map(Number::longValue).toList();
+        Integer status = Integer.valueOf(body.get("status").toString());
+        String note = (String) body.getOrDefault("note", "");
+        for (Long id : ids) {
+            reportService.handle(id, status, note);
+        }
+        return R.ok();
+    }
 }

@@ -58,4 +58,22 @@ public class AdminUserController {
                 "user unbanned by admin " + StpUtil.getLoginIdAsLong());
         return R.ok();
     }
+
+    @PutMapping("/batch-status")
+    @SaCheckPermission("tenant:user:ban")
+    public R<Void> batchSetStatus(@RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<Long> ids = ((List<Number>) body.get("ids")).stream()
+                .map(Number::longValue).toList();
+        int status = Integer.parseInt(body.get("status").toString());
+        Long operatorId = StpUtil.getLoginIdAsLong();
+        for (Long id : ids) {
+            if (status == 0) userService.banUser(id);
+            else userService.unbanUser(id);
+        }
+        auditLogService.log("USER_BATCH_STATUS", "user", null,
+                "batch " + (status == 0 ? "ban" : "unban") + " " + ids.size() +
+                        " users by admin " + operatorId);
+        return R.ok();
+    }
 }

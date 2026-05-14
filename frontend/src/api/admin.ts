@@ -34,6 +34,10 @@ export async function changeUserRole(id: number, role: string): Promise<void> {
   await request({ method: 'PUT', url: `/admin/users/${id}/role`, data: { role } });
 }
 
+export async function batchSetUserStatus(ids: number[], status: number): Promise<void> {
+  await request({ method: 'PUT', url: '/admin/users/batch-status', data: { ids, status } });
+}
+
 // Posts
 export async function getAdminPosts(params: {
   keyword?: string;

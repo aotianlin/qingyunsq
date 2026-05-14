@@ -2,7 +2,7 @@
 import { ref, onMounted, h } from 'vue';
 import { NDataTable, NTag, NSelect, NButton, NSpace, NModal, NInput, useMessage } from 'naive-ui';
 import type { DataTableColumns } from 'naive-ui';
-import { getReports, handleReport } from '@/api/report';
+import { getReports, handleReport, batchHandleReports } from '@/api/report';
 import type { ReportVO } from '@/types/report';
 
 const message = useMessage();
@@ -26,6 +26,8 @@ const statusOptions: any[] = [
   { label: '已处理', value: 1 },
   { label: '已驳回', value: 2 },
 ];
+
+const checkedRowKeys = ref<number[]>([]);
 
 const handleModalShow = ref(false);
 const handleReportId = ref<number | null>(null);
@@ -133,6 +135,16 @@ async function loadReports(reset = false) {
   loading.value = false;
 }
 
+async function batchHandle(action: number) {
+  if (checkedRowKeys.value.length === 0) { message.warning('请先选择举报'); return; }
+  try {
+    await batchHandleReports(checkedRowKeys.value, action, '批量处理');
+    reports.value.forEach(r => { if (checkedRowKeys.value.includes(r.id)) r.status = action; });
+    checkedRowKeys.value = [];
+    message.success(`已处理 ${checkedRowKeys.value.length} 条`);
+  } catch { message.error('操作失败'); }
+}
+
 function onFilterChange() {
   reports.value = [];
   loadReports(true);
@@ -171,7 +183,20 @@ onMounted(() => loadReports(true));
       />
     </NSpace>
 
-    <NDataTable :columns="columns" :data="reports" :loading="loading" :bordered="false" />
+    <NSpace v-if="checkedRowKeys.length" style="margin-bottom: 12px;">
+      <span>已选 {{ checkedRowKeys.length }} 项</span>
+      <NButton size="small" type="success" @click="batchHandle(1)">批量处理</NButton>
+      <NButton size="small" type="error" @click="batchHandle(2)">批量驳回</NButton>
+    </NSpace>
+
+    <NDataTable
+      :columns="columns"
+      :data="reports"
+      :loading="loading"
+      :bordered="false"
+      :row-key="(row: ReportVO) => row.id"
+      v-model:checked-row-keys="checkedRowKeys"
+    />
 
     <NModal v-model:show="handleModalShow" title="处理举报">
       <div style="padding: 16px; width: 400px;">

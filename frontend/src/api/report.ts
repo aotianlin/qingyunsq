@@ -23,3 +23,7 @@ export async function getReports(params?: {
 export async function handleReport(id: number, data: { status: number; note?: string }) {
   await request({ method: 'PUT', url: `/admin/reports/${id}/handle`, data });
 }
+
+export async function batchHandleReports(ids: number[], status: number, note?: string) {
+  await request({ method: 'PUT', url: '/admin/reports/batch-handle', data: { ids, status, note } });
+}
