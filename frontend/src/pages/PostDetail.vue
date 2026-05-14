@@ -75,8 +75,9 @@ async function loadPost() {
   try {
     const id = Number(route.params.id);
     post.value = await getPostById(id);
-    comments.value = await getComments(id);
-    if (post.value?.type === 'QA') {
+    const isQa = post.value?.type === 'QA';
+    comments.value = await getComments(id, undefined, 20, isQa);
+    if (isQa) {
       qa.value = await getQaInfo(id);
     }
   } catch {
@@ -144,7 +145,7 @@ async function submitComment() {
     commentText.value = '';
     replyTo.value = null;
     // 重新加载评论
-    comments.value = await getComments(post.value.id);
+    comments.value = await getComments(post.value.id, undefined, 20, isQaPost());
     if (post.value) post.value.commentCount++;
   } catch {
     message.error('评论失败');
@@ -152,12 +153,22 @@ async function submitComment() {
   submitting.value = false;
 }
 
+async function handleCommentLike(comment: CommentVO) {
+  try {
+    const liked = await toggleReaction(comment.id, 'LIKE', 'COMMENT');
+    if (comment.likeCount == null) comment.likeCount = 0;
+    comment.likeCount += liked ? 1 : -1;
+  } catch {
+    message.error('操作失败');
+  }
+}
+
 async function handleDeleteComment(commentId: number) {
   try {
     await deleteComment(commentId);
     message.success('已删除');
     if (post.value) {
-      comments.value = await getComments(post.value.id);
+      comments.value = await getComments(post.value.id, undefined, 20, isQaPost());
       post.value.commentCount--;
     }
   } catch {
@@ -276,6 +287,9 @@ onMounted(loadPost);
             </div>
             <p class="comment-text" v-html="renderMentions(c.content)"></p>
             <div class="comment-actions">
+              <NButton size="tiny" text @click="handleCommentLike(c)">
+                👍 {{ c.likeCount || 0 }}
+              </NButton>
               <NButton size="tiny" text @click="handleReply(c)">回复</NButton>
               <NButton size="tiny" text type="warning" @click="openReport('COMMENT', c.id)">举报</NButton>
               <NButton

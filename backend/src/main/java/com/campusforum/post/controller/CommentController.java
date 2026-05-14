@@ -27,8 +27,9 @@ public class CommentController {
     @GetMapping("/api/v1/posts/{postId}/comments")
     public R<List<CommentVO>> list(@PathVariable Long postId,
                                    @RequestParam(required = false) Long cursor,
-                                   @RequestParam(defaultValue = "20") int limit) {
-        return R.ok(commentService.listByPost(postId, cursor, limit));
+                                   @RequestParam(defaultValue = "20") int limit,
+                                   @RequestParam(required = false) Boolean qaSort) {
+        return R.ok(commentService.listByPost(postId, cursor, limit, qaSort != null && qaSort));
     }
 
     @DeleteMapping("/api/v1/comments/{id}")

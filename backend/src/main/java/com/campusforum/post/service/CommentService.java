@@ -10,6 +10,8 @@ import com.campusforum.post.dto.CommentVO;
 import com.campusforum.post.dto.CreateCommentRequest;
 import com.campusforum.post.mapper.CommentMapper;
 import com.campusforum.post.mapper.PostMapper;
+import com.campusforum.qa.domain.QaQuestion;
+import com.campusforum.qa.mapper.QaQuestionMapper;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
@@ -35,6 +37,7 @@ public class CommentService {
     private final UserMapper userMapper;
     private final NotifyService notifyService;
     private final AchievementService achievementService;
+    private final QaQuestionMapper qaQuestionMapper;
 
     @Transactional
     public CommentVO create(Long userId, CreateCommentRequest req) {
@@ -91,12 +94,62 @@ public class CommentService {
         return toVO(comment);
     }
 
-    public List<CommentVO> listByPost(Long postId, Long cursor, int limit) {
+    public List<CommentVO> listByPost(Long postId, Long cursor, int limit, boolean qaSort) {
         int size = Math.min(limit, 100);
         LambdaQueryWrapper<Comment> qw = new LambdaQueryWrapper<>();
         qw.eq(Comment::getPostId, postId);
         qw.isNull(Comment::getParentId);
         qw.eq(Comment::getStatus, 1);
+
+        // QA 模式：按分数排序，已采纳答案置顶
+        if (qaSort) {
+            Long acceptedId = null;
+            QaQuestion qa = qaQuestionMapper.selectOne(new LambdaQueryWrapper<QaQuestion>()
+                    .eq(QaQuestion::getPostId, postId));
+            if (qa != null && qa.getAcceptedCommentId() != null) {
+                acceptedId = qa.getAcceptedCommentId();
+            }
+
+            // 加载全部顶层评论（QA 帖子回答数有限，全量加载排序）
+            List<Comment> allParents = commentMapper.selectList(qw);
+            final Long finalAcceptedId = acceptedId;
+            allParents.sort((a, b) -> {
+                // 已采纳置顶
+                boolean aAcc = a.getId().equals(finalAcceptedId);
+                boolean bAcc = b.getId().equals(finalAcceptedId);
+                if (aAcc && !bAcc) return -1;
+                if (!aAcc && bAcc) return 1;
+                // 按点赞数降序
+                int scoreCmp = Integer.compare(
+                        b.getLikeCount() != null ? b.getLikeCount() : 0,
+                        a.getLikeCount() != null ? a.getLikeCount() : 0);
+                if (scoreCmp != 0) return scoreCmp;
+                // 同分按 ID 升序（早回答在前）
+                return Long.compare(a.getId(), b.getId());
+            });
+
+            List<Comment> parents = allParents;
+            if (parents.isEmpty()) return List.of();
+
+            List<Long> parentIds = parents.stream().map(Comment::getId).toList();
+            LambdaQueryWrapper<Comment> childQw = new LambdaQueryWrapper<>();
+            childQw.in(Comment::getParentId, parentIds);
+            childQw.eq(Comment::getStatus, 1);
+            childQw.orderByAsc(Comment::getId);
+            List<Comment> children = commentMapper.selectList(childQw);
+
+            Map<Long, List<CommentVO>> childMap = children.stream()
+                    .map(this::toVO)
+                    .collect(Collectors.groupingBy(c -> c.getParentId()));
+
+            return parents.stream().map(p -> {
+                CommentVO vo = toVO(p);
+                vo.setReplies(childMap.getOrDefault(p.getId(), List.of()));
+                return vo;
+            }).toList();
+        }
+
+        // 普通模式：按 ID 游标分页
         if (cursor != null) {
             qw.gt(Comment::getId, cursor);
         }
@@ -106,7 +159,6 @@ public class CommentService {
         List<Comment> parents = commentMapper.selectList(qw);
         if (parents.isEmpty()) return List.of();
 
-        // 查子评论
         List<Long> parentIds = parents.stream().map(Comment::getId).toList();
         LambdaQueryWrapper<Comment> childQw = new LambdaQueryWrapper<>();
         childQw.in(Comment::getParentId, parentIds);

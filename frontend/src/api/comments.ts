@@ -10,11 +10,11 @@ export async function createComment(data: CreateCommentRequest): Promise<Comment
   return res.data;
 }
 
-export async function getComments(postId: number, cursor?: number, limit = 20): Promise<CommentVO[]> {
+export async function getComments(postId: number, cursor?: number, limit = 20, qaSort?: boolean): Promise<CommentVO[]> {
   const res = await request<CommentVO[]>({
     method: 'GET',
     url: `/posts/${postId}/comments`,
-    params: { cursor, limit },
+    params: { cursor, limit, ...(qaSort ? { qaSort: true } : {}) },
   });
   return res.data;
 }
