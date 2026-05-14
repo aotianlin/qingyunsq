@@ -9,7 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.*;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Service
@@ -73,5 +76,36 @@ public class TenantService {
         tenant.setStatus(tenant.getStatus() == 1 ? 0 : 1);
         tenantMapper.updateById(tenant);
         log.info("Tenant {} status changed to {}", id, tenant.getStatus());
+    }
+
+    public Map<String, Object> getAiConfig(Long tenantId) {
+        Tenant t = tenantMapper.selectById(tenantId);
+        Map<String, Object> defaults = Map.of("provider", "mock", "baseUrl", "", "apiKey", "", "model", "");
+        if (t == null || t.getAiConfig() == null) return defaults;
+        try {
+            Map<String, Object> cfg = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
+            Map<String, Object> result = new HashMap<>(defaults);
+            result.putAll(cfg);
+            return result;
+        } catch (JsonProcessingException e) {
+            return defaults;
+        }
+    }
+
+    @Transactional
+    public void updateAiConfig(Long tenantId, String provider, String baseUrl, String apiKey, String model) {
+        Tenant t = tenantMapper.selectById(tenantId);
+        if (t == null) throw new BusinessException(40000, "租户不存在");
+        Map<String, String> cfg = new LinkedHashMap<>();
+        if (provider != null) cfg.put("provider", provider);
+        if (baseUrl != null) cfg.put("baseUrl", baseUrl);
+        if (apiKey != null) cfg.put("apiKey", apiKey);
+        if (model != null) cfg.put("model", model);
+        try {
+            t.setAiConfig(new ObjectMapper().writeValueAsString(cfg));
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(40000, "序列化 AI 配置失败");
+        }
+        tenantMapper.updateById(t);
     }
 }

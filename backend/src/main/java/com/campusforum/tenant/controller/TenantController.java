@@ -51,4 +51,18 @@ public class TenantController {
         tenantService.toggleStatus(id);
         return R.ok();
     }
+
+    @GetMapping("/{id}/ai-config")
+    @SaCheckPermission("super:tenant:manage")
+    public R<Map<String, Object>> getAiConfig(@PathVariable Long id) {
+        return R.ok(tenantService.getAiConfig(id));
+    }
+
+    @PutMapping("/{id}/ai-config")
+    @SaCheckPermission("super:tenant:manage")
+    public R<Void> updateAiConfig(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        tenantService.updateAiConfig(id, body.get("provider"), body.get("baseUrl"),
+                body.get("apiKey"), body.get("model"));
+        return R.ok();
+    }
 }

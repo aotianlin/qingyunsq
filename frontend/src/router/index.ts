@@ -177,6 +177,11 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-tenants',
         component: () => import('@/pages/admin/AdminTenants.vue'),
       },
+      {
+        path: 'ai-config',
+        name: 'admin-ai-config',
+        component: () => import('@/pages/admin/AdminAiConfig.vue'),
+      },
     ],
   },
   {

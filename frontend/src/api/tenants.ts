@@ -52,3 +52,16 @@ export async function updateTenant(id: number, data: {
 export async function toggleTenantStatus(id: number): Promise<void> {
   await request({ method: 'PUT', url: `/admin/tenants/${id}/status` });
 }
+
+export async function getTenantAiConfig(id: number): Promise<{
+  provider: string; baseUrl: string; apiKey: string; model: string;
+}> {
+  const res = await request<any>({ method: 'GET', url: `/admin/tenants/${id}/ai-config` });
+  return res.data;
+}
+
+export async function updateTenantAiConfig(id: number, data: {
+  provider?: string; baseUrl?: string; apiKey?: string; model?: string;
+}): Promise<void> {
+  await request({ method: 'PUT', url: `/admin/tenants/${id}/ai-config`, data });
+}
