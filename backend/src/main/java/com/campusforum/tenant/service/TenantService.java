@@ -51,7 +51,7 @@ public class TenantService {
     }
 
     @Transactional
-    public Tenant update(Long id, String name, String domain, String logoUrl) {
+    public Tenant update(Long id, String name, String domain, String logoUrl, String announcement) {
         Tenant tenant = tenantMapper.selectById(id);
         if (tenant == null) {
             throw new BusinessException(40000, "租户不存在");
@@ -59,6 +59,7 @@ public class TenantService {
         if (name != null && !name.isBlank()) tenant.setName(name);
         if (domain != null) tenant.setDomain(domain);
         if (logoUrl != null) tenant.setLogoUrl(logoUrl);
+        if (announcement != null) tenant.setAnnouncement(announcement);
         tenantMapper.updateById(tenant);
         return tenant;
     }

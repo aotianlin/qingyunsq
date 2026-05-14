@@ -8,6 +8,7 @@ export interface TenantVO {
   domain: string;
   status: number;
   aiConfig: string;
+  announcement: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,10 +31,19 @@ export async function createTenant(data: {
   return res.data;
 }
 
+export async function getTenantInfo(): Promise<{
+  id: number; code: string; name: string;
+  logoUrl: string; domain: string; announcement: string;
+}> {
+  const res = await request<any>({ method: 'GET', url: '/tenant/info' });
+  return res.data;
+}
+
 export async function updateTenant(id: number, data: {
   name?: string;
   domain?: string;
   logoUrl?: string;
+  announcement?: string;
 }): Promise<TenantVO> {
   const res = await request<TenantVO>({ method: 'PUT', url: `/admin/tenants/${id}`, data });
   return res.data;

@@ -10,7 +10,7 @@ const showCreate = ref(false);
 const editingId = ref<number | null>(null);
 
 const form = ref({ code: '', name: '', domain: '' });
-const editForm = ref({ name: '', domain: '', logoUrl: '' });
+const editForm = ref({ name: '', domain: '', logoUrl: '', announcement: '' });
 
 async function load() {
   loading.value = true;
@@ -50,7 +50,7 @@ async function handleToggleStatus(id: number) {
 
 function openEdit(t: TenantVO) {
   editingId.value = t.id;
-  editForm.value = { name: t.name, domain: t.domain || '', logoUrl: t.logoUrl || '' };
+  editForm.value = { name: t.name, domain: t.domain || '', logoUrl: t.logoUrl || '', announcement: '' };
 }
 
 async function saveEdit() {
@@ -145,6 +145,9 @@ onMounted(load);
           </NFormItem>
           <NFormItem label="Logo URL">
             <NInput v-model:value="editForm.logoUrl" />
+          </NFormItem>
+          <NFormItem label="公告">
+            <NInput v-model:value="editForm.announcement" type="textarea" />
           </NFormItem>
         </NForm>
         <NSpace class="modal-actions">

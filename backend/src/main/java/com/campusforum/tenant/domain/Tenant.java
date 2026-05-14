@@ -18,6 +18,7 @@ public class Tenant {
     private String domain;
     private Integer status;
     private String aiConfig;
+    private String announcement;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

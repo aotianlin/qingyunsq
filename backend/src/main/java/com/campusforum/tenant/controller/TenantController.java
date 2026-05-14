@@ -41,7 +41,8 @@ public class TenantController {
         return R.ok(tenantService.update(id,
                 body.get("name"),
                 body.get("domain"),
-                body.get("logoUrl")));
+                body.get("logoUrl"),
+                body.get("announcement")));
     }
 
     @PutMapping("/{id}/status")
