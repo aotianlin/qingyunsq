@@ -2,6 +2,7 @@ package com.campusforum.sensitive.service;
 
 import com.campusforum.sensitive.domain.SensitiveWord;
 import com.campusforum.sensitive.mapper.SensitiveWordMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,11 +31,16 @@ public class SensitiveWordService {
 
     @Transactional
     public void delete(Long id) {
-        mapper.deleteById(id);
+        Long tid = TenantContext.getTenantId();
+        mapper.delete(new LambdaQueryWrapper<SensitiveWord>()
+                .eq(SensitiveWord::getId, id)
+                .eq(SensitiveWord::getTenantId, tid != null ? tid : 1L));
     }
 
     public List<SensitiveWord> listAll() {
-        return mapper.selectList(null);
+        Long tid = TenantContext.getTenantId();
+        return mapper.selectList(new LambdaQueryWrapper<SensitiveWord>()
+                .eq(SensitiveWord::getTenantId, tid != null ? tid : 1L));
     }
 
     public int getRiskLevel(String content) {

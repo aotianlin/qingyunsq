@@ -19,6 +19,8 @@ import com.campusforum.post.mapper.PostMapper;
 import com.campusforum.post.mapper.ReactionMapper;
 import com.campusforum.qa.domain.QaQuestion;
 import com.campusforum.qa.mapper.QaQuestionMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +45,7 @@ public class AchievementService {
     private final ReactionMapper reactionMapper;
     private final CheckinRecordMapper checkinRecordMapper;
     private final QaQuestionMapper qaQuestionMapper;
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostConstruct
     void seedAchievements() {
@@ -131,31 +134,41 @@ public class AchievementService {
     }
 
     private long countStat(Long userId, String ruleJson) {
-        // Rule JSON: {"type":"POST_COUNT","threshold":1}
-        // Extract type to determine which stat to count
         try {
-            if (ruleJson.contains("\"type\":\"POST_COUNT\"")) {
-                return postMapper.selectCount(new QueryWrapper<Post>().eq("author_id", userId));
+            JsonNode ruleNode = objectMapper.readTree(ruleJson);
+            String type = ruleNode.path("type").asText("");
+
+            if ("POST_COUNT".equals(type)) {
+                return postMapper.selectCount(new LambdaQueryWrapper<Post>().eq(Post::getAuthorId, userId));
             }
-            if (ruleJson.contains("\"type\":\"COMMENT_COUNT\"")) {
-                return commentMapper.selectCount(new QueryWrapper<Comment>().eq("author_id", userId));
+            if ("COMMENT_COUNT".equals(type)) {
+                return commentMapper.selectCount(new LambdaQueryWrapper<Comment>().eq(Comment::getAuthorId, userId));
             }
-            if (ruleJson.contains("\"type\":\"LIKED_COUNT\"")) {
-                return reactionMapper.selectCount(new QueryWrapper<Reaction>()
-                        .eq("target_type", "POST")
-                        .eq("type", "LIKE")
-                        .inSql("target_id", "SELECT id FROM posts WHERE author_id = " + userId));
+            if ("LIKED_COUNT".equals(type)) {
+                List<Post> posts = postMapper.selectList(new LambdaQueryWrapper<Post>()
+                        .select(Post::getId).eq(Post::getAuthorId, userId));
+                if (posts.isEmpty()) return 0;
+                List<Long> postIds = posts.stream().map(Post::getId).toList();
+                return reactionMapper.selectCount(new LambdaQueryWrapper<Reaction>()
+                        .eq(Reaction::getTargetType, "POST")
+                        .eq(Reaction::getType, "LIKE")
+                        .in(Reaction::getTargetId, postIds));
             }
-            if (ruleJson.contains("\"type\":\"CHECKIN_COUNT\"")) {
-                return checkinRecordMapper.selectCount(new QueryWrapper<CheckinRecord>().eq("user_id", userId));
+            if ("CHECKIN_COUNT".equals(type)) {
+                return checkinRecordMapper.selectCount(new LambdaQueryWrapper<CheckinRecord>()
+                        .eq(CheckinRecord::getUserId, userId));
             }
-            if (ruleJson.contains("\"type\":\"CHECKIN_STREAK\"")) {
+            if ("CHECKIN_STREAK".equals(type)) {
                 return computeStreak(userId);
             }
-            if (ruleJson.contains("\"type\":\"ACCEPTED_COUNT\"")) {
-                return qaQuestionMapper.selectCount(new QueryWrapper<QaQuestion>()
-                        .eq("is_solved", 1)
-                        .inSql("accepted_comment_id", "SELECT id FROM comments WHERE author_id = " + userId));
+            if ("ACCEPTED_COUNT".equals(type)) {
+                List<Comment> comments = commentMapper.selectList(new LambdaQueryWrapper<Comment>()
+                        .select(Comment::getId).eq(Comment::getAuthorId, userId));
+                if (comments.isEmpty()) return 0;
+                List<Long> commentIds = comments.stream().map(Comment::getId).toList();
+                return qaQuestionMapper.selectCount(new LambdaQueryWrapper<QaQuestion>()
+                        .eq(QaQuestion::getIsSolved, 1)
+                        .in(QaQuestion::getAcceptedCommentId, commentIds));
             }
         } catch (Exception e) {
             log.debug("Failed to count stat for userId={}, rule={}", userId, ruleJson, e);
@@ -196,13 +209,8 @@ public class AchievementService {
 
     private int parseThreshold(String ruleJson) {
         try {
-            int i = ruleJson.indexOf("\"threshold\":");
-            if (i < 0) return 1;
-            String sub = ruleJson.substring(i + 12);
-            int end = sub.indexOf('}');
-            if (end < 0) end = sub.indexOf(',');
-            if (end < 0) end = sub.length();
-            return Integer.parseInt(sub.substring(0, end).trim());
+            JsonNode ruleNode = objectMapper.readTree(ruleJson);
+            return ruleNode.path("threshold").asInt(1);
         } catch (Exception e) {
             return 1;
         }

@@ -1,0 +1,95 @@
+/* frontend/src/assets/styles/theme.scss */
+
+:root {
+  /* Core Colors */
+  --cf-bg-base: #0d1117;
+  --cf-bg-card: #161b22;
+  --cf-bg-card-hover: #1e2530;
+  --cf-border: rgba(255, 255, 255, 0.08);
+  --cf-border-light: rgba(255, 255, 255, 0.15);
+  
+  /* Primary Theme Colors (Neon Purple & Blue) */
+  --cf-primary: #6366f1;
+  --cf-primary-hover: #4f46e5;
+  --cf-accent: #8b5cf6;
+  --cf-gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  
+  /* Text Colors */
+  --cf-text-primary: #f0f6fc;
+  --cf-text-secondary: #8b949e;
+  --cf-text-muted: #6e7681;
+  
+  /* Success, Warning, Error */
+  --cf-success: #2ea043;
+  --cf-warning: #d29922;
+  --cf-error: #f85149;
+  
+  /* Radius & Shadows */
+  --cf-radius-sm: 6px;
+  --cf-radius-md: 12px;
+  --cf-radius-lg: 20px;
+  --cf-shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
+  --cf-shadow-card: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Global Dark Theme Settings */
+body {
+  background-color: var(--cf-bg-base);
+  color: var(--cf-text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+/* Utilities */
+.glass-card {
+  background: rgba(22, 27, 34, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-radius-md);
+  box-shadow: var(--cf-shadow-card);
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  background: rgba(30, 37, 48, 0.8);
+  border-color: var(--cf-border-light);
+}
+
+.gradient-text {
+  background: var(--cf-gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.neon-btn {
+  background: var(--cf-gradient-primary);
+  color: white;
+  border: none;
+  border-radius: var(--cf-radius-md);
+  padding: 8px 24px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+  transition: all 0.3s ease;
+}
+
+.neon-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+}
+
+/* Layout Utilities */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}

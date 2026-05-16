@@ -13,6 +13,7 @@ import java.util.*;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.campusforum.common.CryptoUtils;
 
 @Slf4j
 @Service
@@ -86,6 +87,9 @@ public class TenantService {
             Map<String, Object> cfg = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
             Map<String, Object> result = new HashMap<>(defaults);
             result.putAll(cfg);
+            if (result.containsKey("apiKey") && result.get("apiKey") instanceof String) {
+                result.put("apiKey", CryptoUtils.decrypt((String) result.get("apiKey")));
+            }
             return result;
         } catch (JsonProcessingException e) {
             return defaults;
@@ -99,7 +103,7 @@ public class TenantService {
         Map<String, String> cfg = new LinkedHashMap<>();
         if (provider != null) cfg.put("provider", provider);
         if (baseUrl != null) cfg.put("baseUrl", baseUrl);
-        if (apiKey != null) cfg.put("apiKey", apiKey);
+        if (apiKey != null) cfg.put("apiKey", CryptoUtils.encrypt(apiKey));
         if (model != null) cfg.put("model", model);
         try {
             t.setAiConfig(new ObjectMapper().writeValueAsString(cfg));

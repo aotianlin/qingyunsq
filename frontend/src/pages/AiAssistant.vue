@@ -1,259 +1,267 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
-import { NInput, NButton, NTag, NSpace, NSpin, NCard, NAlert, NDivider } from 'naive-ui';
-import { aiChat, aiSummarize, aiModerate, aiRecommendTags } from '@/api/ai';
-import type { ChatMessage } from '@/types/ai';
+import { ref } from 'vue';
+import { 
+  DocumentTextOutline,
+  ShieldCheckmarkOutline,
+  AlertCircleOutline,
+  CheckmarkCircleOutline,
+  ChatbubbleEllipsesOutline,
+  SettingsOutline,
+  CopyOutline,
+  RefreshOutline
+} from '@vicons/ionicons5';
+import aiRobotImg from '@/assets/images/ai_robot.png';
 
-interface UIMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  time: string;
-}
+const menus = [
+  { label: '智能摘要', icon: DocumentTextOutline, active: true },
+  { label: '内容检测', icon: ShieldCheckmarkOutline, active: false },
+  { label: '敏感词检测', icon: AlertCircleOutline, active: false },
+  { label: '打卡相关性检查', icon: CheckmarkCircleOutline, active: false },
+  { label: 'AI 问答', icon: ChatbubbleEllipsesOutline, active: false },
+  { label: '配置管理', icon: SettingsOutline, active: false },
+];
 
-const messages = ref<UIMessage[]>([]);
-const input = ref('');
-const loading = ref(false);
-const mode = ref<'chat' | 'summarize' | 'moderate' | 'tags'>('chat');
-const toolInput = ref('');
-const toolTitle = ref('');
-const toolResult = ref('');
-const toolResultType = ref<'success' | 'warning' | 'error' | 'info'>('info');
+const bottomCards = [
+  { title: '内容检测', desc: '检测内容是否包含违规、色情等信息', icon: ShieldCheckmarkOutline, color: '#38bdf8' },
+  { title: '敏感词检测', desc: '检测文本中的敏感词汇', icon: AlertCircleOutline, color: '#ef4444' },
+  { title: '打卡相关性检查', desc: '检查打卡内容与目标的关联性', icon: CheckmarkCircleOutline, color: '#f59e0b' },
+  { title: 'AI 问答', desc: '基于知识库的智能问答', icon: ChatbubbleEllipsesOutline, color: '#c084fc' },
+];
 
-const apiMessages = ref<ChatMessage[]>([]);
-
-async function send() {
-  const text = input.value.trim();
-  if (!text || loading.value) return;
-
-  const now = new Date().toLocaleTimeString();
-  messages.value.push({ role: 'user', content: text, time: now });
-  input.value = '';
-  loading.value = true;
-
-  try {
-    apiMessages.value.push({ role: 'user', content: text });
-    const res = await aiChat(apiMessages.value);
-    const reply = res.reply || '抱歉，我没有理解你的问题。';
-    apiMessages.value.push({ role: 'assistant', content: reply });
-    messages.value.push({ role: 'assistant', content: reply, time: new Date().toLocaleTimeString() });
-  } catch {
-    messages.value.push({ role: 'assistant', content: 'AI 服务暂时不可用，请稍后重试。', time: new Date().toLocaleTimeString() });
-  }
-  loading.value = false;
-  await nextTick();
-  scrollBottom();
-}
-
-function scrollBottom() {
-  const el = document.querySelector('.chat-messages');
-  if (el) el.scrollTop = el.scrollHeight;
-}
-
-async function runSummarize() {
-  if (!toolInput.value.trim()) return;
-  loading.value = true;
-  try {
-    const res = await aiSummarize(toolInput.value);
-    toolResult.value = res.summary || '';
-    toolResultType.value = 'info';
-  } catch {
-    toolResult.value = '摘要生成失败';
-    toolResultType.value = 'error';
-  }
-  loading.value = false;
-}
-
-async function runModerate() {
-  if (!toolInput.value.trim()) return;
-  loading.value = true;
-  try {
-    const res = await aiModerate(toolInput.value);
-    const level = res.riskLevel ?? 0;
-    if (level === 0) {
-      toolResult.value = '内容审核通过，未检测到风险。';
-      toolResultType.value = 'success';
-    } else if (level === 1) {
-      toolResult.value = '中风险: ' + (res.riskReason || '内容需人工复核');
-      toolResultType.value = 'warning';
-    } else {
-      toolResult.value = '高风险: ' + (res.riskReason || '内容包含违规信息');
-      toolResultType.value = 'error';
-    }
-  } catch {
-    toolResult.value = '审核失败';
-    toolResultType.value = 'error';
-  }
-  loading.value = false;
-}
-
-async function runTags() {
-  if (!toolInput.value.trim()) return;
-  loading.value = true;
-  try {
-    const res = await aiRecommendTags(toolTitle.value, toolInput.value);
-    toolResult.value = res.tags?.length ? res.tags.join('、') : '未识别到合适的标签';
-    toolResultType.value = 'info';
-  } catch {
-    toolResult.value = '标签推荐失败';
-    toolResultType.value = 'error';
-  }
-  loading.value = false;
-}
-
-function clearMessages() {
-  messages.value = [];
-  apiMessages.value = [];
-}
+const inputText = ref('');
 </script>
 
 <template>
-  <div class="ai-page">
-    <div class="ai-header">
+  <div class="ai-layout">
+    <header class="top-header">
       <h2>AI 助手</h2>
-      <NSpace>
-        <NButton size="small" @click="clearMessages">清空对话</NButton>
-      </NSpace>
-    </div>
+    </header>
 
-    <NSpace class="mode-bar">
-      <NButton :type="mode === 'chat' ? 'primary' : 'default'" size="small" @click="mode = 'chat'">智能问答</NButton>
-      <NButton :type="mode === 'summarize' ? 'primary' : 'default'" size="small" @click="mode = 'summarize'">内容摘要</NButton>
-      <NButton :type="mode === 'moderate' ? 'primary' : 'default'" size="small" @click="mode = 'moderate'">内容审核</NButton>
-      <NButton :type="mode === 'tags' ? 'primary' : 'default'" size="small" @click="mode = 'tags'">标签推荐</NButton>
-    </NSpace>
-
-    <!-- Chat Mode -->
-    <div v-if="mode === 'chat'" class="chat-container">
-      <div class="chat-messages">
-        <div v-if="messages.length === 0" class="chat-empty">
-          <p>你好！我是 CampusForum AI 助手，可以回答你关于平台使用的问题。</p>
-          <p style="color: #999; font-size: 13px;">试试问我："怎么发帖？" / "如何获得积分？" / "怎么加入学习空间？"</p>
+    <div class="main-container">
+      <aside class="sidebar glass-card">
+        <div v-for="m in menus" :key="m.label" 
+             class="menu-item" :class="{ active: m.active }">
+          {{ m.label }}
         </div>
-        <div v-for="(msg, i) in messages" :key="i" class="chat-message" :class="msg.role">
-          <div class="msg-bubble">
-            <div class="msg-text">{{ msg.content }}</div>
-            <div class="msg-time">{{ msg.time }}</div>
+      </aside>
+
+      <main class="content-area">
+        <div class="content-header">
+          <h3>智能摘要</h3>
+          <p>使用 AI 自动生成帖子或文章的摘要，提炼核心内容</p>
+        </div>
+
+        <div class="interaction-area">
+          <div class="input-section glass-card">
+            <textarea v-model="inputText" placeholder="请输入需要摘要的内容..."></textarea>
+            <div class="input-footer">
+              <span class="count">{{ inputText.length }} / 5000</span>
+              <button class="neon-btn">生成摘要</button>
+            </div>
+          </div>
+          <div class="robot-illustration">
+            <img :src="aiRobotImg" alt="AI Robot" class="floating-robot" />
           </div>
         </div>
-        <div v-if="loading" class="chat-loading">
-          <NSpin size="small" />
-        </div>
-      </div>
-      <div class="chat-input">
-        <NInput
-          v-model:value="input"
-          placeholder="输入你的问题..."
-          @keyup.enter="send"
-          :disabled="loading"
-        >
-          <template #suffix>
-            <NButton type="primary" size="small" @click="send" :disabled="loading">发送</NButton>
-          </template>
-        </NInput>
-      </div>
-    </div>
 
-    <!-- Tool Mode -->
-    <div v-else class="tool-container">
-      <NCard>
-        <div v-if="mode === 'tags'" class="tool-field">
-          <label>标题（可选）</label>
-          <NInput v-model:value="toolTitle" placeholder="输入标题..." />
+        <div class="examples-section">
+          <h4>示例场景</h4>
+          <div class="example-card glass-card">
+            <div class="ex-content">
+              <h5>原文标题：操作系统进程调度算法详解</h5>
+              <div class="summary-box">
+                <span class="label">摘要：</span>
+                <p>文章详细分析了计算机系统中常见的进程调度算法，包括 FCFS、SJF、优先级调度、轮转调度等，并对比了各自的优缺点及适用场景。通过具体实例分析了调度算法在操作系统中的作用与意义。</p>
+              </div>
+              <div class="tags">
+                <span class="tag">操作系统</span>
+                <span class="tag">调度算法</span>
+                <span class="tag">内核</span>
+              </div>
+            </div>
+            <div class="ex-actions">
+              <span class="action"><n-icon><CopyOutline/></n-icon> 复制</span>
+              <span class="action"><n-icon><RefreshOutline/></n-icon> 重新生成</span>
+            </div>
+          </div>
         </div>
-        <div class="tool-field">
-          <label>{{ mode === 'summarize' ? '待摘要内容' : mode === 'moderate' ? '待审核内容' : '内容' }}</label>
-          <NInput
-            v-model:value="toolInput"
-            type="textarea"
-            :rows="6"
-            :placeholder="mode === 'summarize' ? '输入需要生成摘要的文本...' : mode === 'moderate' ? '输入需要审核的内容...' : '输入需要推荐标签的内容...'"
-          />
+
+        <div class="bottom-cards">
+          <div v-for="card in bottomCards" :key="card.title" class="glass-card feature-card">
+            <div class="icon-wrap" :style="{ backgroundColor: card.color + '20', color: card.color }">
+              <n-icon size="24"><component :is="card.icon" /></n-icon>
+            </div>
+            <div class="info">
+              <h5>{{ card.title }}</h5>
+              <p>{{ card.desc }}</p>
+            </div>
+          </div>
         </div>
-        <div class="tool-action">
-          <NButton
-            type="primary"
-            @click="mode === 'summarize' ? runSummarize() : mode === 'moderate' ? runModerate() : runTags()"
-            :disabled="loading"
-          >
-            {{ mode === 'summarize' ? '生成摘要' : mode === 'moderate' ? '开始审核' : '推荐标签' }}
-          </NButton>
-        </div>
-        <div v-if="loading" style="text-align: center; padding: 16px;">
-          <NSpin size="small" />
-        </div>
-        <div v-if="toolResult && !loading" class="tool-result">
-          <NDivider />
-          <NAlert :type="toolResultType" :title="toolResultType === 'success' ? '审核通过' : toolResultType === 'warning' ? '注意' : toolResultType === 'error' ? '警告' : '结果'">
-            {{ toolResult }}
-          </NAlert>
-        </div>
-      </NCard>
+      </main>
     </div>
   </div>
 </template>
 
-<style scoped>
-.ai-page {
+<style scoped lang="scss">
+.ai-layout {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 16px;
-  max-width: 680px;
-  margin: 0 auto;
-}
-.ai-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.ai-header h2 { margin: 0; }
-.mode-bar {
-  margin-bottom: 16px;
+  background: var(--cf-bg-base);
+  color: var(--cf-text-primary);
+  overflow: hidden;
 }
 
-.chat-container {
+.top-header {
+  height: 60px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--cf-border);
+  background: rgba(13, 17, 23, 0.8);
+  h2 { margin: 0; font-size: 18px; font-weight: 600; }
+}
+
+.main-container {
+  flex: 1;
+  display: flex;
+  padding: 32px;
+  gap: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.sidebar {
+  width: 200px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: fit-content;
+
+  .menu-item {
+    padding: 12px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--cf-text-secondary);
+    font-size: 14px;
+    transition: all 0.2s;
+
+    &:hover { background: rgba(255,255,255,0.05); color: white; }
+    &.active {
+      background: rgba(99,102,241,0.15);
+      color: var(--cf-primary);
+      border-left: 3px solid var(--cf-primary);
+      border-radius: 4px 8px 8px 4px;
+    }
+  }
+}
+
+.content-area {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-}
-.chat-messages {
-  flex: 1;
+  gap: 32px;
   overflow-y: auto;
-  padding: 8px 0;
-  min-height: 300px;
-}
-.chat-empty {
-  text-align: center;
-  padding: 48px 16px;
-  color: #666;
-}
-.chat-message { margin-bottom: 12px; }
-.chat-message.user .msg-bubble {
-  background: #1890ff;
-  color: #fff;
-  margin-left: auto;
-  max-width: 80%;
-}
-.chat-message.assistant .msg-bubble {
-  background: #f5f5f5;
-  max-width: 80%;
-}
-.msg-bubble {
-  padding: 10px 14px;
-  border-radius: 12px;
-  display: inline-block;
-}
-.msg-text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
-.msg-time { font-size: 11px; margin-top: 4px; opacity: 0.7; }
-.chat-message.user { display: flex; justify-content: flex-end; }
-.chat-loading { text-align: center; padding: 8px; }
-.chat-input { margin-top: 8px; }
+  padding-right: 16px;
 
-.tool-container { flex: 1; }
-.tool-field { margin-bottom: 12px; }
-.tool-field label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; color: #333; }
-.tool-action { margin-top: 8px; }
-.tool-result { margin-top: 8px; }
+  .content-header {
+    h3 { margin: 0 0 8px; font-size: 24px; color: white; }
+    p { margin: 0; color: var(--cf-text-secondary); font-size: 14px; }
+  }
+
+  .interaction-area {
+    display: flex;
+    gap: 32px;
+    align-items: stretch;
+
+    .input-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+
+      textarea {
+        flex: 1;
+        min-height: 150px;
+        background: transparent;
+        border: none;
+        color: white;
+        font-size: 15px;
+        resize: none;
+        outline: none;
+        margin-bottom: 16px;
+        &::placeholder { color: var(--cf-text-muted); }
+      }
+
+      .input-footer {
+        display: flex; justify-content: space-between; align-items: center;
+        .count { color: var(--cf-text-muted); font-size: 13px; }
+      }
+    }
+
+    .robot-illustration {
+      width: 250px;
+      display: flex; align-items: center; justify-content: center;
+      .floating-robot {
+        width: 100%;
+        animation: float 4s ease-in-out infinite;
+        filter: drop-shadow(0 0 20px rgba(56,189,248,0.3));
+      }
+    }
+  }
+
+  .examples-section {
+    h4 { margin: 0 0 16px; font-size: 16px; color: white; }
+    
+    .example-card {
+      padding: 20px 24px;
+      display: flex; flex-direction: column; gap: 16px;
+
+      .ex-content {
+        h5 { margin: 0 0 12px; font-size: 15px; color: white; }
+        .summary-box {
+          display: flex; gap: 8px;
+          .label { color: var(--cf-primary); font-weight: bold; flex-shrink: 0; }
+          p { margin: 0; color: var(--cf-text-secondary); font-size: 14px; line-height: 1.6; }
+        }
+        .tags {
+          display: flex; gap: 12px; margin-top: 16px;
+          .tag { font-size: 12px; padding: 2px 10px; border-radius: 12px; border: 1px solid var(--cf-primary); color: var(--cf-primary); background: rgba(99,102,241,0.1); }
+        }
+      }
+
+      .ex-actions {
+        display: flex; justify-content: flex-end; gap: 24px;
+        .action { display: flex; align-items: center; gap: 6px; color: var(--cf-text-secondary); font-size: 13px; cursor: pointer; &:hover { color: white; } }
+      }
+    }
+  }
+
+  .bottom-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+
+    .feature-card {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+
+      .icon-wrap { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+      .info {
+        h5 { margin: 0 0 8px; font-size: 15px; color: white; }
+        p { margin: 0; color: var(--cf-text-secondary); font-size: 12px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      }
+    }
+  }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-15px); }
+  100% { transform: translateY(0px); }
+}
 </style>

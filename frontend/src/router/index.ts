@@ -6,7 +6,7 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     name: 'home',
     component: () => import('@/pages/Home.vue'),
-    meta: { requiresAuth: true },
+    // 首页允许游客访问，去除 requiresAuth
   },
   {
     path: '/login',

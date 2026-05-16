@@ -270,9 +270,20 @@ public class CheckinService {
         CheckinChallenge challenge = challengeMapper.selectById(record.getChallengeId());
         String challengeName = challenge != null ? challenge.getName() : "打卡挑战";
 
-        String content = "[打卡分享] " + challengeName + " — " + record.getCheckinDate() + "\n";
+        String content = "[打卡分享] " + challengeName + " — " + record.getCheckinDate() + "\n\n";
         if (record.getContent() != null && !record.getContent().isBlank()) {
-            content += record.getContent();
+            content += record.getContent() + "\n\n";
+        }
+        
+        if (record.getImageUrls() != null && !record.getImageUrls().isBlank() && !"[]".equals(record.getImageUrls())) {
+            try {
+                List<String> urls = objectMapper.readValue(record.getImageUrls(), List.class);
+                for (String url : urls) {
+                    content += "![打卡图片](" + url + ")\n";
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse imageUrls for checkin record {}", recordId);
+            }
         }
 
         Post post = new Post();

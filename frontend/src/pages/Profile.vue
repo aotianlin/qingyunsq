@@ -1,370 +1,432 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { NButton, NCard, NInput, NTag, NSpace, NCheckbox, useMessage } from 'naive-ui';
-import { getMyProfile, updateProfile, getMuteSettings, updateMuteSettings, getTagSubscriptions, updateTagSubscriptions } from '@/api/users';
-import { getUserAchievements } from '@/api/achievement';
-import { getFollowCounts } from '@/api/follows';
-import { useAuthStore } from '@/stores/auth';
-import type { UserVO } from '@/types/user';
-import type { AchievementVO } from '@/types/achievement';
+import { 
+  MenuOutline,
+  NotificationsOutline,
+  SettingsOutline,
+  ArrowBackOutline,
+  ThumbsUpOutline,
+  ChatboxOutline,
+  ShareSocialOutline,
+  DocumentTextOutline
+} from '@vicons/ionicons5';
+import auroraBg from '@/assets/images/aurora_bg.png';
 
 const router = useRouter();
-const message = useMessage();
-const authStore = useAuthStore();
+const activeTab = ref('动态');
+const tabs = ['动态', '帖子', '回复', '收藏', '打卡', '成就'];
 
-const user = ref<UserVO | null>(null);
-const achievements = ref<AchievementVO[]>([]);
-const loading = ref(true);
-const editing = ref(false);
-const saving = ref(false);
-const followerCount = ref(0);
-const followingCount = ref(0);
-const muteTypes = ref<string[]>([]);
-const tagSubscriptions = ref<string[]>([]);
-const newTag = ref('');
-const tagSaving = ref(false);
-const notifTypes = [
-  { key: 'LIKE', label: '点赞通知' },
-  { key: 'COMMENT', label: '评论通知' },
-  { key: 'REPLY', label: '回复通知' },
-  { key: 'ACCEPT', label: '采纳通知' },
-  { key: 'JOIN', label: '加入申请通知' },
-  { key: 'MENTION', label: '@提及通知' },
-  { key: 'TAG_SUBSCRIBE', label: '标签订阅通知' },
-];
-
-const editForm = ref({
-  nickname: '',
-  bio: '',
-  college: '',
-  major: '',
-  grade: '',
-});
-
-async function loadProfile() {
-  loading.value = true;
-  try {
-    user.value = await getMyProfile();
-    authStore.setUser(user.value);
-    const [achs, counts] = await Promise.all([
-      getUserAchievements(user.value.id),
-      getFollowCounts(user.value.id),
-    ]);
-    achievements.value = achs;
-    followerCount.value = counts.followers;
-    followingCount.value = counts.following;
-    try {
-      muteTypes.value = (await getMuteSettings()) || [];
-    } catch {
-      muteTypes.value = [];
-    }
-    try {
-      tagSubscriptions.value = (await getTagSubscriptions()) || [];
-    } catch {
-      tagSubscriptions.value = [];
-    }
-  } catch {
-    message.error('获取用户信息失败');
-  } finally {
-    loading.value = false;
-  }
-}
-
-function startEdit() {
-  if (!user.value) return;
-  editForm.value = {
-    nickname: user.value.nickname || '',
-    bio: user.value.bio || '',
-    college: user.value.college || '',
-    major: user.value.major || '',
-    grade: user.value.grade || '',
-  };
-  editing.value = true;
-}
-
-function cancelEdit() {
-  editing.value = false;
-}
-
-async function saveProfile() {
-  saving.value = true;
-  try {
-    const updated = await updateProfile(editForm.value);
-    user.value = updated;
-    authStore.setUser(updated);
-    editing.value = false;
-    message.success('保存成功');
-  } catch {
-    message.error('保存失败');
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function toggleMute(type: string) {
-    const idx = muteTypes.value.indexOf(type);
-    if (idx >= 0) {
-      muteTypes.value.splice(idx, 1);
-    } else {
-      muteTypes.value.push(type);
-    }
-    try {
-      await updateMuteSettings([...muteTypes.value]);
-    } catch {
-      message.error('设置失败');
-    }
-  }
-
-async function addTag() {
-    const tag = newTag.value.trim();
-    if (!tag) return;
-    if (tagSubscriptions.value.includes(tag)) {
-      message.warning('已订阅该标签');
-      return;
-    }
-    tagSaving.value = true;
-    try {
-      const updated = [...tagSubscriptions.value, tag];
-      await updateTagSubscriptions(updated);
-      tagSubscriptions.value = updated;
-      newTag.value = '';
-    } catch {
-      message.error('订阅失败');
-    }
-    tagSaving.value = false;
-  }
-
-  async function removeTag(tag: string) {
-    tagSaving.value = true;
-    try {
-      const updated = tagSubscriptions.value.filter(t => t !== tag);
-      await updateTagSubscriptions(updated);
-      tagSubscriptions.value = updated;
-    } catch {
-      message.error('取消订阅失败');
-    }
-    tagSaving.value = false;
-  }
-
-onMounted(loadProfile);
+// Mock Data for UI
+const user = {
+  nickname: '代码骑士',
+  level: 'LV.16',
+  title: '计算机科学与技术专业 · 大三',
+  bio: '热爱编程、算法、开源，正在成为更好的自己！',
+  following: 128,
+  followers: '1,234',
+  likes: '8,912',
+  points: '12,345'
+};
 </script>
 
 <template>
-  <div class="profile-page">
-    <NCard class="profile-card">
-      <template v-if="loading">
-        <p>加载中...</p>
-      </template>
-      <template v-else-if="user">
-        <!-- 查看模式 -->
-        <template v-if="!editing">
-          <div class="profile-header">
-            <div class="avatar">{{ user.nickname.charAt(0) }}</div>
-            <div class="info">
-              <h2>{{ user.nickname }}</h2>
-              <p>{{ user.email }}</p>
-              <p v-if="user.studentNo">学号: {{ user.studentNo }}</p>
-              <p v-if="user.college || user.major">
-                {{ user.college }} {{ user.major }} {{ user.grade }}
-              </p>
-            </div>
-          </div>
-          <div class="stats">
-            <div class="stat-item">
-              <span class="stat-value">{{ user.points }}</span>
-              <span class="stat-label">积分</span>
-            </div>
-            <div class="stat-item clickable" @click="router.push(`/users/${user.id}/follows`)">
-              <span class="stat-value">{{ followerCount }}</span>
-              <span class="stat-label">粉丝</span>
-            </div>
-            <div class="stat-item clickable" @click="router.push(`/users/${user.id}/follows`)">
-              <span class="stat-value">{{ followingCount }}</span>
-              <span class="stat-label">关注</span>
-            </div>
-          </div>
-          <div v-if="user.bio" class="bio">
-            <p>{{ user.bio }}</p>
-          </div>
+  <div class="profile-layout">
+    <!-- Top Header -->
+    <header class="top-header">
+      <div class="header-left" @click="router.back()">
+        <n-icon size="20"><ArrowBackOutline /></n-icon>
+        <span>个人主页</span>
+      </div>
+      <div class="header-actions">
+        <n-icon size="20"><DocumentTextOutline /></n-icon>
+        <n-icon size="20"><SettingsOutline /></n-icon>
+      </div>
+    </header>
 
-          <div v-if="achievements.length" class="achievements">
-            <h4>成就徽章</h4>
-            <div class="badge-grid">
-              <div
-                v-for="a in achievements"
-                :key="a.id"
-                class="badge-item"
-                :class="{ locked: !a.awarded }"
-              >
-                <div class="badge-icon">
-                  {{ a.awarded ? (a.code?.charAt(0) || '🏆') : '🔒' }}
+    <div class="scroll-content">
+      <div class="profile-container">
+        <!-- Cover Area -->
+        <div class="cover-section">
+          <img :src="auroraBg" class="cover-img" alt="cover" />
+          <div class="profile-main-info">
+            <div class="avatar-wrapper">
+              <div class="avatar">
+                <!-- Fallback to a gradient or placeholder if no image -->
+                <div class="avatar-placeholder">代</div>
+              </div>
+            </div>
+            <div class="user-details">
+              <div class="name-row">
+                <h2>{{ user.nickname }}</h2>
+                <span class="level-tag">{{ user.level }}</span>
+              </div>
+              <p class="title">{{ user.title }}</p>
+              <p class="bio">{{ user.bio }}</p>
+              
+              <div class="stats-row">
+                <div class="stat">
+                  <span class="label">关注</span>
+                  <span class="val">{{ user.following }}</span>
                 </div>
-                <div class="badge-name">{{ a.name }}</div>
-                <div class="badge-desc">{{ a.description }}</div>
+                <div class="stat">
+                  <span class="label">粉丝</span>
+                  <span class="val">{{ user.followers }}</span>
+                </div>
+                <div class="stat">
+                  <span class="label">获赞</span>
+                  <span class="val">{{ user.likes }}</span>
+                </div>
+                <div class="stat">
+                  <span class="label">积分</span>
+                  <span class="val">{{ user.points }}</span>
+                </div>
+                
+                <button class="outline-btn edit-btn">编辑资料</button>
+                <button class="icon-btn"><n-icon><SettingsOutline/></n-icon></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content-section">
+          <!-- Main Left -->
+          <div class="main-left">
+            <div class="tabs">
+              <div v-for="tab in tabs" :key="tab" 
+                   class="tab" :class="{ active: activeTab === tab }"
+                   @click="activeTab = tab">
+                {{ tab }}
+              </div>
+            </div>
+
+            <div class="feed-list">
+              <!-- Post item -->
+              <div class="feed-item glass-card">
+                <div class="feed-header">
+                  <div class="avatar">代</div>
+                  <div class="info">
+                    <span class="name">代码骑士</span>
+                    <span class="time">2 小时前</span>
+                  </div>
+                  <n-icon class="more"><MenuOutline/></n-icon>
+                </div>
+                <div class="feed-content">
+                  <p>今天又是努力学习的一天！ 💪</p>
+                  <div class="attachment-card">
+                    <div class="icon">📝</div>
+                    <div class="att-info">
+                      <span class="att-name">数据结构与算法笔记.md</span>
+                      <span class="att-size">1.2 MB</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="feed-actions">
+                  <div class="action"><n-icon><ThumbsUpOutline/></n-icon> 24</div>
+                  <div class="action"><n-icon><ChatboxOutline/></n-icon> 36</div>
+                  <div class="action right"><n-icon><ShareSocialOutline/></n-icon> 分享</div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="mute-section">
-            <h4>通知免打扰</h4>
-            <NCheckbox
-              v-for="nt in notifTypes"
-              :key="nt.key"
-              :checked="!muteTypes.includes(nt.key)"
-              @update:checked="toggleMute(nt.key)"
-            >
-              {{ nt.label }}
-            </NCheckbox>
-          </div>
-
-          <div class="tag-sub-section">
-            <h4>标签订阅</h4>
-            <p class="hint">订阅后，带该标签的问答发布时会通知你</p>
-            <div class="tag-input-row">
-              <NInput v-model:value="newTag" placeholder="输入标签名" size="small" style="width: 160px" />
-              <NButton size="small" type="primary" :loading="tagSaving" @click="addTag">订阅</NButton>
+          <!-- Sidebar Right -->
+          <div class="sidebar-right">
+            <!-- Achievements -->
+            <div class="glass-card widget">
+              <div class="widget-header">
+                <h3>个人成就</h3>
+                <span class="more">查看全部</span>
+              </div>
+              <div class="badges">
+                <div class="badge neon-glow"><span class="emoji">🏆</span></div>
+                <div class="badge neon-glow"><span class="emoji">🥇</span></div>
+                <div class="badge neon-glow"><span class="emoji">🎖️</span></div>
+                <div class="badge neon-glow"><span class="emoji">🏅</span></div>
+              </div>
             </div>
-            <NSpace v-if="tagSubscriptions.length" class="tag-list">
-              <NTag
-                v-for="tag in tagSubscriptions"
-                :key="tag"
-                closable
-                @close="removeTag(tag)"
-              >
-                {{ tag }}
-              </NTag>
-            </NSpace>
-            <p v-else class="no-tags">暂未订阅任何标签</p>
-          </div>
 
-          <NSpace class="actions">
-            <NTag :type="user.role === 'TENANT_ADMIN' ? 'error' : 'info'">
-              {{ user.role === 'USER' ? '普通用户' : '管理员' }}
-            </NTag>
-            <NButton size="small" @click="startEdit">编辑资料</NButton>
-          </NSpace>
-        </template>
-
-        <!-- 编辑模式 -->
-        <template v-else>
-          <h3>编辑个人资料</h3>
-          <div class="edit-form">
-            <label>昵称</label>
-            <NInput v-model:value="editForm.nickname" class="field" />
-            <label>个人简介</label>
-            <NInput v-model:value="editForm.bio" type="textarea" class="field" />
-            <label>学院</label>
-            <NInput v-model:value="editForm.college" class="field" />
-            <label>专业</label>
-            <NInput v-model:value="editForm.major" class="field" />
-            <label>年级</label>
-            <NInput v-model:value="editForm.grade" class="field" />
-            <NSpace class="edit-actions">
-              <NButton type="primary" :loading="saving" @click="saveProfile">保存</NButton>
-              <NButton @click="cancelEdit">取消</NButton>
-            </NSpace>
+            <!-- Calendar -->
+            <div class="glass-card widget">
+              <div class="widget-header">
+                <h3>近期打卡</h3>
+                <span class="streak">连续打卡 21 天</span>
+              </div>
+              <div class="calendar-grid">
+                <!-- CSS grid for squares -->
+                <div class="day-label">一</div>
+                <div class="square active"></div>
+                <div class="square active"></div>
+                <div class="square active"></div>
+                <div class="square active"></div>
+                <div class="square active"></div>
+                <div class="day-label">二</div>
+                <div class="square active"></div>
+                <div class="square active"></div>
+                <div class="square active"></div>
+                <div class="square active"></div>
+                <div class="square"></div>
+                <div class="day-label">三</div>
+                <div class="square active"></div>
+                <div class="square active"></div>
+                <div class="square"></div>
+                <div class="square active"></div>
+                <div class="square active"></div>
+              </div>
+            </div>
           </div>
-        </template>
-      </template>
-    </NCard>
+        </div>
+
+      </div>
+    </div>
   </div>
 </template>
 
-<style scoped>
-.profile-page {
-  max-width: 600px;
-  margin: 40px auto;
-  padding: 0 16px;
-}
-.profile-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: #18a058;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  font-weight: bold;
-}
-.info h2 { margin: 0 0 4px; }
-.info p { margin: 2px 0; color: #666; font-size: 14px; }
-.stats {
-  display: flex;
-  gap: 32px;
-  margin: 20px 0;
-}
-.stat-item {
+<style scoped lang="scss">
+.profile-layout {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  height: 100vh;
+  background-color: var(--cf-bg-base);
+  color: var(--cf-text-primary);
+  overflow: hidden;
 }
-.stat-value { font-size: 24px; font-weight: bold; color: #18a058; }
-.stat-label { font-size: 12px; color: #999; }
-.stat-item.clickable { cursor: pointer; }
-.bio {
-  margin: 16px 0;
-  padding: 12px;
-  background: #f9f9f9;
-  border-radius: 8px;
-}
-.achievements {
-  margin-top: 16px;
-}
-.achievements h4 {
-  margin: 0 0 12px;
-  font-size: 15px;
-  color: #333;
-}
-.badge-grid {
+
+.top-header {
+  height: 60px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--cf-border);
+  background: rgba(13, 17, 23, 0.8);
+  backdrop-filter: blur(12px);
+  z-index: 10;
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .header-actions {
+    display: flex;
+    gap: 20px;
+    color: var(--cf-text-secondary);
+    cursor: pointer;
+  }
 }
-.badge-item {
-  width: 100px;
-  padding: 10px 6px;
-  border-radius: 8px;
-  background: #f0faf0;
-  text-align: center;
+
+.scroll-content {
+  flex: 1;
+  overflow-y: auto;
 }
-.badge-item.locked {
-  background: #f5f5f5;
-  opacity: 0.5;
+
+.profile-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding-bottom: 60px;
 }
-.badge-icon {
-  font-size: 28px;
-  margin-bottom: 4px;
+
+.cover-section {
+  position: relative;
+  
+  .cover-img {
+    width: 100%;
+    height: 300px;
+    object-fit: cover;
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%);
+    -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%);
+  }
+
+  .profile-main-info {
+    position: relative;
+    margin-top: -60px;
+    padding: 0 40px;
+    display: flex;
+    gap: 32px;
+    align-items: flex-end;
+
+    .avatar-wrapper {
+      .avatar {
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        border: 4px solid var(--cf-bg-base);
+        background: var(--cf-bg-card);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        
+        .avatar-placeholder {
+          font-size: 64px;
+          color: white;
+          background: linear-gradient(135deg, #38bdf8, #8b5cf6);
+          width: 100%; height: 100%;
+          display: flex; align-items: center; justify-content: center;
+        }
+      }
+    }
+
+    .user-details {
+      flex: 1;
+      padding-bottom: 12px;
+
+      .name-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+
+        h2 { margin: 0; font-size: 28px; color: white; }
+        .level-tag { 
+          font-size: 12px; padding: 2px 8px; border-radius: 12px;
+          background: linear-gradient(90deg, #f59e0b, #ef4444);
+          color: white; font-weight: bold;
+        }
+      }
+
+      .title { color: var(--cf-text-secondary); font-size: 15px; margin: 0 0 8px; }
+      .bio { color: var(--cf-text-primary); font-size: 14px; margin: 0 0 20px; }
+
+      .stats-row {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+
+        .stat {
+          display: flex; flex-direction: column; gap: 4px;
+          .label { color: var(--cf-text-secondary); font-size: 13px; }
+          .val { color: white; font-size: 18px; font-weight: bold; }
+        }
+
+        .edit-btn {
+          margin-left: auto;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid var(--cf-border-light);
+          color: white; padding: 6px 16px; border-radius: 20px;
+          cursor: pointer; transition: all 0.2s;
+          &:hover { background: rgba(255,255,255,0.1); }
+        }
+
+        .icon-btn {
+          background: rgba(255,255,255,0.05);
+          border: 1px solid var(--cf-border-light);
+          color: white; width: 36px; height: 36px; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer;
+        }
+      }
+    }
+  }
 }
-.badge-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 2px;
+
+.content-section {
+  display: flex;
+  gap: 32px;
+  padding: 40px;
+
+  .main-left {
+    flex: 1;
+    min-width: 0;
+
+    .tabs {
+      display: flex;
+      gap: 32px;
+      border-bottom: 1px solid var(--cf-border);
+      margin-bottom: 24px;
+
+      .tab {
+        padding: 12px 0;
+        color: var(--cf-text-secondary);
+        font-size: 15px;
+        cursor: pointer;
+        position: relative;
+
+        &.active {
+          color: white;
+          font-weight: 500;
+          &::after {
+            content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px;
+            background: var(--cf-primary);
+            box-shadow: 0 -2px 8px rgba(99,102,241,0.5);
+          }
+        }
+      }
+    }
+
+    .feed-list {
+      .feed-item {
+        padding: 24px;
+        margin-bottom: 16px;
+
+        .feed-header {
+          display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+          .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #38bdf8, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white;}
+          .info { display: flex; flex-direction: column; .name{ color: white; font-size: 15px; } .time{ color: var(--cf-text-muted); font-size: 12px; } }
+          .more { margin-left: auto; color: var(--cf-text-secondary); cursor: pointer; }
+        }
+
+        .feed-content {
+          p { margin: 0 0 16px; line-height: 1.6; font-size: 15px; }
+          .attachment-card {
+            display: flex; align-items: center; gap: 16px; padding: 16px;
+            background: rgba(255,255,255,0.03); border: 1px solid var(--cf-border); border-radius: 8px;
+            .icon { font-size: 24px; }
+            .att-info { display: flex; flex-direction: column; .att-name{ color: var(--cf-primary); font-size: 14px; } .att-size{ color: var(--cf-text-muted); font-size: 12px; } }
+          }
+        }
+
+        .feed-actions {
+          display: flex; gap: 32px; margin-top: 20px;
+          .action { display: flex; align-items: center; gap: 6px; color: var(--cf-text-secondary); font-size: 14px; cursor: pointer; &:hover{ color: var(--cf-primary); } }
+          .right { margin-left: auto; }
+        }
+      }
+    }
+  }
+
+  .sidebar-right {
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+
+    .widget {
+      padding: 24px;
+      .widget-header {
+        display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+        h3 { margin: 0; font-size: 16px; color: white; }
+        .more { font-size: 13px; color: var(--cf-primary); cursor: pointer; }
+        .streak { font-size: 12px; color: var(--cf-warning); padding: 2px 8px; border-radius: 12px; background: rgba(210,153,34,0.1); }
+      }
+
+      .badges {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+        .badge {
+          aspect-ratio: 1; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--cf-border);
+          display: flex; align-items: center; justify-content: center; font-size: 24px;
+          &.neon-glow {
+            box-shadow: inset 0 0 10px rgba(139,92,246,0.2);
+            border-color: rgba(139,92,246,0.3);
+          }
+        }
+      }
+
+      .calendar-grid {
+        display: grid; grid-template-columns: 20px repeat(5, 1fr); gap: 6px; align-items: center;
+        .day-label { font-size: 12px; color: var(--cf-text-muted); text-align: right; padding-right: 4px; }
+        .square {
+          aspect-ratio: 1; border-radius: 4px; background: rgba(255,255,255,0.05);
+          &.active { background: var(--cf-primary); box-shadow: 0 0 8px rgba(99,102,241,0.4); }
+        }
+      }
+    }
+  }
 }
-.badge-desc {
-  font-size: 10px;
-  color: #999;
-  line-height: 1.3;
-}
-.mute-section { margin-top: 16px; }
-.mute-section h4 { margin: 0 0 8px; font-size: 15px; color: #333; }
-.tag-sub-section { margin-top: 20px; }
-.tag-sub-section h4 { margin: 0 0 4px; font-size: 15px; color: #333; }
-.tag-sub-section .hint { margin: 0 0 8px; font-size: 12px; color: #999; }
-.tag-input-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-.tag-list { margin-top: 4px; }
-.no-tags { font-size: 13px; color: #ccc; }
-.actions { margin-top: 16px; }
-.edit-form { max-width: 400px; }
-.edit-form label { display: block; margin: 12px 0 4px; font-size: 14px; color: #666; }
-.edit-form .field { margin-bottom: 4px; }
-.edit-actions { margin-top: 20px; }
 </style>
