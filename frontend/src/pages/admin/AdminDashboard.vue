@@ -26,7 +26,7 @@ const menus = [
 
 const stats = [
   { label: '总用户', value: '56,231', trend: '+12.5%', isUp: true },
-  { label: '学习空间', value: '1,234', trend: '+8.2%', isUp: true },
+  { label: '学习圈', value: '1,234', trend: '+8.2%', isUp: true },
   { label: '帖子总数', value: '324,112', trend: '+15.3%', isUp: true },
   { label: '今日活跃', value: '8,931', trend: '+18.6%', isUp: true },
 ];
@@ -38,7 +38,7 @@ const sysInfo = [
 ];
 
 const logs = [
-  { user: '管理员', action: '创建了学习空间 "数据结构与算法"', time: '05-22 14:30' },
+  { user: '管理员', action: '创建了学习圈 "数据结构与算法"', time: '05-22 14:30' },
   { user: '系统', action: 'AI 敏感词库更新完成', time: '05-22 12:15' },
 ];
 </script>
@@ -272,7 +272,7 @@ const logs = [
 .admin-layout {
   display: flex;
   height: 100vh;
-  background: var(--cf-bg-base);
+  background: transparent;
   color: var(--cf-text-primary);
 }
 

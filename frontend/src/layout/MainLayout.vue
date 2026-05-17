@@ -27,9 +27,9 @@ const searchKeyword = ref('');
 
 const navLinks = [
   { name: '广场', path: '/square', icon: PlanetOutline },
-  { name: '星际部落', path: '/spaces', icon: BonfireOutline },
+  { name: '学习圈', path: '/spaces', icon: BonfireOutline },
   { name: '打卡', path: '/checkin', icon: CheckmarkCircleOutline },
-  { name: '排行榜', path: '/points', icon: StarOutline },
+  { name: '积分中心', path: '/points', icon: StarOutline },
   { name: 'AI 助手', path: '/ai', icon: SparklesOutline },
 ];
 
@@ -45,6 +45,16 @@ const pageTitle = computed(() => {
   if (route.path.startsWith('/users/')) return '个人主页';
   if (route.path.startsWith('/profile')) return '我的资料';
   return 'CampusForum';
+});
+
+const pageSubtitle = computed(() => {
+  if (route.path.startsWith('/profile')) return '管理您的个人资料、发帖与学习轨迹';
+  if (route.path.startsWith('/square')) return '发现校园热门内容与精彩讨论';
+  if (route.path.startsWith('/spaces')) return '加入感兴趣的学习圈，与同好交流';
+  if (route.path.startsWith('/checkin')) return '坚持每天打卡，见证自己的成长';
+  if (route.path.startsWith('/points')) return '查看您的积分明细与成长轨迹';
+  if (route.path.startsWith('/ai')) return '使用 AI 助手提升您的学习与创作效率';
+  return '保持高效、清爽、专注的校园交流体验';
 });
 
 const userDropdownOptions = [
@@ -204,7 +214,7 @@ function toggleMobileMenu() {
               {{ pageTitle }}
             </h1>
             <p class="page-subtitle">
-              保持高效、清爽、专注的校园交流体验
+              {{ pageSubtitle }}
             </p>
           </div>
         </div>
@@ -213,7 +223,7 @@ function toggleMobileMenu() {
           <n-input
             v-model:value="searchKeyword"
             round
-            placeholder="搜索帖子、用户或空间"
+            placeholder="搜索帖子、用户或学习圈"
             class="search-input"
             @keyup.enter="handleSearch"
           >

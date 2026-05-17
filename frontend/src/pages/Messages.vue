@@ -324,7 +324,7 @@ watch(() => route.query.peer, (val) => {
 .messages-layout {
   height: 100vh;
   overflow: hidden;
-  background: var(--cf-bg-base);
+  background: transparent;
   background-image: radial-gradient(circle at 20% 80%, rgba(99, 102, 241, 0.08), transparent 40%);
   display: flex;
   flex-direction: column;

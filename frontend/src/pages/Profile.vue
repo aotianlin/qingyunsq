@@ -239,7 +239,7 @@ const user = {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: var(--cf-bg-base);
+  background-color: transparent;
   color: var(--cf-text-primary);
   overflow: hidden;
 }
@@ -334,7 +334,7 @@ const user = {
         gap: 12px;
         margin-bottom: 8px;
 
-        h2 { margin: 0; font-size: 28px; color: white; }
+        h2 { margin: 0; font-size: 28px; color: var(--cf-text-primary); }
         .level-tag { 
           font-size: 12px; padding: 2px 8px; border-radius: 12px;
           background: linear-gradient(90deg, #f59e0b, #ef4444);
@@ -353,22 +353,22 @@ const user = {
         .stat {
           display: flex; flex-direction: column; gap: 4px;
           .label { color: var(--cf-text-secondary); font-size: 13px; }
-          .val { color: white; font-size: 18px; font-weight: bold; }
+          .val { color: var(--cf-text-primary); font-size: 18px; font-weight: bold; }
         }
 
         .edit-btn {
           margin-left: auto;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid var(--cf-border-light);
-          color: white; padding: 6px 16px; border-radius: 20px;
+          background: var(--cf-bg-elevated);
+          border: 1px solid var(--cf-border);
+          color: var(--cf-text-primary); padding: 6px 16px; border-radius: 20px;
           cursor: pointer; transition: all 0.2s;
-          &:hover { background: rgba(255,255,255,0.1); }
+          &:hover { background: var(--cf-bg-soft); }
         }
 
         .icon-btn {
-          background: rgba(255,255,255,0.05);
-          border: 1px solid var(--cf-border-light);
-          color: white; width: 36px; height: 36px; border-radius: 50%;
+          background: var(--cf-bg-elevated);
+          border: 1px solid var(--cf-border);
+          color: var(--cf-text-primary); width: 36px; height: 36px; border-radius: 50%;
           display: flex; align-items: center; justify-content: center;
           cursor: pointer;
         }
@@ -400,7 +400,7 @@ const user = {
         position: relative;
 
         &.active {
-          color: white;
+          color: var(--cf-text-primary);
           font-weight: 500;
           &::after {
             content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px;
@@ -419,7 +419,7 @@ const user = {
         .feed-header {
           display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
           .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #38bdf8, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white;}
-          .info { display: flex; flex-direction: column; .name{ color: white; font-size: 15px; } .time{ color: var(--cf-text-muted); font-size: 12px; } }
+          .info { display: flex; flex-direction: column; .name{ color: var(--cf-text-primary); font-size: 15px; } .time{ color: var(--cf-text-muted); font-size: 12px; } }
           .more { margin-left: auto; color: var(--cf-text-secondary); cursor: pointer; }
         }
 
@@ -427,7 +427,7 @@ const user = {
           p { margin: 0 0 16px; line-height: 1.6; font-size: 15px; }
           .attachment-card {
             display: flex; align-items: center; gap: 16px; padding: 16px;
-            background: rgba(255,255,255,0.03); border: 1px solid var(--cf-border); border-radius: 8px;
+            background: var(--cf-bg-soft); border: 1px solid var(--cf-border); border-radius: 8px;
             .icon { font-size: 24px; }
             .att-info { display: flex; flex-direction: column; .att-name{ color: var(--cf-primary); font-size: 14px; } .att-size{ color: var(--cf-text-muted); font-size: 12px; } }
           }
@@ -452,7 +452,7 @@ const user = {
       padding: 24px;
       .widget-header {
         display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
-        h3 { margin: 0; font-size: 16px; color: white; }
+        h3 { margin: 0; font-size: 16px; color: var(--cf-text-primary); }
         .more { font-size: 13px; color: var(--cf-primary); cursor: pointer; }
         .streak { font-size: 12px; color: var(--cf-warning); padding: 2px 8px; border-radius: 12px; background: rgba(210,153,34,0.1); }
       }
@@ -460,10 +460,10 @@ const user = {
       .badges {
         display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
         .badge {
-          aspect-ratio: 1; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--cf-border);
+          aspect-ratio: 1; border-radius: 12px; background: var(--cf-bg-elevated); border: 1px solid var(--cf-border);
           display: flex; align-items: center; justify-content: center; font-size: 24px;
           &.neon-glow {
-            box-shadow: inset 0 0 10px rgba(139,92,246,0.2);
+            box-shadow: inset 0 0 10px rgba(139,92,246,0.1);
             border-color: rgba(139,92,246,0.3);
           }
         }
@@ -471,10 +471,10 @@ const user = {
 
       .calendar-grid {
         display: grid; grid-template-columns: 20px repeat(5, 1fr); gap: 6px; align-items: center;
-        .day-label { font-size: 12px; color: var(--cf-text-muted); text-align: right; padding-right: 4px; }
+        .day-label { font-size: 12px; color: var(--cf-text-secondary); text-align: right; padding-right: 4px; }
         .square {
-          aspect-ratio: 1; border-radius: 4px; background: rgba(255,255,255,0.05);
-          &.active { background: var(--cf-primary); box-shadow: 0 0 8px rgba(99,102,241,0.4); }
+          aspect-ratio: 1; border-radius: 4px; background: rgba(0,0,0,0.05);
+          &.active { background: var(--cf-primary); box-shadow: 0 0 8px rgba(99,102,241,0.2); }
         }
       }
     }

@@ -15,7 +15,7 @@ const password = ref('');
 const loading = ref(false);
 
 const featureList = [
-  '加入多校学习空间，追踪热门课程讨论',
+  '加入多校学习圈，追踪热门课程讨论',
   '查看广场动态、资源分享与打卡挑战',
   '使用 AI 助手快速总结帖子与学习内容',
 ];
@@ -76,7 +76,7 @@ async function handleLogin() {
             </div>
             <div>
               <strong>12k+</strong>
-              <span>学习部落</span>
+              <span>学习圈</span>
             </div>
             <div>
               <strong>8.9k</strong>

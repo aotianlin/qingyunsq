@@ -3,21 +3,19 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NSpin, NIcon } from 'naive-ui';
 import { 
-  HomeOutline, 
-  CompassOutline, 
+  PlanetOutline,
+  BonfireOutline,
+  SparklesOutline,
   LibraryOutline,
-  DocumentTextOutline,
   CheckmarkCircleOutline,
   NotificationsOutline,
-  ChatbubbleEllipsesOutline,
-  TrophyOutline,
   StarOutline,
-  SettingsOutline,
   SearchOutline,
   MenuOutline,
   ShareSocialOutline,
   ThumbsUpOutline,
-  ChatboxOutline
+  ChatboxOutline,
+  ArrowBackOutline
 } from '@vicons/ionicons5';
 import { getSpaceById, getSpaceMembers } from '@/api/spaces';
 import { getPosts } from '@/api/posts';
@@ -33,22 +31,17 @@ const posts = ref<PostVO[]>([]);
 const loading = ref(true);
 
 const sidebarMenus = [
-  { label: '首页', icon: HomeOutline, path: '/' },
-  { label: '发现', icon: CompassOutline, path: '/discover' },
+  { label: '广场', icon: PlanetOutline, path: '/square' },
   { 
-    label: '学习空间', 
-    icon: LibraryOutline, 
+    label: '学习圈', 
+    icon: BonfireOutline, 
     path: '/spaces',
     active: true,
-    children: ['我的空间', '我加入的', '空间广场', '空间管理']
+    children: ['我的圈子', '我加入的', '圈子广场', '圈子管理']
   },
-  { label: '帖子', icon: DocumentTextOutline, path: '/square' },
   { label: '打卡', icon: CheckmarkCircleOutline, path: '/checkin' },
-  { label: '通知', icon: NotificationsOutline, path: '/notifications', badge: 12 },
-  { label: '消息', icon: ChatbubbleEllipsesOutline, path: '/messages' },
-  { label: '积分', icon: TrophyOutline, path: '/points' },
-  { label: '收藏', icon: StarOutline, path: '/favorites' },
-  { label: '设置', icon: SettingsOutline, path: '/settings' },
+  { label: '积分中心', icon: StarOutline, path: '/points' },
+  { label: 'AI 助手', icon: SparklesOutline, path: '/ai' },
 ];
 
 const tabs = ['首页', '帖子', '精华', '文件', '成员', '打卡', '设置'];
@@ -67,7 +60,7 @@ async function loadSpace() {
       ownerId: 1,
       owner: null,
       name: '计算机科学与技术',
-      description: 'CS学习交流空间',
+      description: 'CS学习交流圈',
       category: 'MAJOR',
       visibility: 'PUBLIC',
       memberCount: 2341,
@@ -86,56 +79,15 @@ onMounted(loadSpace);
 
 <template>
   <div class="layout-container">
-    <!-- Left Sidebar -->
-    <aside class="sidebar">
-      <div class="logo">
-        <n-icon
-          size="24"
-          color="#6366f1"
-        >
-          <LibraryOutline />
-        </n-icon>
-        <span>CampusForum</span>
-      </div>
-      <nav class="menu-list">
-        <template
-          v-for="menu in sidebarMenus"
-          :key="menu.label"
-        >
-          <div
-            class="menu-item"
-            :class="{ active: menu.active }"
-            @click="router.push(menu.path)"
-          >
-            <n-icon size="20">
-              <component :is="menu.icon" />
-            </n-icon>
-            <span class="label">{{ menu.label }}</span>
-            <span
-              v-if="menu.badge"
-              class="badge"
-            >{{ menu.badge }}</span>
-          </div>
-          <div
-            v-if="menu.children"
-            class="submenu"
-          >
-            <div
-              v-for="child in menu.children"
-              :key="child"
-              class="submenu-item"
-            >
-              {{ child }}
-            </div>
-          </div>
-        </template>
-      </nav>
-    </aside>
-
-    <!-- Main Content Area -->
     <div class="main-wrapper">
       <!-- Top Header -->
       <header class="top-header">
+        <div class="header-left" @click="router.push('/spaces')">
+          <n-icon size="20">
+            <ArrowBackOutline />
+          </n-icon>
+          <span>返回学习圈广场</span>
+        </div>
         <div class="search-bar">
           <n-icon
             size="18"
@@ -145,7 +97,7 @@ onMounted(loadSpace);
           </n-icon>
           <input
             type="text"
-            placeholder="搜索空间内容"
+            placeholder="搜索圈内内容"
           />
         </div>
         <div class="header-actions">
@@ -176,7 +128,7 @@ onMounted(loadSpace);
                   <div class="space-icon">
                     <n-icon
                       size="36"
-                      color="#fff"
+                      color="white"
                     >
                       <LibraryOutline />
                     </n-icon>
@@ -184,10 +136,10 @@ onMounted(loadSpace);
                   <div class="space-info">
                     <div class="title-row">
                       <h2>{{ space.name || '计算机科学与技术' }}</h2>
-                      <span class="tag">公开空间</span>
+                      <span class="tag">公开圈子</span>
                     </div>
                     <p class="desc">
-                      CS学习交流空间
+                      {{ space.description || 'CS学习交流圈' }}
                     </p>
                     <div class="stats">
                       成员 {{ space.memberCount || '2,341' }} <span class="dot">·</span> 
@@ -215,14 +167,14 @@ onMounted(loadSpace);
               </div>
 
               <!-- Filter -->
-              <div class="post-filters">
+              <div v-if="activeTab === '帖子'" class="post-filters">
                 <span class="active">最新</span>
                 <span>热门</span>
                 <span>精华</span>
               </div>
 
               <!-- Post List -->
-              <div class="post-list">
+              <div v-if="activeTab === '帖子'" class="post-list">
                 <!-- Mock Pinned Post -->
                 <div class="post-item glass-card">
                   <div class="post-author">
@@ -269,6 +221,49 @@ onMounted(loadSpace);
                   </div>
                 </div>
               </div>
+
+              <!-- Members Tab -->
+              <div v-if="activeTab === '成员'" class="members-view">
+                <div class="member-header">
+                  <h3>圈子成员</h3>
+                  <div class="search-member">
+                    <input type="text" placeholder="搜索成员昵称" />
+                  </div>
+                </div>
+                <div class="member-grid">
+                  <div v-for="m in members" :key="m.userId" class="member-card glass-card">
+                    <div class="avatar">{{ m.user?.nickname?.charAt(0) || 'U' }}</div>
+                    <div class="info">
+                      <span class="name">{{ m.user?.nickname || '未知用户' }}</span>
+                      <span class="role">{{ m.role === 'OWNER' ? '圈主' : (m.role === 'ADMIN' ? '管理员' : '成员') }}</span>
+                    </div>
+                  </div>
+                  <!-- Mock members if empty -->
+                  <div v-if="members.length === 0" class="member-card glass-card" v-for="i in 5" :key="i">
+                    <div class="avatar" style="background: var(--cf-gradient-primary);">U</div>
+                    <div class="info">
+                      <span class="name">学习者 {{ i }}</span>
+                      <span class="role">成员</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Files Tab -->
+              <div v-if="activeTab === '文件'" class="files-view glass-card">
+                <div class="empty-state">
+                  <n-icon size="48" color="rgba(255,255,255,0.2)"><DocumentTextOutline /></n-icon>
+                  <p>暂无文件，快来分享第一份资料吧~</p>
+                  <button class="neon-btn">上传文件</button>
+                </div>
+              </div>
+
+              <!-- Other Tabs Fallback -->
+              <div v-if="!['帖子', '成员', '文件'].includes(activeTab)" class="files-view glass-card">
+                <div class="empty-state">
+                  <p>该功能模块建设中...</p>
+                </div>
+              </div>
             </div>
 
             <!-- Right Column -->
@@ -276,11 +271,11 @@ onMounted(loadSpace);
               <!-- Notice Card -->
               <div class="widget-card glass-card">
                 <div class="widget-header">
-                  <h3>空间公告</h3>
+                  <h3>圈子公告</h3>
                   <span class="more">更多 ></span>
                 </div>
                 <div class="notice-content">
-                  <p>欢迎加入计算机科学与技术空间！请遵守发帖规范，友善交流，共同进步！</p>
+                  <p>欢迎加入本学习圈！请遵守发帖规范，友善交流，共同进步！</p>
                   <div class="date">
                     2024-05-01
                   </div>
@@ -290,7 +285,7 @@ onMounted(loadSpace);
               <!-- Data Card -->
               <div class="widget-card glass-card">
                 <div class="widget-header">
-                  <h3>空间数据</h3>
+                  <h3>圈子数据</h3>
                 </div>
                 <div class="data-content">
                   <div class="data-row">
@@ -379,90 +374,19 @@ onMounted(loadSpace);
 .layout-container {
   display: flex;
   height: 100vh;
-  background-color: var(--cf-bg-base);
+  background-color: transparent;
   color: var(--cf-text-primary);
   overflow: hidden;
 }
 
-/* Sidebar */
-.sidebar {
-  width: 240px;
-  background: rgba(22, 27, 34, 0.95);
-  border-right: 1px solid var(--cf-border);
-  display: flex;
-  flex-direction: column;
-  padding: 24px 16px;
-
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 18px;
-    font-weight: bold;
-    margin-bottom: 40px;
-    padding-left: 8px;
-  }
-
-  .menu-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-
-    .menu-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      border-radius: 8px;
-      cursor: pointer;
-      color: var(--cf-text-secondary);
-      transition: all 0.2s;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.05);
-        color: var(--cf-text-primary);
-      }
-
-      &.active {
-        background: rgba(99, 102, 241, 0.1);
-        color: var(--cf-primary);
-      }
-
-      .label { flex: 1; font-size: 15px; }
-
-      .badge {
-        background: var(--cf-error);
-        color: white;
-        font-size: 12px;
-        padding: 2px 6px;
-        border-radius: 10px;
-      }
-    }
-
-    .submenu {
-      margin-left: 44px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-top: 4px;
-      margin-bottom: 12px;
-
-      .submenu-item {
-        font-size: 14px;
-        color: var(--cf-text-secondary);
-        cursor: pointer;
-        &:hover { color: var(--cf-text-primary); }
-      }
-    }
-  }
-}
-
-/* Main Area */
 .main-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .top-header {
@@ -472,11 +396,28 @@ onMounted(loadSpace);
   justify-content: space-between;
   padding: 0 32px;
   border-bottom: 1px solid var(--cf-border);
+  background: rgba(250, 249, 246, 0.85);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--cf-text-primary);
+    transition: color 0.2s;
+    &:hover { color: var(--cf-primary); }
+  }
 
   .search-bar {
     display: flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--cf-bg-elevated);
+    border: 1px solid var(--cf-border);
     border-radius: 20px;
     padding: 8px 16px;
     width: 300px;
@@ -485,7 +426,7 @@ onMounted(loadSpace);
     input {
       background: transparent;
       border: none;
-      color: white;
+      color: var(--cf-text-primary);
       outline: none;
       width: 100%;
       &::placeholder { color: var(--cf-text-muted); }
@@ -559,7 +500,7 @@ onMounted(loadSpace);
             display: flex;
             align-items: center;
             gap: 12px;
-            h2 { margin: 0; font-size: 24px; color: white; }
+            h2 { margin: 0; font-size: 24px; color: var(--cf-text-primary); }
             .tag { font-size: 12px; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--cf-warning); color: var(--cf-warning); }
           }
           .desc { color: var(--cf-text-secondary); margin: 8px 0; font-size: 14px; }
@@ -583,7 +524,7 @@ onMounted(loadSpace);
         position: relative;
 
         &.active {
-          color: white;
+          color: var(--cf-text-primary);
           &::after {
             content: '';
             position: absolute;
@@ -613,6 +554,9 @@ onMounted(loadSpace);
 
       .post-item {
         padding: 24px;
+        background: var(--cf-bg-elevated);
+        border: 1px solid var(--cf-border);
+        border-radius: 16px;
         
         .post-author {
           display: flex;
@@ -627,7 +571,7 @@ onMounted(loadSpace);
           .author-info {
             display: flex;
             flex-direction: column;
-            .name { font-size: 14px; color: white; font-weight: 500; }
+            .name { font-size: 14px; color: var(--cf-text-primary); font-weight: 500; }
             .time { font-size: 12px; color: var(--cf-text-muted); }
           }
           .more-icon { margin-left: auto; color: var(--cf-text-secondary); cursor: pointer; }
@@ -636,7 +580,7 @@ onMounted(loadSpace);
         .post-title {
           margin: 0 0 12px;
           font-size: 18px;
-          color: white;
+          color: var(--cf-text-primary);
           display: flex;
           align-items: center;
           gap: 12px;
@@ -676,13 +620,16 @@ onMounted(loadSpace);
 
     .widget-card {
       padding: 24px;
+      background: var(--cf-bg-elevated);
+      border: 1px solid var(--cf-border);
+      border-radius: 16px;
 
       .widget-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 16px;
-        h3 { margin: 0; font-size: 16px; color: white; }
+        h3 { margin: 0; font-size: 16px; color: var(--cf-text-primary); }
         .more { font-size: 13px; color: var(--cf-text-secondary); cursor: pointer; }
       }
 
@@ -695,7 +642,7 @@ onMounted(loadSpace);
         .data-row {
           display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
           .label { font-size: 14px; color: var(--cf-text-secondary); }
-          .value { font-size: 18px; font-weight: bold; color: white; }
+          .value { font-size: 18px; font-weight: bold; color: var(--cf-text-primary); }
           .up { color: var(--cf-success); font-size: 12px; margin-left: 8px; font-weight: normal; }
           
           &.mt { margin-top: 24px; margin-bottom: 0; }
@@ -714,6 +661,77 @@ onMounted(loadSpace);
         }
       }
     }
+  }
+}
+
+.members-view {
+  .member-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    h3 { margin: 0; color: var(--cf-text-primary); font-size: 18px; }
+    .search-member {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      padding: 6px 16px;
+      input {
+        background: transparent;
+        border: none;
+        color: var(--cf-text-primary);
+        outline: none;
+        font-size: 14px;
+        &::placeholder { color: var(--cf-text-muted); }
+      }
+    }
+  }
+
+  .member-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+
+    .member-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: var(--cf-bg-elevated);
+      border: 1px solid var(--cf-border);
+      border-radius: 12px;
+
+      .avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: #6366f1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+      }
+
+      .info {
+        display: flex;
+        flex-direction: column;
+        .name { color: white; font-size: 15px; font-weight: 500; }
+        .role { color: var(--cf-text-secondary); font-size: 12px; margin-top: 4px; }
+      }
+    }
+  }
+}
+
+.files-view {
+  padding: 60px;
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    p { margin: 16px 0 24px; color: var(--cf-text-secondary); }
+    button { padding: 8px 24px; }
   }
 }
 </style>

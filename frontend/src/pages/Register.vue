@@ -17,7 +17,7 @@ const loading = ref(false);
 
 const benefits = [
   '在广场记录课程心得与校园见闻',
-  '加入学习空间，参与专题讨论与资料共享',
+  '加入学习圈，参与专题讨论与资料共享',
   '开启打卡、积分、成就和 AI 学习辅助能力',
 ];
 
@@ -185,8 +185,8 @@ async function handleRegister() {
                 <span>查看校园热门讨论与观点</span>
               </div>
               <div>
-                <strong>加入部落</strong>
-                <span>进入课程、竞赛、科研协作空间</span>
+                <strong>加入学习圈</strong>
+                <span>进入课程、竞赛、科研学习圈</span>
               </div>
               <div>
                 <strong>使用 AI</strong>

@@ -258,7 +258,7 @@ onMounted(async () => {
 .notifications-layout {
   height: 100vh;
   overflow-y: auto;
-  background: var(--cf-bg-base);
+  background: transparent;
   background-image: radial-gradient(circle at 80% 20%, rgba(245, 158, 11, 0.08), transparent 40%);
 }
 

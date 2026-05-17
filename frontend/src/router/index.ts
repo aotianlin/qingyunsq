@@ -79,12 +79,6 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true },
       },
       {
-        path: 'spaces/:id',
-        name: 'space-detail',
-        component: () => import('@/pages/SpaceDetail.vue'),
-        meta: { requiresAuth: true },
-      },
-      {
         path: 'checkin',
         name: 'checkin',
         component: () => import('@/pages/CheckinChallenges.vue'),
@@ -203,6 +197,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/admin/AdminAiConfig.vue'),
       },
     ],
+  },
+  {
+    path: '/spaces/:id',
+    name: 'space-detail',
+    component: () => import('@/pages/SpaceDetail.vue'),
+    meta: { requiresAuth: true },
   },
   {
     path: '/:pathMatch(.*)*',

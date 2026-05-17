@@ -4,11 +4,11 @@
   --cf-font-heading: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', sans-serif;
   --cf-font-body: 'Inter', 'Segoe UI', sans-serif;
 
-  --cf-bg-base: #f8f9ff;
+  --cf-bg-base: #faf9f6;
   --cf-bg-elevated: #ffffff;
-  --cf-bg-soft: #eff4ff;
-  --cf-bg-muted: #e5eeff;
-  --cf-bg-strong: #dce9ff;
+  --cf-bg-soft: #f4f2ee;
+  --cf-bg-muted: #ebe8e0;
+  --cf-bg-strong: #e1ddcd;
 
   --cf-primary: #0058be;
   --cf-primary-hover: #004aa0;
@@ -58,14 +58,23 @@ body,
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at top left, rgba(0, 88, 190, 0.09), transparent 24%),
-    radial-gradient(circle at top right, rgba(16, 185, 129, 0.08), transparent 18%),
-    var(--cf-bg-base);
+  background-color: var(--cf-bg-base);
+  background-image: radial-gradient(rgba(107, 122, 144, 0.25) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  animation: moveParticlesUp 5s linear infinite;
   color: var(--cf-text-primary);
   font-family: var(--cf-font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@keyframes moveParticlesUp {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 0 -24px;
+  }
 }
 
 a {
@@ -116,6 +125,13 @@ img {
   transform: translateY(-2px);
   box-shadow: var(--cf-shadow-card-hover);
   border-color: var(--cf-border-strong);
+}
+
+.glass-card {
+  background: var(--cf-bg-elevated);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-radius-lg);
+  box-shadow: var(--cf-shadow-soft);
 }
 
 .cf-section-title {

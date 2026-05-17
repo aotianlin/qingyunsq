@@ -128,7 +128,7 @@ watch(
       <n-input
         v-model:value="keyword"
         size="large"
-        placeholder="搜索帖子、用户、资源或学习空间"
+        placeholder="搜索帖子、用户、资源或学习圈"
         clearable
         @keyup.enter="doSearch"
       >

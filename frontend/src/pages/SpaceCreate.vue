@@ -53,7 +53,7 @@ function cancel() {
 
 <template>
   <div class="create-page">
-    <NCard title="创建学习空间">
+    <NCard title="创建学习圈">
       <div class="form">
         <label>空间名称</label>
         <NInput

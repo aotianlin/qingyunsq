@@ -10,7 +10,7 @@ const stats = [
   { label: '入驻高校', value: '128+', icon: SchoolOutline },
   { label: '活跃学生', value: '56,231+', icon: PeopleOutline },
   { label: '优质帖子', value: '324,112+', icon: ChatbubblesOutline },
-  { label: '学习部落', value: '12,421+', icon: PlanetOutline },
+  { label: '学习圈', value: '12,421+', icon: PlanetOutline },
 ];
 
 const featuredSpaces = [
@@ -50,7 +50,7 @@ const featuredSpaces = [
 
 const highlights = [
   {
-    title: '跨校协作空间',
+    title: '跨校学习圈',
     text: '支持校园、学院、兴趣组三级组织形态，自由构建公开或私密学习圈层。',
   },
   {
@@ -92,7 +92,7 @@ function goPrimary() {
             class="cf-secondary-btn"
             @click="router.push('/spaces')"
           >
-            探索部落
+            探索学习圈
           </button>
         </div>
         <div class="hero-mini-stats">
@@ -138,7 +138,7 @@ function goPrimary() {
             </div>
             <div class="visual-panel">
               <div class="panel-label">
-                协作空间
+                学习圈
               </div>
               <p>按课程、课题组、兴趣方向创建轻量空间，沉淀共享资料与讨论。</p>
             </div>
@@ -169,7 +169,7 @@ function goPrimary() {
       <div class="section-head">
         <div>
           <h2 class="cf-section-title">
-            精选部落
+            精选学习圈
           </h2>
           <p class="cf-section-subtitle">
             参考 Stitch 已生成的风格重构，为不同学习兴趣提供更具呼吸感的展示布局。

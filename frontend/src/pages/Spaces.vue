@@ -21,7 +21,7 @@ const loading = ref(false);
 const category = ref<string | undefined>(undefined);
 
 const categories = [
-  { key: undefined, label: '全部部落', icon: PlanetOutline },
+  { key: undefined, label: '全部学习圈', icon: PlanetOutline },
   { key: 'MAJOR', label: '专业系', icon: LibraryOutline },
   { key: 'CLASS', label: '班级圈', icon: PeopleOutline },
   { key: 'CLUB', label: '社团联盟', icon: ColorPaletteOutline },
@@ -79,7 +79,7 @@ onMounted(loadSpaces);
           >
             <BonfireOutline />
           </n-icon>
-          星际部落
+          学习圈
         </h1>
         <p class="page-subtitle">
           加入志同道合的圈子，共同进步
@@ -90,7 +90,7 @@ onMounted(loadSpaces);
           class="neon-btn create-btn"
           @click="goCreate"
         >
-          <n-icon><AddOutline /></n-icon> 创建部落
+          <n-icon><AddOutline /></n-icon> 创建学习圈
         </button>
       </div>
     </div>
@@ -128,13 +128,13 @@ onMounted(loadSpaces);
         >
           <BonfireOutline />
         </n-icon>
-        <h3>暂无部落</h3>
-        <p>该分类下还没有任何星际部落哦</p>
+        <h3>暂无学习圈</h3>
+        <p>该分类下还没有任何学习圈哦</p>
         <button
           class="neon-btn mt-4"
           @click="goCreate"
         >
-          建立第一个部落
+          建立第一个学习圈
         </button>
       </div>
 
@@ -207,7 +207,7 @@ onMounted(loadSpaces);
           </div>
 
           <div class="hover-action">
-            <span>进入部落</span>
+            <span>进入学习圈</span>
             <n-icon><ChevronForwardOutline /></n-icon>
           </div>
         </div>
