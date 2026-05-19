@@ -1,0 +1,70 @@
+# ============================================================
+# 集成测试默认配置（standalone 模式）
+# multi 模式测试通过 @TestPropertySource 覆盖 tenant.mode=multi
+# ============================================================
+
+spring:
+  datasource:
+    # Testcontainers 通过 @DynamicPropertySource 动态注入
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ""
+
+mybatis-plus:
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    map-underscore-to-camel-case: true
+
+sa-token:
+  token-name: Authorization
+  timeout: 2592000
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: tik
+  is-log: false
+
+# ---------- 多租户配置（默认 standalone）----------
+tenant:
+  mode: standalone
+  standalone-tenant-id: 1
+  root-domain: test.local
+  allow-header-fallback: true
+  cache:
+    max-size: 128
+    ttl: 10s
+
+# ---------- AI 配置（测试用 mock）----------
+ai:
+  provider: mock
+  base-url: http://localhost
+  api-key: test-key
+  model: mock
+  rate-limit:
+    per-user-per-min: 100
+    per-tenant-per-day: 10000
+
+# ---------- 存储配置（测试用 minio mock）----------
+storage:
+  type: minio
+  minio:
+    endpoint: http://localhost:9000
+    access-key: minioadmin
+    secret-key: minioadmin
+    bucket: test-bucket
+
+# ---------- 搜索配置 ----------
+search:
+  type: mysql
+
+# ---------- 文件上传 ----------
+upload:
+  max-file-size: 10MB
+  allowed-extensions: pdf,jpg,png

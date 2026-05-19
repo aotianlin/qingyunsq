@@ -33,10 +33,14 @@ async function handleLogin() {
     const res = await login({ email: email.value.trim(), password: password.value });
     authStore.setToken(res.token);
     authStore.setUser(res.user);
+    if (res.tenantId && res.tenantCode) {
+      authStore.setTenant(res.tenantId, res.tenantCode);
+    }
     message.success('登录成功');
     router.push('/square');
   } catch {
-    message.error('登录失败，请检查邮箱和密码');
+    // 后端统一返回 INVALID_CREDENTIALS(40101)，前端不区分具体失败原因
+    message.error('邮箱或密码错误');
   } finally {
     loading.value = false;
   }

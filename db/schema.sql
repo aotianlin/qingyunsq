@@ -377,3 +377,10 @@ CREATE TABLE follows (
   UNIQUE KEY uk_follow (follower_id, followee_id),
   KEY idx_followee (followee_id)
 ) ENGINE=InnoDB COMMENT='用户关注';
+
+-- ============================================================
+-- 初始数据：默认租户（standalone 模式必需）
+-- ============================================================
+INSERT INTO tenants (id, code, name, status, created_at, updated_at)
+VALUES (1, 'default', '默认租户', 1, NOW(), NOW())
+ON DUPLICATE KEY UPDATE status = 1;

@@ -39,8 +39,16 @@ sa-token:
   is-log: false
 
 # ---------- 多租户配置 ----------
+# standalone 模式：所有请求使用固定 tenant_id，适用于单校部署，无需子域名配置
+# multi 模式：通过子域名（如 fudan.campusforum.com）或 X-Tenant-Id 头识别租户，适用于 SaaS 多校部署
 tenant:
-  mode: standalone  # standalone | multi
+  mode: standalone               # standalone | multi
+  standalone-tenant-id: 1        # standalone 模式占位 id（必须等于 tenants 表中 status=1 的某条记录）
+  root-domain: campusforum.com   # multi 模式子域名解析依据（如 fudan.campusforum.com）
+  allow-header-fallback: true    # multi 模式是否接受 X-Tenant-Id 作为 auth 接口的回退来源
+  cache:
+    max-size: 1024               # Active 租户缓存最大条目数
+    ttl: 60s                     # 缓存过期时间（写入后）
 
 # ---------- AI 配置 ----------
 ai:

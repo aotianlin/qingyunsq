@@ -4,9 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.campusforum.common.BusinessException;
 import com.campusforum.follow.domain.Follow;
 import com.campusforum.follow.mapper.FollowMapper;
+import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +35,7 @@ class FollowServiceTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         long ts = System.currentTimeMillis();
         RegisterRequest r1 = new RegisterRequest();
         r1.setEmail("follower" + ts + "@campusforum.com");
@@ -47,6 +50,11 @@ class FollowServiceTest {
         r2.setNickname("被关注者" + ts);
         UserVO u2 = userService.register(r2);
         followeeId = u2.getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test

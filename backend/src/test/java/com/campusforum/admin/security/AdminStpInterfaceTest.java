@@ -1,10 +1,13 @@
 package com.campusforum.admin.security;
 
+import cn.dev33.satoken.stp.StpUtil;
+import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
 import com.campusforum.user.service.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +33,7 @@ class AdminStpInterfaceTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         long ts = System.currentTimeMillis();
         RegisterRequest req = new RegisterRequest();
         req.setEmail("admin-test" + ts + "@campusforum.com");
@@ -37,6 +41,11 @@ class AdminStpInterfaceTest {
         req.setNickname("管理员测试");
         UserVO user = userService.register(req);
         userId = user.getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test
@@ -54,6 +63,8 @@ class AdminStpInterfaceTest {
     @Test
     void shouldReturnTenantAdminPermissions() {
         userService.changeRole(userId, "TENANT_ADMIN");
+        // 清除可能存在的旧 session 缓存，确保从 DB 读取最新角色
+        try { StpUtil.logout(userId); } catch (Exception ignored) {}
         List<String> perms = stpInterface.getPermissionList(userId, "login");
         assertThat(perms).contains(
                 "tenant:dashboard",
@@ -72,6 +83,8 @@ class AdminStpInterfaceTest {
         User user = userMapper.selectById(userId);
         user.setRole("SUPER_ADMIN");
         userMapper.updateById(user);
+        // 清除可能存在的旧 session 缓存
+        try { StpUtil.logout(userId); } catch (Exception ignored) {}
 
         List<String> perms = stpInterface.getPermissionList(userId, "login");
         assertThat(perms).contains(
@@ -83,6 +96,8 @@ class AdminStpInterfaceTest {
     @Test
     void shouldReturnTenantAdminRole() {
         userService.changeRole(userId, "TENANT_ADMIN");
+        // 清除可能存在的旧 session 缓存，确保从 DB 读取最新角色
+        try { StpUtil.logout(userId); } catch (Exception ignored) {}
         List<String> roles = stpInterface.getRoleList(userId, "login");
         assertThat(roles).containsExactly("TENANT_ADMIN");
     }

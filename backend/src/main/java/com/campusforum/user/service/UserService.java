@@ -1,10 +1,13 @@
 package com.campusforum.user.service;
 
+import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
 import com.campusforum.points.service.PointsService;
+import com.campusforum.tenant.TenantContext;
+import com.campusforum.tenant.cache.ActiveTenantCache;
 import com.campusforum.user.config.StudentNoMappingProperties;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.LoginRequest;
@@ -37,6 +40,14 @@ public class UserService {
     private final UserMapper userMapper;
     private final PointsService pointsService;
     private final StudentNoMappingProperties studentNoMapping;
+    private final ActiveTenantCache activeTenantCache;
+
+    /**
+     * 固定 BCrypt hash，仅用于用户不存在时消耗等量 CPU 时间，防止时序攻击。
+     * 该值是一个合法的 BCrypt hash（cost=10），不对应任何真实密码。
+     */
+    private static final String DUMMY_BCRYPT_HASH =
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
     @Transactional
     public UserVO register(RegisterRequest req) {
@@ -80,22 +91,35 @@ public class UserService {
     }
 
     public UserVO login(LoginRequest req) {
+        long tid = TenantContext.getTenantId();
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getTenantId, tid)
                 .eq(User::getEmail, req.getEmail()));
+
+        boolean ok;
         if (user == null) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+            // 防时序攻击：用户不存在时仍执行一次 BCrypt 校验，消耗等量 CPU 时间
+            BCrypt.checkpw(req.getPassword(), DUMMY_BCRYPT_HASH);
+            ok = false;
+        } else if (user.getStatus() == 0) {
+            // 账号封禁：仍执行密码校验以保持时序一致
+            BCrypt.checkpw(req.getPassword(), user.getPasswordHash());
+            ok = false;
+        } else {
+            ok = BCrypt.checkpw(req.getPassword(), user.getPasswordHash());
         }
-        if (user.getStatus() == 0) {
-            throw new BusinessException(ErrorCode.USER_BANNED);
-        }
-        if (!BCrypt.checkpw(req.getPassword(), user.getPasswordHash())) {
-            throw new BusinessException(ErrorCode.WRONG_PASSWORD);
+
+        if (!ok) {
+            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
         // Sa-Token 登录
         StpUtil.login(user.getId());
-        StpUtil.getSession().set("userId", user.getId());
-        StpUtil.getSession().set("role", user.getRole());
+        SaSession session = StpUtil.getSession();
+        session.set("userId", user.getId());
+        session.set("role", user.getRole());
+        session.set("tenantId", user.getTenantId());
+        session.set("tenantCode", activeTenantCache.getCode(user.getTenantId()));
 
         // 每日首次登录奖励 1 积分（检查旧登录日期）
         LocalDate today = LocalDate.now();
@@ -114,6 +138,8 @@ public class UserService {
 
         UserVO vo = toVO(user);
         vo.setLastLoginAt(user.getLastLoginAt());
+        vo.setTenantId(user.getTenantId());
+        vo.setTenantCode(activeTenantCache.getCode(user.getTenantId()));
         return vo;
     }
 

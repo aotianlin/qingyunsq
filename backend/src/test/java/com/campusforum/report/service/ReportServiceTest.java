@@ -5,9 +5,11 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.campusforum.report.domain.Report;
 import com.campusforum.report.dto.ReportVO;
 import com.campusforum.report.mapper.ReportMapper;
+import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +36,7 @@ class ReportServiceTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         long ts = System.currentTimeMillis();
         RegisterRequest req = new RegisterRequest();
         req.setEmail("report-test" + ts + "@campusforum.com");
@@ -42,6 +45,11 @@ class ReportServiceTest {
         UserVO user = userService.register(req);
         reporterId = user.getId();
         StpUtil.login(reporterId);
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     private List<Report> mine() {

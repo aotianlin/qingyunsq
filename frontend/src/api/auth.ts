@@ -20,6 +20,8 @@ interface UserVO {
 interface LoginResponse {
   token: string;
   user: UserVO;
+  tenantId: number;
+  tenantCode: string;
 }
 
 export async function register(data: {

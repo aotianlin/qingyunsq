@@ -25,12 +25,20 @@ public class MyBatisPlusConfig {
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
 
-        // 多租户 SQL 自动改写（仅 multi 模式启用）
+        // 多租户 SQL 自动改写：始终注册，由 TenantContext.getTenantId() 决定运行期 tenant_id。
+        // - standalone 模式：所有请求 TenantContext = standaloneTenantId，写入 SQL 的 tenant_id = 该值
+        // - multi 模式：TenantContext 由 TenantResolutionFilter 根据 Sa-Token Session/子域名/X-Tenant-Id 解析得到
+        // - TenantContext 为 null 时：直接抛 IllegalStateException，禁止静默降级
         interceptor.addInnerInterceptor(new TenantLineInnerInterceptor(new TenantLineHandler() {
             @Override
             public Expression getTenantId() {
                 Long tenantId = TenantContext.getTenantId();
-                return new LongValue(tenantId != null ? tenantId : 1L);
+                if (tenantId == null) {
+                    throw new IllegalStateException(
+                        "TenantContext is null. This indicates a missing TenantResolutionFilter "
+                        + "or an entry path that bypassed it (e.g., scheduled task without explicit TenantContext setup).");
+                }
+                return new LongValue(tenantId);
             }
 
             @Override

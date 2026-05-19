@@ -1,0 +1,9 @@
+# 专用于 TenantPropertiesBindingTest 的配置
+tenant:
+  mode: multi
+  standalone-tenant-id: 42
+  root-domain: test.example.com
+  allow-header-fallback: false
+  cache:
+    max-size: 512
+    ttl: 30s

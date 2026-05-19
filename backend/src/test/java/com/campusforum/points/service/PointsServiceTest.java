@@ -4,9 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.campusforum.points.domain.PointsLog;
 import com.campusforum.points.dto.PointsLogVO;
 import com.campusforum.points.mapper.PointsLogMapper;
+import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +35,7 @@ class PointsServiceTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         long ts = System.currentTimeMillis();
         RegisterRequest req = new RegisterRequest();
         req.setEmail("points-test" + ts + "@campusforum.com");
@@ -40,6 +43,11 @@ class PointsServiceTest {
         req.setNickname("积分测试用户");
         UserVO user = userService.register(req);
         userId = user.getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test

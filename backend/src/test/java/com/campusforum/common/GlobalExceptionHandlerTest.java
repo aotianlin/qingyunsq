@@ -25,4 +25,13 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getCode()).isEqualTo(ErrorCode.FORBIDDEN.getCode());
         assertThat(response.getMessage()).isEqualTo(ErrorCode.FORBIDDEN.getMessage());
     }
+
+    @Test
+    void shouldMapIllegalStateExceptionToInternalError() {
+        R<?> response = handler.handleIllegalState(
+                new IllegalStateException("TenantContext is null"));
+
+        assertThat(response.getCode()).isEqualTo(ErrorCode.INTERNAL_ERROR.getCode());
+        assertThat(response.getMessage()).isEqualTo("服务器内部错误");
+    }
 }

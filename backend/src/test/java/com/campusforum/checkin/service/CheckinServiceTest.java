@@ -5,9 +5,11 @@ import com.campusforum.checkin.dto.*;
 import com.campusforum.checkin.mapper.CheckinChallengeMapper;
 import com.campusforum.checkin.mapper.CheckinRecordMapper;
 import com.campusforum.common.BusinessException;
+import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +34,7 @@ class CheckinServiceTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         long ts = System.currentTimeMillis();
         RegisterRequest req = new RegisterRequest();
         req.setEmail("ck-user1-" + ts + "@test.com");
@@ -44,6 +47,11 @@ class CheckinServiceTest {
         req2.setPassword("Test123456");
         req2.setNickname("打卡用户2");
         userId2 = userService.register(req2).getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test

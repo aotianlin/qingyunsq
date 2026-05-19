@@ -39,5 +39,8 @@ uploads/
 data/
 storage/
 
+# ===== Testcontainers =====
+.testcontainers.properties
+
 # ===== Claude =====
 .claude/

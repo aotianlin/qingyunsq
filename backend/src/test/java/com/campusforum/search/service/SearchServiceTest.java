@@ -3,9 +3,11 @@ package com.campusforum.search.service;
 import com.campusforum.post.dto.CreatePostRequest;
 import com.campusforum.post.service.PostService;
 import com.campusforum.search.dto.SearchResultVO;
+import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +33,7 @@ class SearchServiceTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         long ts = System.currentTimeMillis();
         RegisterRequest req = new RegisterRequest();
         req.setEmail("search-test" + ts + "@campusforum.com");
@@ -38,6 +41,11 @@ class SearchServiceTest {
         req.setNickname("搜索测试用户");
         UserVO user = userService.register(req);
         authorId = user.getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test

@@ -6,9 +6,9 @@ import lombok.Getter;
 public enum ErrorCode {
 
     // 1xxxx 业务错误
-    USER_NOT_FOUND(10001, "用户不存在"),
-    WRONG_PASSWORD(10002, "密码错误"),
-    USER_BANNED(10003, "账号已被封禁"),
+    USER_NOT_FOUND(10001, "用户不存在"),       // 仅保留给已认证管理员操作使用，登录路径请使用 INVALID_CREDENTIALS
+    WRONG_PASSWORD(10002, "密码错误"),         // 仅保留给已认证管理员操作使用，登录路径请使用 INVALID_CREDENTIALS
+    USER_BANNED(10003, "账号已被封禁"),        // 仅保留给已认证管理员操作使用，登录路径请使用 INVALID_CREDENTIALS
     SPACE_NOT_FOUND(10101, "空间不存在"),
     SPACE_FULL(10102, "空间成员已满"),
     POST_NOT_FOUND(10201, "帖子不存在"),
@@ -21,7 +21,10 @@ public enum ErrorCode {
 
     // 4xxxx 客户端错误
     BAD_REQUEST(40000, "请求参数错误"),
+    TENANT_NOT_RESOLVED(40010, "无法识别租户"),
+    TENANT_NOT_FOUND(40011, "租户不存在或已停用"),
     UNAUTHORIZED(40100, "未登录"),
+    INVALID_CREDENTIALS(40101, "邮箱或密码错误"),
     FORBIDDEN(40300, "无权限"),
     NOT_FOUND(40400, "资源不存在"),
     RATE_LIMITED(42900, "请求过于频繁"),

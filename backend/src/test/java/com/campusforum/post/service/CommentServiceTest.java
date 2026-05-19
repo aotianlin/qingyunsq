@@ -6,9 +6,11 @@ import com.campusforum.post.dto.ReactionRequest;
 import com.campusforum.post.dto.CommentVO;
 import com.campusforum.post.dto.CreatePostRequest;
 import com.campusforum.common.BusinessException;
+import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +37,7 @@ class CommentServiceTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         long timestamp = System.currentTimeMillis();
 
         RegisterRequest authorReq = new RegisterRequest();
@@ -56,6 +59,11 @@ class CommentServiceTest {
         postReq.setContent("用于验证评论点赞计数。");
         PostVO post = postService.create(authorId, postReq);
         postId = post.getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test

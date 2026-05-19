@@ -6,9 +6,11 @@ import com.campusforum.post.dto.CreatePostRequest;
 import com.campusforum.post.dto.PostVO;
 import com.campusforum.post.service.CommentService;
 import com.campusforum.post.service.PostService;
+import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +41,7 @@ class QaServiceTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         long ts = System.currentTimeMillis();
 
         RegisterRequest req1 = new RegisterRequest();
@@ -68,6 +71,11 @@ class QaServiceTest {
         commentReq.setContent("先学基础语法，再刷题");
         var commentVO = commentService.create(answererId, commentReq);
         commentId = commentVO.getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test

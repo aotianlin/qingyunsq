@@ -1,8 +1,10 @@
 package com.campusforum.notify.service;
 
 import com.campusforum.notify.dto.NotificationVO;
+import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.service.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +28,7 @@ class NotifyServiceTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         long ts = System.currentTimeMillis();
         RegisterRequest req1 = new RegisterRequest();
         req1.setEmail("notif-u1-" + ts + "@test.com");
@@ -38,6 +41,11 @@ class NotifyServiceTest {
         req2.setPassword("Test123456");
         req2.setNickname("通知用户2");
         userId2 = userService.register(req2).getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test

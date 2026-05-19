@@ -3,9 +3,11 @@ package com.campusforum.space.service;
 import com.campusforum.common.BusinessException;
 import com.campusforum.space.dto.CreateSpaceRequest;
 import com.campusforum.space.dto.SpaceVO;
+import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +31,7 @@ class SpaceServiceTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         long timestamp = System.currentTimeMillis();
         RegisterRequest req = new RegisterRequest();
         req.setEmail("space-owner" + timestamp + "@campusforum.com");
@@ -43,6 +46,11 @@ class SpaceServiceTest {
         req2.setNickname("空间成员");
         UserVO member = userService.register(req2);
         memberId = member.getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test

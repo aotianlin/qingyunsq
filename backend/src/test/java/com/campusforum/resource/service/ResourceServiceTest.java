@@ -3,9 +3,11 @@ package com.campusforum.resource.service;
 import com.campusforum.common.BusinessException;
 import com.campusforum.resource.dto.ResourceVO;
 import com.campusforum.resource.dto.UploadResourceRequest;
+import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +35,7 @@ class ResourceServiceTest {
 
     @BeforeEach
     void setUp() {
+        TenantContext.setTenantId(1L);
         ts = System.currentTimeMillis();
         RegisterRequest req = new RegisterRequest();
         req.setEmail("res-user1-" + ts + "@test.com");
@@ -45,6 +48,11 @@ class ResourceServiceTest {
         req2.setPassword("Test123456");
         req2.setNickname("资源下载者");
         userId2 = userService.register(req2).getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     @Test
@@ -122,7 +130,7 @@ class ResourceServiceTest {
     @Test
     void shouldDeleteResource() {
         MockMultipartFile file = new MockMultipartFile(
-                "file", "tmp.txt", "text/plain",
+                "file", "tmp.pdf", "application/pdf",
                 ("temp "+ts).getBytes(StandardCharsets.UTF_8));
 
         UploadResourceRequest req = new UploadResourceRequest();

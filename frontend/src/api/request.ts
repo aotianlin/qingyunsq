@@ -14,16 +14,13 @@ const instance: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// 请求拦截：注入 Token 和租户头
+// 请求拦截：注入 Token
 instance.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = token;
   }
-  const tenantId = localStorage.getItem('tenantId');
-  if (tenantId) {
-    config.headers['X-Tenant-Id'] = tenantId;
-  }
+  // X-Tenant-Id 不再由前端注入，租户由服务端从 Sa-Token Session 权威解析
   return config;
 });
 

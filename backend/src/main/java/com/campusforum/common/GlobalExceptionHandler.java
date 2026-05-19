@@ -43,6 +43,14 @@ public class GlobalExceptionHandler {
         return R.fail(ErrorCode.BAD_REQUEST.getCode(), msg);
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public R<?> handleIllegalState(IllegalStateException e) {
+        // 兜底 TenantLineHandler 等基础设施抛出的状态异常，不向客户端暴露内部细节
+        log.error("IllegalStateException caught: {}", e.getMessage(), e);
+        return R.fail(ErrorCode.INTERNAL_ERROR.getCode(), "服务器内部错误");
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public R<?> handleException(Exception e) {

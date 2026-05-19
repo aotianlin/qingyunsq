@@ -21,6 +21,8 @@ public class UserVO {
     private String role;
     private Long points;
     private Integer status;
+    private Long tenantId;
+    private String tenantCode;
     private LocalDateTime lastLoginAt;
     private LocalDateTime createdAt;
 }

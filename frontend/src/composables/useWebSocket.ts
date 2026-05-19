@@ -6,6 +6,16 @@ export interface NotifyEvent {
   content: string;
 }
 
+/**
+ * WebSocket 通知连接 composable。
+ *
+ * 连接 URL 格式：/ws/notify?token={SaToken}
+ * 后端 TenantHandshakeInterceptor 从 query string 中提取 token，
+ * 验证有效性并从 Sa-Token Session 读取 tenantId 写入 WebSocket attributes。
+ *
+ * NOTE: package.json 中残留 socket.io-client 依赖但未使用，
+ * 可在后续清理中移除（参见 OS-2 spec）。
+ */
 export function useWebSocket(onNotify?: (event: NotifyEvent) => void) {
   const connected = ref(false);
   let ws: WebSocket | null = null;
@@ -16,6 +26,7 @@ export function useWebSocket(onNotify?: (event: NotifyEvent) => void) {
     if (!token) return;
 
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // token 通过 query string 传递，供后端 TenantHandshakeInterceptor 校验
     const url = `${protocol}//${location.host}/ws/notify?token=${token}`;
 
     ws = new WebSocket(url);
