@@ -133,7 +133,7 @@ async function copySummary() {
               type="text"
               placeholder="例如：https://.../posts/123 或直接输入 123"
               @keyup.enter="generateSummary"
-            >
+            />
           </div>
           <div class="action-row">
             <button
@@ -227,6 +227,7 @@ async function copySummary() {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 18px;
+  perspective: 1200px;
 }
 
 .tool-sidebar,
@@ -264,7 +265,7 @@ async function copySummary() {
   gap: 12px;
   text-align: left;
   cursor: pointer;
-  transition: all 0.22s ease;
+  transition: transform 0.24s var(--cf-motion-ease), background 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease;
 
   & + .tool-item {
     margin-top: 10px;
@@ -283,12 +284,16 @@ async function copySummary() {
   }
 
   &:hover {
-    background: var(--cf-bg-soft);
+    transform: translate3d(4px, -2px, 0);
+    background: var(--cf-bg-glass-soft);
+    border-color: var(--cf-border);
+    box-shadow: var(--cf-shadow-soft);
   }
 
   &.active {
-    background: var(--cf-primary-soft);
-    border-color: rgba(0, 88, 190, 0.12);
+    background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass-soft));
+    border-color: color-mix(in srgb, var(--cf-primary) 24%, var(--cf-border));
+    box-shadow: inset 0 1px 0 var(--cf-surface-highlight), var(--cf-shadow-soft);
   }
 }
 
@@ -299,7 +304,9 @@ async function copySummary() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255,255,255,0.8);
+  background: var(--cf-bg-glass-soft);
+  border: 1px solid var(--cf-border);
+  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
   color: var(--cf-primary);
 }
 
@@ -368,13 +375,16 @@ async function copySummary() {
   height: 38px;
   border-radius: 12px;
   border: 1px solid var(--cf-border);
-  background: var(--cf-bg-elevated);
+  background: var(--cf-bg-glass-soft);
   color: var(--cf-text-secondary);
   cursor: pointer;
+  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
+  transition: transform 0.22s var(--cf-motion-ease), background 0.22s ease, color 0.22s ease;
 }
 
 .result-icon-btn:hover:not(:disabled) {
-  background: var(--cf-bg-soft);
+  transform: translateY(-2px);
+  background: var(--cf-bg-glass);
   color: var(--cf-primary);
 }
 
@@ -399,7 +409,7 @@ async function copySummary() {
   height: 14px;
   border-radius: 50%;
   background: var(--cf-primary);
-  box-shadow: 0 0 0 0 rgba(0, 88, 190, 0.4);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--cf-primary) 42%, transparent);
   animation: pulse 1.2s infinite;
 }
 
@@ -421,7 +431,9 @@ pre {
   margin: 0;
   padding: 18px;
   border-radius: 18px;
-  background: var(--cf-bg-soft);
+  background: var(--cf-bg-readable);
+  border: 1px solid var(--cf-border);
+  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--cf-text-primary);
@@ -436,7 +448,9 @@ pre {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--cf-primary-soft);
+  background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass-soft));
+  border: 1px solid color-mix(in srgb, var(--cf-primary) 22%, var(--cf-border));
+  box-shadow: var(--cf-shadow-soft);
   color: var(--cf-primary);
   margin-bottom: 12px;
 
@@ -472,15 +486,15 @@ pre {
 @keyframes pulse {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(0, 88, 190, 0.42);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--cf-primary) 42%, transparent);
   }
   70% {
     transform: scale(1.05);
-    box-shadow: 0 0 0 14px rgba(0, 88, 190, 0);
+    box-shadow: 0 0 0 14px color-mix(in srgb, var(--cf-primary) 0%, transparent);
   }
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(0, 88, 190, 0);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--cf-primary) 0%, transparent);
   }
 }
 

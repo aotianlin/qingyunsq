@@ -62,7 +62,7 @@ function getCategoryColor(cat: string) {
 }
 
 function getCategoryLabel(cat: string) {
-  return categories.find(c => c.key === cat)?.label || '其他';
+  return categories.find((c) => c.key === cat)?.label || '其他';
 }
 
 onMounted(loadSpaces);
@@ -221,6 +221,7 @@ onMounted(loadSpaces);
   height: 100%;
   overflow-y: auto;
   background: transparent;
+  perspective: 1200px;
 }
 
 .header-banner {
@@ -270,7 +271,7 @@ onMounted(loadSpaces);
   display: flex;
   padding: 8px;
   gap: 8px;
-  background: rgba(22, 27, 34, 0.5);
+  background: var(--cf-bg-glass-soft);
   border-radius: 16px;
   margin-bottom: 24px;
   flex-wrap: wrap;
@@ -290,12 +291,12 @@ onMounted(loadSpaces);
     transition: all 0.3s;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--cf-bg-soft);
       color: var(--cf-text-primary);
     }
 
     &.active {
-      background: rgba(99, 102, 241, 0.15);
+      background: var(--cf-primary-soft);
       color: var(--cf-primary);
     }
   }
@@ -333,12 +334,24 @@ onMounted(loadSpaces);
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  min-height: 260px;
+  box-shadow: var(--cf-shadow-float);
+  transform-style: preserve-3d;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--cf-primary) 10%, transparent), transparent 38%);
+    opacity: 0.86;
+  }
+  
   &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
-    border-color: rgba(99, 102, 241, 0.3);
+    transform: translate3d(0, -7px, 0) rotateX(0.8deg);
+    box-shadow: var(--cf-shadow-card-hover);
+    border-color: color-mix(in srgb, var(--cf-primary) 28%, var(--cf-border));
     
     .hover-action {
       opacity: 1;
@@ -359,6 +372,9 @@ onMounted(loadSpaces);
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: inset 0 1px 0 var(--cf-surface-highlight), var(--cf-shadow-soft);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
     }
 
     .header-right {
@@ -373,6 +389,8 @@ onMounted(loadSpaces);
         font-size: 12px;
         font-weight: bold;
         border: 1px solid transparent;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
       }
       
       .review-tag {
@@ -380,8 +398,8 @@ onMounted(loadSpaces);
         border-radius: 4px;
         font-size: 12px;
         color: var(--cf-warning);
-        background: rgba(210, 153, 34, 0.1);
-        border: 1px solid rgba(210, 153, 34, 0.3);
+        background: color-mix(in srgb, var(--cf-warning) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--cf-warning) 28%, transparent);
       }
     }
   }
@@ -415,7 +433,7 @@ onMounted(loadSpaces);
     justify-content: space-between;
     align-items: center;
     padding-top: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid var(--cf-border);
 
     .stats {
       display: flex;
@@ -433,7 +451,7 @@ onMounted(loadSpaces);
       .stat-divider {
         width: 1px;
         height: 24px;
-        background: rgba(255, 255, 255, 0.1);
+        background: var(--cf-border);
       }
     }
 
@@ -464,8 +482,8 @@ onMounted(loadSpaces);
     left: 0;
     right: 0;
     padding: 12px;
-    background: linear-gradient(to top, rgba(99, 102, 241, 0.9), rgba(99, 102, 241, 0));
-    color: white;
+    background: linear-gradient(to top, color-mix(in srgb, var(--cf-primary) 86%, transparent), transparent);
+    color: var(--cf-text-inverse);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -475,6 +493,16 @@ onMounted(loadSpaces);
     opacity: 0;
     transform: translateY(100%);
     transition: all 0.3s ease;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .space-card:nth-child(2n) {
+    animation-delay: 0.05s;
+  }
+
+  .space-card:nth-child(3n) {
+    animation-delay: 0.1s;
   }
 }
 </style>

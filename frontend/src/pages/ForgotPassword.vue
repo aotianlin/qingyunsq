@@ -226,7 +226,8 @@ async function handleReset() {
 
 .forgot-visual {
   padding: 28px;
-  background: linear-gradient(180deg, rgba(229, 238, 255, 0.82), rgba(255,255,255,0.98));
+  background: linear-gradient(180deg, var(--cf-bg-glass-soft), var(--cf-bg-glass));
+  box-shadow: var(--cf-shadow-float);
 }
 
 .forgot-visual-inner {
@@ -235,17 +236,18 @@ async function handleReset() {
   border-radius: 24px;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(circle at top left, rgba(0, 88, 190, 0.14), transparent 26%),
-    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.12), transparent 22%),
-    linear-gradient(180deg, rgba(255,255,255,0.84), rgba(239,244,255,0.95));
+  background: linear-gradient(180deg, var(--cf-bg-glass-soft), color-mix(in srgb, var(--cf-bg-glass) 68%, transparent));
+  border: 1px solid var(--cf-border-glass);
+  box-shadow: inset 0 1px 0 var(--cf-surface-highlight), var(--cf-shadow-card);
+  backdrop-filter: blur(16px) saturate(132%);
+  -webkit-backdrop-filter: blur(16px) saturate(132%);
 
   h1 {
     margin: 18px 0 12px;
     font-family: var(--cf-font-heading);
     font-size: clamp(40px, 4vw, 56px);
     line-height: 1.06;
-    letter-spacing: -0.03em;
+    letter-spacing: 0;
   }
 
   p {
@@ -266,8 +268,11 @@ async function handleReset() {
 .visual-step {
   padding: 18px;
   border-radius: 18px;
-  background: rgba(255,255,255,0.7);
-  border: 1px solid rgba(217, 226, 242, 0.8);
+  background: var(--cf-bg-glass-soft);
+  border: 1px solid var(--cf-border-glass);
+  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
+  backdrop-filter: blur(14px) saturate(128%);
+  -webkit-backdrop-filter: blur(14px) saturate(128%);
 
   strong {
     display: block;
@@ -282,8 +287,8 @@ async function handleReset() {
   }
 
   &.active {
-    background: rgba(0, 88, 190, 0.08);
-    border-color: rgba(0, 88, 190, 0.18);
+    background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass-soft));
+    border-color: var(--cf-border-strong);
   }
 }
 

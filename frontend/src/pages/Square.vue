@@ -298,6 +298,7 @@ onMounted(() => loadPosts(true));
   flex-direction: column;
   gap: 18px;
   padding-right: 4px;
+  perspective: 1200px;
 }
 
 .hero-card {
@@ -341,12 +342,14 @@ onMounted(() => loadPosts(true));
 }
 
 .sort-chip:hover {
-  background: var(--cf-bg-soft);
+  background: var(--cf-bg-glass-soft);
   color: var(--cf-text-primary);
 }
 
 .sort-chip.active {
-  background: var(--cf-primary-soft);
+  background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass-soft));
+  border: 1px solid color-mix(in srgb, var(--cf-primary) 22%, transparent);
+  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
   color: var(--cf-primary);
 }
 
@@ -366,6 +369,12 @@ onMounted(() => loadPosts(true));
 .post-card {
   padding: 22px;
   cursor: pointer;
+  box-shadow: var(--cf-shadow-float);
+  transform-style: preserve-3d;
+}
+
+.post-card:hover {
+  transform: translate3d(0, -6px, 0) rotateX(0.7deg);
 }
 
 .post-header {
@@ -426,7 +435,8 @@ onMounted(() => loadPosts(true));
 .topic-tag {
   padding: 6px 12px;
   border-radius: 999px;
-  background: var(--cf-bg-soft);
+  background: var(--cf-bg-glass-soft);
+  border: 1px solid var(--cf-border);
   color: var(--cf-primary);
   font-size: 13px;
   font-weight: 600;
@@ -458,6 +468,7 @@ onMounted(() => loadPosts(true));
 
 .side-panel {
   padding: 20px;
+  box-shadow: var(--cf-shadow-float);
 
   h3 {
     margin: 0 0 12px;
@@ -478,7 +489,18 @@ onMounted(() => loadPosts(true));
 }
 
 .accent-panel {
-  background: linear-gradient(180deg, rgba(229, 238, 255, 0.9), #ffffff);
+  background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass-soft));
+  border-color: color-mix(in srgb, var(--cf-primary) 28%, var(--cf-border));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .post-card:nth-child(2n) {
+    animation-delay: 0.04s;
+  }
+
+  .post-card:nth-child(3n) {
+    animation-delay: 0.08s;
+  }
 }
 
 .side-btn {

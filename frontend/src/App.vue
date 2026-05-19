@@ -1,46 +1,51 @@
 <script setup lang="ts">
-import type { GlobalThemeOverrides } from 'naive-ui';
+import { computed } from 'vue';
+import { darkTheme, type GlobalThemeOverrides } from 'naive-ui';
 import AppNotify from '@/components/AppNotify.vue';
+import ThemeToggle from '@/components/ThemeToggle.vue';
+import { useTheme } from '@/composables/useTheme';
 import '@/assets/styles/theme.scss';
 
-const themeOverrides: GlobalThemeOverrides = {
+const { isDarkTheme } = useTheme();
+
+const lightThemeOverrides: GlobalThemeOverrides = {
   common: {
-    primaryColor: '#0058be',
-    primaryColorHover: '#004aa0',
-    primaryColorPressed: '#003f87',
-    primaryColorSuppl: '#0058be',
-    infoColor: '#0058be',
+    primaryColor: '#00d8bf',
+    primaryColorHover: '#00bfa8',
+    primaryColorPressed: '#00a692',
+    primaryColorSuppl: '#00d8bf',
+    infoColor: '#38bdf8',
     successColor: '#10b981',
     warningColor: '#f59e0b',
     errorColor: '#dc2626',
-    bodyColor: '#faf9f6',
+    bodyColor: '#ffffff',
     cardColor: '#ffffff',
     modalColor: '#ffffff',
     popoverColor: '#ffffff',
     tableColor: '#ffffff',
-    borderColor: '#d9e2f2',
-    dividerColor: '#ebe8e0',
-    textColor1: '#0b1c30',
-    textColor2: '#425466',
-    textColor3: '#6b7a90',
-    placeholderColor: '#8ca0bd',
+    borderColor: 'rgba(15, 23, 42, 0.1)',
+    dividerColor: 'rgba(15, 23, 42, 0.1)',
+    textColor1: '#07111f',
+    textColor2: '#334155',
+    textColor3: '#64748b',
+    placeholderColor: '#94a3b8',
     inputColor: '#ffffff',
-    codeColor: '#f4f2ee',
-    actionColor: '#f4f2ee',
+    codeColor: '#f6f8fb',
+    actionColor: '#f6f8fb',
   },
   Card: {
     color: '#ffffff',
     colorModal: '#ffffff',
-    borderColor: '#d9e2f2',
-    borderRadius: '20px',
+    borderColor: 'rgba(15, 23, 42, 0.1)',
+    borderRadius: '18px',
   },
   Button: {
-    borderRadiusMedium: '12px',
+    borderRadiusMedium: '10px',
     borderRadiusSmall: '10px',
-    borderRadiusLarge: '14px',
+    borderRadiusLarge: '12px',
   },
   Input: {
-    borderRadius: '12px',
+    borderRadius: '10px',
     color: '#ffffff',
     colorFocus: '#ffffff',
     colorFocusError: '#ffffff',
@@ -48,20 +53,79 @@ const themeOverrides: GlobalThemeOverrides = {
   Layout: {
     color: 'transparent',
     siderColor: '#ffffff',
-    headerColor: 'rgba(250, 249, 246, 0.92)',
+    headerColor: 'rgba(255, 255, 255, 0.78)',
   },
   Tabs: {
-    tabColorSegment: '#f4f2ee',
+    tabColorSegment: '#f6f8fb',
   },
 };
+
+const darkThemeOverrides: GlobalThemeOverrides = {
+  common: {
+    primaryColor: '#00f5d4',
+    primaryColorHover: '#4ef2a3',
+    primaryColorPressed: '#00c7ad',
+    primaryColorSuppl: '#00f5d4',
+    infoColor: '#5ac8fa',
+    successColor: '#4ef2a3',
+    warningColor: '#ffd93d',
+    errorColor: '#ff6b6b',
+    bodyColor: '#050505',
+    cardColor: '#0c0c0d',
+    modalColor: '#0c0c0d',
+    popoverColor: '#0c0c0d',
+    tableColor: '#0c0c0d',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    dividerColor: 'rgba(255, 255, 255, 0.08)',
+    textColor1: '#f8fafc',
+    textColor2: 'rgba(248, 250, 252, 0.76)',
+    textColor3: 'rgba(248, 250, 252, 0.52)',
+    placeholderColor: 'rgba(248, 250, 252, 0.42)',
+    inputColor: 'rgba(255, 255, 255, 0.045)',
+    codeColor: 'rgba(255, 255, 255, 0.06)',
+    actionColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  Card: {
+    color: 'rgba(255, 255, 255, 0.045)',
+    colorModal: '#0c0c0d',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: '18px',
+  },
+  Button: {
+    borderRadiusMedium: '10px',
+    borderRadiusSmall: '10px',
+    borderRadiusLarge: '12px',
+  },
+  Input: {
+    borderRadius: '10px',
+    color: 'rgba(255, 255, 255, 0.045)',
+    colorFocus: 'rgba(255, 255, 255, 0.06)',
+    colorFocusError: 'rgba(255, 255, 255, 0.06)',
+  },
+  Layout: {
+    color: 'transparent',
+    siderColor: '#050505',
+    headerColor: 'rgba(5, 5, 5, 0.74)',
+  },
+  Tabs: {
+    tabColorSegment: 'rgba(255, 255, 255, 0.06)',
+  },
+};
+
+const naiveTheme = computed(() => (isDarkTheme.value ? darkTheme : undefined));
+const themeOverrides = computed(() => (isDarkTheme.value ? darkThemeOverrides : lightThemeOverrides));
 </script>
 
 <template>
-  <NConfigProvider :theme-overrides="themeOverrides">
+  <NConfigProvider
+    :theme="naiveTheme"
+    :theme-overrides="themeOverrides"
+  >
     <NMessageProvider>
       <NNotificationProvider>
         <AppNotify />
         <router-view />
+        <ThemeToggle />
       </NNotificationProvider>
     </NMessageProvider>
   </NConfigProvider>

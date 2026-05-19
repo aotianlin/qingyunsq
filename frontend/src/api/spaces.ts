@@ -1,5 +1,6 @@
 import { request } from './request';
 import type { SpaceVO, SpaceMemberVO, CreateSpaceRequest, UpdateSpaceRequest } from '@/types/space';
+import type { PostVO } from '@/types/post';
 
 export async function createSpace(data: CreateSpaceRequest): Promise<SpaceVO> {
   const res = await request<SpaceVO>({ method: 'POST', url: '/spaces', data });
@@ -42,6 +43,19 @@ export async function getSpaceMembers(
   const res = await request<SpaceMemberVO[]>({
     method: 'GET',
     url: `/spaces/${id}/members`,
+    params: { cursor, limit },
+  });
+  return res.data;
+}
+
+export async function getSpacePosts(
+  id: number,
+  cursor?: number,
+  limit?: number,
+): Promise<PostVO[]> {
+  const res = await request<PostVO[]>({
+    method: 'GET',
+    url: `/spaces/${id}/posts`,
     params: { cursor, limit },
   });
   return res.data;

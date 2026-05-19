@@ -180,7 +180,8 @@ async function handleLogin() {
 
 .auth-visual {
   padding: 28px;
-  background: linear-gradient(180deg, rgba(229, 238, 255, 0.86), rgba(255, 255, 255, 0.98));
+  background: var(--cf-bg-glass);
+  box-shadow: var(--cf-shadow-float);
 }
 
 .auth-visual-inner {
@@ -190,16 +191,18 @@ async function handleLogin() {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background:
-    radial-gradient(circle at top right, rgba(0, 88, 190, 0.18), transparent 28%),
-    linear-gradient(180deg, rgba(255,255,255,0.8), rgba(239,244,255,0.95));
+  background: var(--cf-bg-glass);
+  border: 1px solid var(--cf-border-glass);
+  box-shadow: inset 0 1px 0 var(--cf-surface-highlight), var(--cf-shadow-card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 
   h1 {
     margin: 18px 0 12px;
     font-family: var(--cf-font-heading);
     font-size: clamp(40px, 4vw, 58px);
     line-height: 1.04;
-    letter-spacing: -0.03em;
+    letter-spacing: 0;
   }
 
   p {
@@ -224,8 +227,11 @@ async function handleLogin() {
   gap: 12px;
   padding: 14px 16px;
   border-radius: 18px;
-  background: rgba(255,255,255,0.72);
-  border: 1px solid rgba(217, 226, 242, 0.8);
+  background: var(--cf-bg-glass-soft);
+  border: 1px solid var(--cf-border-glass);
+  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
+  backdrop-filter: blur(14px) saturate(128%);
+  -webkit-backdrop-filter: blur(14px) saturate(128%);
   color: var(--cf-text-secondary);
 }
 
@@ -249,8 +255,11 @@ async function handleLogin() {
   div {
     padding: 18px;
     border-radius: 18px;
-    background: rgba(255,255,255,0.78);
-    border: 1px solid rgba(217, 226, 242, 0.8);
+    background: var(--cf-bg-glass-soft);
+    border: 1px solid var(--cf-border-glass);
+    box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
+    backdrop-filter: blur(14px) saturate(128%);
+    -webkit-backdrop-filter: blur(14px) saturate(128%);
   }
 
   strong {

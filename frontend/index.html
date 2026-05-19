@@ -8,6 +8,20 @@
     <meta name="description" content="CampusForum - 高校轻量化学习社群平台" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>CampusForum</title>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('campus-theme');
+          var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme = stored === 'light' || stored === 'dark' ? stored : systemDark ? 'dark' : 'light';
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'dark' ? '#050505' : '#ffffff');
+        } catch (error) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

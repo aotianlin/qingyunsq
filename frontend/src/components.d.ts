@@ -9,14 +9,13 @@ declare module 'vue' {
   export interface GlobalComponents {
     AppNotify: typeof import('./components/AppNotify.vue')['default']
     MentionText: typeof import('./components/MentionText.vue')['default']
-    NButton: typeof import('naive-ui')['NButton']
     NConfigProvider: typeof import('naive-ui')['NConfigProvider']
     NEmpty: typeof import('naive-ui')['NEmpty']
     NIcon: typeof import('naive-ui')['NIcon']
-    NInput: typeof import('naive-ui')['NInput']
     NMessageProvider: typeof import('naive-ui')['NMessageProvider']
     NNotificationProvider: typeof import('naive-ui')['NNotificationProvider']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    ThemeToggle: typeof import('./components/ThemeToggle.vue')['default']
   }
 }

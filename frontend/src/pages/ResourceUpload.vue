@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { NButton, NInput, NSelect, NCard, NUpload, useMessage, type UploadFileInfo } from 'naive-ui';
 import { uploadResource } from '@/api/resources';
 
 const router = useRouter();
+const route = useRoute();
 const message = useMessage();
 
 const file = ref<File | null>(null);
@@ -14,6 +15,8 @@ const college = ref('');
 const major = ref('');
 const course = ref('');
 const loading = ref(false);
+const spaceId = ref<number | undefined>();
+const spaceName = ref('');
 
 const visibilityOptions = [
   { label: '公开（所有人可见）', value: 'PUBLIC' },
@@ -26,6 +29,15 @@ function handleFileChange(fileList: UploadFileInfo[]) {
     file.value = fileList[0].file || null;
   }
 }
+
+onMounted(() => {
+  const spaceIdParam = Number(route.query.spaceId);
+  if (Number.isFinite(spaceIdParam) && spaceIdParam > 0) {
+    spaceId.value = spaceIdParam;
+    spaceName.value = String(route.query.spaceName || '当前学习圈');
+    visibility.value = 'SPACE';
+  }
+});
 
 async function submit() {
   if (!file.value) {
@@ -40,6 +52,7 @@ async function submit() {
       major: major.value.trim() || undefined,
       course: course.value.trim() || undefined,
       description: description.value.trim() || undefined,
+      spaceId: spaceId.value,
     });
     message.success('上传成功');
     router.push(`/resources/${resource.id}`);
@@ -56,7 +69,7 @@ function cancel() {
 
 <template>
   <div class="upload-page">
-    <NCard title="上传资源">
+    <NCard :title="spaceId ? `上传到 ${spaceName}` : '上传资源'">
       <div class="form">
         <label>选择文件（最大 50MB）</label>
         <NUpload

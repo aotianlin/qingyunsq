@@ -75,7 +75,7 @@ function goPrimary() {
         <span class="cf-pill">Academic Pulse · 现代校园社区体验</span>
         <h1 class="hero-title">
           连接校园，
-          <br>
+          <br />
           成就未来
         </h1>
         <p class="hero-desc">
@@ -188,12 +188,12 @@ function goPrimary() {
           v-for="space in featuredSpaces"
           :key="space.name"
           class="space-card cf-card"
-          :style="{ background: space.cover }"
+          :style="{ '--space-cover': space.cover }"
         >
           <div class="space-top">
             <span
               class="space-tag"
-              :style="{ color: space.accent, background: 'rgba(255,255,255,0.72)' }"
+              :style="{ color: space.accent }"
             >{{ space.category }}</span>
             <span class="space-members">{{ space.members }} 成员</span>
           </div>
@@ -267,7 +267,7 @@ function goPrimary() {
   font-family: var(--cf-font-heading);
   font-size: clamp(44px, 5vw, 68px);
   line-height: 1.02;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .hero-desc {
@@ -294,8 +294,8 @@ function goPrimary() {
 .mini-stat {
   padding: 18px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.66);
-  border: 1px solid rgba(217, 226, 242, 0.75);
+  background: var(--cf-bg-glass);
+  border: 1px solid var(--cf-border);
   backdrop-filter: blur(8px);
 
   strong {
@@ -313,13 +313,16 @@ function goPrimary() {
 
 .hero-visual {
   padding: 24px;
+  box-shadow: var(--cf-shadow-float);
 }
 
 .visual-banner {
   height: 100%;
   border-radius: 24px;
-  background: linear-gradient(180deg, rgba(229, 238, 255, 0.8), rgba(255, 255, 255, 0.96));
+  background: linear-gradient(180deg, var(--cf-bg-glass-soft), var(--cf-bg-glass));
   padding: 24px;
+  border: 1px solid var(--cf-border);
+  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
 }
 
 .visual-badge {
@@ -328,7 +331,8 @@ function goPrimary() {
   gap: 8px;
   padding: 8px 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--cf-bg-glass);
+  border: 1px solid var(--cf-border);
   color: var(--cf-primary);
   font-size: 13px;
   font-weight: 700;
@@ -345,8 +349,11 @@ function goPrimary() {
 .visual-panel {
   padding: 20px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(217, 226, 242, 0.75);
+  background: var(--cf-bg-glass-soft);
+  border: 1px solid var(--cf-border-glass);
+  box-shadow: var(--cf-shadow-soft);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -372,7 +379,7 @@ function goPrimary() {
   }
 
   &.accent {
-    background: linear-gradient(180deg, rgba(0, 88, 190, 0.08), rgba(255, 255, 255, 0.9));
+    background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass-soft));
   }
 }
 
@@ -397,7 +404,9 @@ function goPrimary() {
   gap: 14px;
   padding: 16px;
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(239,244,255,0.86));
+  background: linear-gradient(180deg, var(--cf-bg-glass-soft), color-mix(in srgb, var(--cf-bg-glass) 62%, transparent));
+  border: 1px solid var(--cf-border);
+  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
 
   strong {
     display: block;
@@ -448,11 +457,31 @@ function goPrimary() {
 }
 
 .space-card {
+  position: relative;
   min-height: 220px;
   padding: 22px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--space-cover);
+    opacity: 0.68;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    z-index: -1;
+    border-radius: inherit;
+    background: linear-gradient(180deg, var(--cf-surface-highlight), transparent 46%);
+  }
 
   h3 {
     margin: 0 0 10px;
@@ -485,9 +514,15 @@ function goPrimary() {
   font-weight: 700;
 }
 
+.space-tag {
+  background: var(--cf-bg-readable) !important;
+  border: 1px solid var(--cf-border);
+}
+
 .space-members {
   color: var(--cf-text-secondary);
-  background: rgba(255,255,255,0.65);
+  background: var(--cf-bg-glass);
+  border: 1px solid var(--cf-border);
 }
 
 .highlight-grid {

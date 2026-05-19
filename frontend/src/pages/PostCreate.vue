@@ -19,6 +19,9 @@ const topics = ref<string[]>([]);
 const loading = ref(false);
 const quotePostId = ref<number | undefined>();
 const quotedPost = ref<PostVO | null>(null);
+const publishScope = ref<'SQUARE' | 'SPACE'>('SQUARE');
+const spaceId = ref<number | undefined>();
+const spaceName = ref('');
 
 const typeOptions = [
   { label: '普通帖子', value: 'NORMAL' },
@@ -29,6 +32,14 @@ const isQa = computed(() => postType.value === 'QA');
 const contentCount = computed(() => content.value.trim().length);
 
 onMounted(async () => {
+  const scopeParam = String(route.query.scope || '').toUpperCase();
+  const spaceIdParam = Number(route.query.spaceId);
+  if (scopeParam === 'SPACE' && Number.isFinite(spaceIdParam) && spaceIdParam > 0) {
+    publishScope.value = 'SPACE';
+    spaceId.value = spaceIdParam;
+    spaceName.value = String(route.query.spaceName || '当前学习圈');
+  }
+
   const quoteIdParam = route.query.quote;
   if (!quoteIdParam) return;
 
@@ -72,7 +83,8 @@ async function submit() {
       title: title.value.trim() || undefined,
       content: content.value,
       topics: topics.value.length ? topics.value : undefined,
-      scope: 'SQUARE',
+      scope: publishScope.value,
+      spaceId: publishScope.value === 'SPACE' ? spaceId.value : undefined,
       type: postType.value,
       bountyPoints: isQa.value ? bountyPoints.value : undefined,
       quotePostId: quotePostId.value,
@@ -96,7 +108,7 @@ async function submit() {
           发布新内容
         </h1>
         <p class="cf-section-subtitle">
-          适配新的广场风格，将发帖页改造成更清晰的创作工作台，兼容普通帖子、问答与引用发布。
+          {{ publishScope === 'SPACE' ? `发布到「${spaceName}」` : '适配新的广场风格，将发帖页改造成更清晰的创作工作台，兼容普通帖子、问答与引用发布。' }}
         </p>
       </div>
       <button class="cf-secondary-btn" @click="router.back()">
@@ -253,8 +265,8 @@ async function submit() {
   gap: 14px;
   padding: 16px;
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(229,238,255,0.9), rgba(255,255,255,0.96));
-  border: 1px solid rgba(194, 209, 234, 0.85);
+  background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass));
+  border: 1px solid color-mix(in srgb, var(--cf-primary) 22%, var(--cf-border));
 
   strong {
     display: block;
@@ -363,7 +375,8 @@ async function submit() {
 }
 
 .accent-panel {
-  background: linear-gradient(180deg, rgba(229, 238, 255, 0.9), #ffffff);
+  background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass));
+  border-color: color-mix(in srgb, var(--cf-primary) 22%, var(--cf-border));
 }
 
 .overview-row {
@@ -372,7 +385,7 @@ async function submit() {
   gap: 12px;
   padding: 10px 0;
   color: var(--cf-text-secondary);
-  border-bottom: 1px solid rgba(217, 226, 242, 0.55);
+  border-bottom: 1px solid var(--cf-border);
 }
 
 .overview-row:last-child {

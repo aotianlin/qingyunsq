@@ -567,7 +567,8 @@ onMounted(loadPost);
   margin-top: 16px;
   padding: 16px;
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(229, 238, 255, 0.9), rgba(255,255,255,0.95));
+  background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass));
+  border: 1px solid color-mix(in srgb, var(--cf-primary) 22%, var(--cf-border));
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -742,7 +743,7 @@ onMounted(loadPost);
   gap: 12px;
   padding: 10px 0;
   color: var(--cf-text-secondary);
-  border-bottom: 1px solid rgba(217, 226, 242, 0.55);
+  border-bottom: 1px solid var(--cf-border);
 }
 
 .info-row:last-child {
@@ -754,7 +755,8 @@ onMounted(loadPost);
 }
 
 .accent-panel {
-  background: linear-gradient(180deg, rgba(229, 238, 255, 0.9), #ffffff);
+  background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass));
+  border-color: color-mix(in srgb, var(--cf-primary) 22%, var(--cf-border));
 }
 
 .form-block {
