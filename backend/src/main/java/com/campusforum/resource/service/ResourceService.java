@@ -6,6 +6,7 @@ import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
 import com.campusforum.infra.StorageService;
 import com.campusforum.resource.domain.Resource;
+import com.campusforum.resource.dto.ResourcePreviewVO;
 import com.campusforum.resource.dto.ResourceVO;
 import com.campusforum.resource.dto.UploadResourceRequest;
 import com.campusforum.resource.mapper.ResourceMapper;
@@ -22,8 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -31,7 +34,12 @@ import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.stream.Collectors;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
 
 @Slf4j
 @Service
@@ -47,7 +55,7 @@ public class ResourceService {
 
     public ResourceService(ResourceMapper resourceMapper, UserMapper userMapper,
                            StorageService storageService, ObjectMapper objectMapper,
-                           @Value("${upload.allowed-extensions:pdf,doc,docx,ppt,pptx,xls,xlsx,zip,rar,7z,jpg,jpeg,png,gif,webp}") String allowedExtensionsConfig) {
+                           @Value("${upload.allowed-extensions:pdf,doc,docx,ppt,pptx,xls,xlsx,zip,rar,7z,jpg,jpeg,png,gif,webp,md,markdown}") String allowedExtensionsConfig) {
         this.resourceMapper = resourceMapper;
         this.userMapper = userMapper;
         this.storageService = storageService;
@@ -169,12 +177,44 @@ public class ResourceService {
         return storageService.download(resource.getStorageKey());
     }
 
-    public String getFileName(Long resourceId) {
-        Resource resource = resourceMapper.selectById(resourceId);
-        if (resource == null || resource.getDeleted() == 1) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+    public InputStream preview(Long resourceId) {
+        Resource resource = getActiveResource(resourceId);
+        return storageService.download(resource.getStorageKey());
+    }
+
+    public ResourcePreviewVO previewText(Long resourceId) {
+        Resource resource = getActiveResource(resourceId);
+        String fileType = resource.getFileType() == null ? "" : resource.getFileType().toLowerCase();
+
+        try (InputStream is = storageService.download(resource.getStorageKey())) {
+            String content;
+            if ("md".equals(fileType) || "markdown".equals(fileType)) {
+                content = readUtf8Text(is);
+            } else if ("docx".equals(fileType)) {
+                content = extractDocxText(is);
+            } else {
+                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "该文件类型暂不支持文本预览");
+            }
+
+            return ResourcePreviewVO.builder()
+                    .id(resource.getId())
+                    .fileName(resource.getFileName())
+                    .fileType(resource.getFileType())
+                    .content(content)
+                    .build();
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.STORAGE_ERROR);
         }
+    }
+
+    public String getFileName(Long resourceId) {
+        Resource resource = getActiveResource(resourceId);
         return resource.getFileName();
+    }
+
+    public String getFileType(Long resourceId) {
+        Resource resource = getActiveResource(resourceId);
+        return resource.getFileType();
     }
 
     @Transactional
@@ -234,6 +274,67 @@ public class ResourceService {
                 .description(r.getDescription())
                 .createdAt(r.getCreatedAt())
                 .build();
+    }
+
+    private Resource getActiveResource(Long resourceId) {
+        Resource resource = resourceMapper.selectById(resourceId);
+        if (resource == null || resource.getDeleted() == 1) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        return resource;
+    }
+
+    private static String readUtf8Text(InputStream is) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        is.transferTo(out);
+        return out.toString(StandardCharsets.UTF_8);
+    }
+
+    private static String extractDocxText(InputStream is) throws IOException {
+        try (ZipInputStream zip = new ZipInputStream(is)) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if ("word/document.xml".equals(entry.getName())) {
+                    byte[] xml = zip.readAllBytes();
+                    return parseDocxDocumentXml(xml);
+                }
+            }
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "DOCX 文件内容不完整，无法预览");
+    }
+
+    private static String parseDocxDocumentXml(byte[] xml) {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(xml));
+            NodeList paragraphs = document.getElementsByTagNameNS("*", "p");
+            StringBuilder text = new StringBuilder();
+
+            // DOCX 正文按段落和文本节点存储，预览时保留段落换行，避免直接拼接成一整行。
+            for (int i = 0; i < paragraphs.getLength(); i++) {
+                NodeList nodes = paragraphs.item(i).getChildNodes();
+                appendDocxTextNodes(nodes, text);
+                text.append('\n');
+            }
+            return text.toString().trim();
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "DOCX 文件解析失败，无法预览");
+        }
+    }
+
+    private static void appendDocxTextNodes(NodeList nodes, StringBuilder text) {
+        for (int i = 0; i < nodes.getLength(); i++) {
+            String localName = nodes.item(i).getLocalName();
+            if ("t".equals(localName)) {
+                text.append(nodes.item(i).getTextContent());
+            } else if ("tab".equals(localName)) {
+                text.append('\t');
+            } else if ("br".equals(localName)) {
+                text.append('\n');
+            }
+            appendDocxTextNodes(nodes.item(i).getChildNodes(), text);
+        }
     }
 
     private static String md5Hex(byte[] data) {

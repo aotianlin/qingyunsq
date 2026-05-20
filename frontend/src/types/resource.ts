@@ -25,6 +25,13 @@ export interface ResourceVO {
   createdAt: string;
 }
 
+export interface ResourcePreviewVO {
+  id: number;
+  fileName: string;
+  fileType: string;
+  content: string;
+}
+
 export interface UploadResourceRequest {
   spaceId?: number;
   visibility?: string;

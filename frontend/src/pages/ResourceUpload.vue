@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NButton, NInput, NSelect, NCard, NUpload, useMessage, type UploadFileInfo } from 'naive-ui';
-import { uploadResource } from '@/api/resources';
+import { resourceAccept, uploadResource } from '@/api/resources';
 
 const router = useRouter();
 const route = useRoute();
@@ -74,7 +74,7 @@ function cancel() {
         <label>选择文件（最大 50MB）</label>
         <NUpload
           :max="1"
-          accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp"
+          :accept="resourceAccept"
           @update:file-list="handleFileChange"
         >
           <NButton>选择文件</NButton>

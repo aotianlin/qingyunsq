@@ -99,7 +99,7 @@ student-no:
 # ---------- 文件上传 ----------
 upload:
   max-file-size: 50MB
-  allowed-extensions: pdf,doc,docx,ppt,pptx,xls,xlsx,zip,rar,7z,jpg,jpeg,png,gif,webp
+  allowed-extensions: pdf,doc,docx,ppt,pptx,xls,xlsx,zip,rar,7z,jpg,jpeg,png,gif,webp,md,markdown
 
 # ---------- 管理端点 ----------
 management:

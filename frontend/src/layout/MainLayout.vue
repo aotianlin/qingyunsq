@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, h, onMounted, ref } from 'vue';
+import { computed, h, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { getMe, logout as apiLogout } from '@/api/auth';
 import {
+  BookOutline,
   ChatbubblesOutline,
   CheckmarkCircleOutline,
+  CompassOutline,
   LogOutOutline,
   NotificationsOutline,
   PersonOutline,
@@ -16,6 +18,7 @@ import {
   BonfireOutline,
   MenuOutline,
   CloseOutline,
+  TrailSignOutline,
 } from '@vicons/ionicons5';
 import { NAvatar, NDropdown, NIcon, NInput } from 'naive-ui';
 
@@ -24,6 +27,8 @@ const route = useRoute();
 const authStore = useAuthStore();
 const mobileMenuVisible = ref(false);
 const searchKeyword = ref('');
+const quoteIndex = ref(0);
+let quoteTimer: ReturnType<typeof setInterval> | undefined;
 
 const navLinks = [
   { name: '广场', path: '/square', icon: PlanetOutline },
@@ -47,15 +52,17 @@ const pageTitle = computed(() => {
   return 'CampusForum';
 });
 
-const pageSubtitle = computed(() => {
-  if (route.path.startsWith('/profile')) return '管理您的个人资料、发帖与学习轨迹';
-  if (route.path.startsWith('/square')) return '发现校园热门内容与精彩讨论';
-  if (route.path.startsWith('/spaces')) return '加入感兴趣的学习圈，与同好交流';
-  if (route.path.startsWith('/checkin')) return '坚持每天打卡，见证自己的成长';
-  if (route.path.startsWith('/points')) return '查看您的积分明细与成长轨迹';
-  if (route.path.startsWith('/ai')) return '使用 AI 助手提升您的学习与创作效率';
-  return '保持高效、清爽、专注的校园交流体验';
-});
+const showTitleIconOnly = computed(() => route.path.startsWith('/search'));
+
+const quoteItems = [
+  { text: '博观而约取，厚积而薄发。', source: '苏轼', icon: BookOutline },
+  { text: '知不足而奋进，望远山而前行。', source: '校园札记', icon: TrailSignOutline },
+  { text: '学而不思则罔，思而不学则殆。', source: '论语', icon: CompassOutline },
+  { text: '日日行，不怕千万里。', source: '格言联璧', icon: StarOutline },
+  { text: '把问题写清楚，答案就近了一半。', source: 'CampusForum', icon: SparklesOutline },
+] as const;
+
+const activeQuote = computed(() => quoteItems[quoteIndex.value]);
 
 const userDropdownOptions = [
   {
@@ -71,6 +78,10 @@ const userDropdownOptions = [
 ];
 
 onMounted(async () => {
+  quoteTimer = setInterval(() => {
+    quoteIndex.value = (quoteIndex.value + 1) % quoteItems.length;
+  }, 3200);
+
   if (authStore.isLoggedIn && !authStore.user) {
     try {
       const user = await getMe();
@@ -79,6 +90,12 @@ onMounted(async () => {
       authStore.logout();
       router.push('/login');
     }
+  }
+});
+
+onUnmounted(() => {
+  if (quoteTimer) {
+    clearInterval(quoteTimer);
   }
 });
 
@@ -210,12 +227,40 @@ function toggleMobileMenu() {
             </n-icon>
           </button>
           <div>
-            <h1 class="page-title">
+            <div
+              v-if="showTitleIconOnly"
+              class="page-icon-title"
+              aria-label="名言"
+            >
+              <n-icon size="22">
+                <BookOutline />
+              </n-icon>
+            </div>
+            <h1
+              v-else
+              class="page-title"
+            >
               {{ pageTitle }}
             </h1>
-            <p class="page-subtitle">
-              {{ pageSubtitle }}
-            </p>
+            <div class="quote-ticker">
+              <transition
+                name="quote-roll"
+                mode="out-in"
+              >
+                <div
+                  :key="activeQuote.text"
+                  class="quote-line"
+                >
+                  <span class="quote-icon">
+                    <n-icon size="14">
+                      <component :is="activeQuote.icon" />
+                    </n-icon>
+                  </span>
+                  <span class="quote-text">{{ activeQuote.text }}</span>
+                  <span class="quote-source">{{ activeQuote.source }}</span>
+                </div>
+              </transition>
+            </div>
           </div>
         </div>
 
@@ -501,10 +546,59 @@ function toggleMobileMenu() {
   line-height: 1.1;
 }
 
-.page-subtitle {
-  margin: 4px 0 0;
+.page-icon-title {
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cf-primary);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--cf-primary) 18%, transparent), transparent),
+    var(--cf-bg-glass);
+  border: 1px solid color-mix(in srgb, var(--cf-primary) 32%, var(--cf-border-glass));
+  box-shadow: 0 16px 38px color-mix(in srgb, var(--cf-primary) 18%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.quote-ticker {
+  margin-top: 4px;
+  min-height: 20px;
+  overflow: hidden;
+}
+
+.quote-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  background: var(--cf-bg-glass);
+  border: 1px solid var(--cf-border-glass);
   color: var(--cf-text-muted);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.quote-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cf-primary);
+  background: color-mix(in srgb, var(--cf-primary) 10%, transparent);
+}
+
+.quote-text {
+  color: var(--cf-text-secondary);
+}
+
+.quote-source {
+  padding-left: 4px;
+  color: var(--cf-primary);
+  white-space: nowrap;
 }
 
 .header-right {
@@ -586,6 +680,17 @@ function toggleMobileMenu() {
   transform: translateY(8px);
 }
 
+.quote-roll-enter-active,
+.quote-roll-leave-active {
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.quote-roll-enter-from,
+.quote-roll-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
 :deep(.n-input .n-input__input-el),
 :deep(.n-input .n-input__placeholder) {
   font-size: 14px;
@@ -650,8 +755,11 @@ function toggleMobileMenu() {
 }
 
 @media (max-width: 720px) {
-  .page-subtitle,
   .user-profile-trigger span {
+    display: none;
+  }
+
+  .quote-ticker {
     display: none;
   }
 

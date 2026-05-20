@@ -1,5 +1,8 @@
 import { request } from './request';
-import type { ResourceVO } from '@/types/resource';
+import type { ResourcePreviewVO, ResourceVO } from '@/types/resource';
+
+export const resourceAccept =
+  '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp,.md,.markdown';
 
 export async function uploadResource(
   file: File,
@@ -46,6 +49,17 @@ export function getDownloadUrl(id: number): string {
   const token = localStorage.getItem('token');
   const base = import.meta.env.VITE_API_BASE || '/api/v1';
   return `${base}/resources/${id}/download?token=${token}`;
+}
+
+export function getPreviewUrl(id: number): string {
+  const token = localStorage.getItem('token');
+  const base = import.meta.env.VITE_API_BASE || '/api/v1';
+  return `${base}/resources/${id}/preview?token=${token}`;
+}
+
+export async function getResourcePreviewText(id: number): Promise<ResourcePreviewVO> {
+  const res = await request<ResourcePreviewVO>({ method: 'GET', url: `/resources/${id}/preview-text` });
+  return res.data;
 }
 
 export async function deleteResource(id: number): Promise<void> {
