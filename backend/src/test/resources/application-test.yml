@@ -12,6 +12,14 @@ spring:
       host: localhost
       port: 6379
       password: ""
+  mail:
+    host: localhost
+    port: 25
+    username: ""
+    password: ""
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
 
 mybatis-plus:
   global-config:
@@ -68,3 +76,21 @@ search:
 upload:
   max-file-size: 10MB
   allowed-extensions: pdf,doc,docx,ppt,pptx,xls,xlsx,zip,rar,7z,jpg,jpeg,png,gif,webp,md,markdown
+
+# ---------- 邮件配置（测试环境） ----------
+email:
+  from: test@campusforum.com
+  reset-link-base: http://localhost:3000/reset-password
+  app-name: CampusForum-Test
+  reset-token-expire-minutes: 30
+  rate-limit-max-requests: 5
+  rate-limit-window-minutes: 15
+
+# ---------- 限流配置（测试环境禁用） ----------
+rate-limit:
+  enabled: false
+
+# ---------- 文件预览配置 ----------
+preview:
+  office-service-url: http://localhost:8012/onlinePreview
+  max-preview-size: 52428800
