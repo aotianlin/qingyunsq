@@ -2,8 +2,11 @@ import { ref, onMounted, onUnmounted } from 'vue';
 
 export interface NotifyEvent {
   type: string;
-  title: string;
-  content: string;
+  title?: string;
+  content?: string;
+  postId?: number;
+  action?: string;
+  [key: string]: unknown;
 }
 
 /**

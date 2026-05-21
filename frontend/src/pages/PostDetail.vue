@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NButton, NCard, NEmpty, NIcon, NInput, NModal, NSelect, NSpin, NTag, useMessage } from 'naive-ui';
 import { acceptAnswer, getQaInfo } from '@/api/qa';
@@ -8,6 +8,7 @@ import { deleteComment, createComment, getComments, toggleCommentReaction, updat
 import { deletePost, getPostById, toggleReaction } from '@/api/posts';
 import { createReport } from '@/api/report';
 import { useAuthStore } from '@/stores/auth';
+import { useWebSocket } from '@/composables/useWebSocket';
 import MentionText from '@/components/MentionText.vue';
 import type { CommentVO, PostVO } from '@/types/post';
 import type { QaQuestionVO } from '@/types/qa';
@@ -51,6 +52,26 @@ const reportReasons = [
 const currentUserId = computed(() => authStore.user?.id);
 const isQaPost = computed(() => post.value?.type === 'QA');
 const isPostAuthor = computed(() => currentUserId.value === post.value?.authorId);
+
+// 监听 WebSocket 评论变更事件，自动刷新评论列表
+useWebSocket((event) => {
+  if (event.type === 'COMMENT_CHANGE' && post.value) {
+    // 收到评论变更通知，自动刷新评论列表
+    refreshComments();
+  }
+});
+
+async function refreshComments() {
+  if (!post.value) return;
+  try {
+    comments.value = await getComments(post.value.id, undefined, 20, post.value?.type === 'QA');
+    // 同步更新评论数
+    const freshPost = await getPostById(post.value.id);
+    if (freshPost) post.value.commentCount = freshPost.commentCount;
+  } catch {
+    // 静默失败，不影响用户体验
+  }
+}
 
 function goUser(userId?: number | null) {
   if (!userId) return;
