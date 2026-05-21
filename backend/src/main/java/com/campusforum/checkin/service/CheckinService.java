@@ -174,7 +174,12 @@ public class CheckinService {
                 req.getContent() != null ? req.getContent() : "");
         record.setAiCheck(relevant ? 1 : 0);
 
-        recordMapper.insert(record);
+        // Bug fix 1.11: 依赖数据库唯一约束防止并发重复打卡
+        try {
+            recordMapper.insert(record);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BusinessException(ErrorCode.ALREADY_CHECKED_IN);
+        }
 
         // 首次打卡增加成员数
         if (isFirst) {

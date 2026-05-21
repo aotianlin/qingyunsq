@@ -33,7 +33,7 @@ public class PostController {
 
     @GetMapping("/{id}")
     public R<PostVO> detail(@PathVariable Long id) {
-        return R.ok(postService.getById(id));
+        return R.ok(postService.viewPost(id));
     }
 
     @DeleteMapping("/{id}")

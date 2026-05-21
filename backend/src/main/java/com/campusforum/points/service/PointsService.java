@@ -35,8 +35,8 @@ public class PointsService {
         pl.setReference(reference);
         pointsLogMapper.insert(pl);
 
-        user.setPoints((user.getPoints() != null ? user.getPoints() : 0) + amount);
-        userMapper.updateById(user);
+        // Bug fix 1.3: 原子更新替代 read-modify-write
+        userMapper.incrementPoints(userId, amount);
 
         log.info("Points awarded: userId={}, amount={}, type={}", userId, amount, type);
     }
@@ -44,10 +44,9 @@ public class PointsService {
     @Transactional
     public boolean spend(Long userId, long amount, String type, String reference) {
         if (amount <= 0) return false;
-        User user = userMapper.selectById(userId);
-        if (user == null) return false;
-        long balance = user.getPoints() != null ? user.getPoints() : 0;
-        if (balance < amount) return false;
+        // Bug fix 1.3: 原子扣减，余额不足时 rows=0
+        int rows = userMapper.decrementPoints(userId, amount);
+        if (rows == 0) return false;
 
         PointsLog pl = new PointsLog();
         pl.setUserId(userId);
@@ -55,9 +54,6 @@ public class PointsService {
         pl.setType(type);
         pl.setReference(reference);
         pointsLogMapper.insert(pl);
-
-        user.setPoints(balance - amount);
-        userMapper.updateById(user);
 
         log.info("Points spent: userId={}, amount={}, type={}", userId, amount, type);
         return true;

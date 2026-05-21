@@ -19,6 +19,8 @@ import com.campusforum.post.mapper.PostMapper;
 import com.campusforum.post.mapper.ReactionMapper;
 import com.campusforum.qa.domain.QaQuestion;
 import com.campusforum.qa.mapper.QaQuestionMapper;
+import com.campusforum.space.domain.SpaceMember;
+import com.campusforum.space.mapper.SpaceMemberMapper;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
@@ -53,10 +55,22 @@ public class PostService {
     private final MeiliSearchClient meiliSearchClient;
     private final FollowService followService;
     private final UserService userService;
+    private final SpaceMemberMapper spaceMemberMapper;
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
     public PostVO create(Long userId, CreatePostRequest req) {
+        // Bug fix 1.1: 校验用户是否为空间成员
+        if (req.getSpaceId() != null) {
+            SpaceMember member = spaceMemberMapper.selectOne(new LambdaQueryWrapper<SpaceMember>()
+                    .eq(SpaceMember::getSpaceId, req.getSpaceId())
+                    .eq(SpaceMember::getUserId, userId)
+                    .eq(SpaceMember::getStatus, 1));
+            if (member == null) {
+                throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "非空间成员，无法发帖");
+            }
+        }
+
         Post post = new Post();
         post.setAuthorId(userId);
         post.setScope(req.getScope());
@@ -135,16 +149,28 @@ public class PostService {
             throw new BusinessException(ErrorCode.POST_NOT_FOUND);
         }
 
-        // 更新浏览量
-        post.setViewCount(post.getViewCount() + 1);
-        postMapper.updateById(post);
-
         Long currentUserId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
         return toVO(post, currentUserId);
     }
 
+    // Bug fix 1.8: 仅对终端用户显式查看递增 viewCount
+    public PostVO viewPost(Long id) {
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleted() == 1) {
+            throw new BusinessException(ErrorCode.POST_NOT_FOUND);
+        }
+
+        Long currentUserId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
+        if (currentUserId != null) {
+            String role = (String) StpUtil.getSession().get("role");
+            if (!"TENANT_ADMIN".equals(role) && !"SUPER_ADMIN".equals(role)) {
+                postMapper.incrementViewCount(id);
+            }
+        }
+        return toVO(post, currentUserId);
+    }
+
     public List<PostVO> page(PostPageRequest req) {
-        cleanExpiredPins();
         int limit = Math.min(req.getLimit(), 50);
         Long currentUserId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
 
@@ -221,6 +247,14 @@ public class PostService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
+        // Bug fix 1.2: TENANT_ADMIN 应用层租户校验
+        if ("TENANT_ADMIN".equals(role) && !post.getAuthorId().equals(userId)) {
+            Long sessionTenantId = (Long) StpUtil.getSession().get("tenantId");
+            if (sessionTenantId != null && !sessionTenantId.equals(post.getTenantId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "无权操作其他租户的帖子");
+            }
+        }
+
         postMapper.deleteById(postId);
         meiliSearchClient.deleteDocument("posts", postId);
         log.info("Post deleted: id={}", postId);
@@ -238,13 +272,9 @@ public class PostService {
         if (existing != null) {
             reactionMapper.deleteById(existing.getId());
 
-            // 更新计数
+            // Bug fix 1.4: 原子计数器更新
             if ("POST".equals(req.getTargetType()) && "LIKE".equals(req.getType())) {
-                Post post = postMapper.selectById(req.getTargetId());
-                if (post != null) {
-                    post.setLikeCount(Math.max(0, post.getLikeCount() - 1));
-                    postMapper.updateById(post);
-                }
+                postMapper.incrementLikeCount(req.getTargetId(), -1);
             }
             return false;
         } else {
@@ -255,25 +285,26 @@ public class PostService {
             reaction.setType(req.getType());
             reactionMapper.insert(reaction);
 
-            // 更新计数
+            // Bug fix 1.4: 原子计数器更新 + Bug fix 1.18: 空值检查
             if ("POST".equals(req.getTargetType()) && "LIKE".equals(req.getType())) {
-                Post post = postMapper.selectById(req.getTargetId());
-                if (post != null) {
-                    post.setLikeCount(post.getLikeCount() + 1);
-                    postMapper.updateById(post);
+                postMapper.incrementLikeCount(req.getTargetId(), 1);
 
-                    // 帖子作者获得 1 积分（不自赞）
-                    if (!post.getAuthorId().equals(userId)) {
-                        pointsService.award(post.getAuthorId(), 1, "LIKED",
-                                "帖子 #" + post.getId() + " 被点赞");
-                        achievementService.onPostLiked(post.getAuthorId());
-                    }
-                    // 通知帖子作者（不通知自己）
-                    User liker = userMapper.selectById(userId);
-                    String likerName = liker != null ? liker.getNickname() : "有人";
-                    notifyService.create(post.getAuthorId(), userId, "LIKE",
-                            "点赞通知", likerName + " 赞了你的帖子", "/posts/" + post.getId());
+                Post post = postMapper.selectById(req.getTargetId());
+                if (post == null || post.getDeleted() == 1) {
+                    throw new BusinessException(ErrorCode.POST_NOT_FOUND);
                 }
+
+                // 帖子作者获得 1 积分（不自赞）
+                if (!post.getAuthorId().equals(userId)) {
+                    pointsService.award(post.getAuthorId(), 1, "LIKED",
+                            "帖子 #" + post.getId() + " 被点赞");
+                    achievementService.onPostLiked(post.getAuthorId());
+                }
+                // 通知帖子作者（不通知自己）
+                User liker = userMapper.selectById(userId);
+                String likerName = liker != null ? liker.getNickname() : "有人";
+                notifyService.create(post.getAuthorId(), userId, "LIKE",
+                        "点赞通知", likerName + " 赞了你的帖子", "/posts/" + post.getId());
             }
             return true;
         }
@@ -309,6 +340,18 @@ public class PostService {
             postMapper.updateById(post);
             meiliSearchClient.indexDocument("posts", buildPostDoc(post));
         }
+    }
+
+    // Bug fix 1.7: 校验帖子归属空间后修改状态
+    @Transactional
+    public void setStatusForSpace(Long postId, Long spaceId, Integer status) {
+        Post post = postMapper.selectById(postId);
+        if (post == null || post.getDeleted() == 1 || !spaceId.equals(post.getSpaceId())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND.getCode(), "帖子不存在或不属于该空间");
+        }
+        post.setStatus(status);
+        postMapper.updateById(post);
+        meiliSearchClient.indexDocument("posts", buildPostDoc(post));
     }
 
     public List<PostVO> pageBySpace(Long spaceId, boolean includeHidden, Long cursor, int limit) {

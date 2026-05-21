@@ -81,6 +81,9 @@ public class SpaceController {
     public R<List<PostVO>> spacePosts(@PathVariable Long id,
                                        @RequestParam(required = false) Long cursor,
                                        @RequestParam(defaultValue = "20") int limit) {
+        // Bug fix 1.6: 私有空间访问校验
+        Long userId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
+        spaceService.checkMemberAccess(id, userId);
         return R.ok(postService.pageBySpace(id, false, cursor, limit));
     }
 
@@ -99,7 +102,8 @@ public class SpaceController {
                                   @RequestParam Integer status) {
         Long userId = StpUtil.getLoginIdAsLong();
         spaceService.checkSpaceAdmin(id, userId);
-        postService.setStatus(postId, status);
+        // Bug fix 1.7: 校验帖子归属空间
+        postService.setStatusForSpace(postId, id, status);
         return R.ok();
     }
 
