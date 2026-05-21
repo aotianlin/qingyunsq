@@ -137,16 +137,6 @@
             <version>20240325.1</version>
         </dependency>
 
-        <!-- Spring Retry -->
-        <dependency>
-            <groupId>org.springframework.retry</groupId>
-            <artifactId>spring-retry</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-aspects</artifactId>
-        </dependency>
-
         <!-- Apache POI for XLSX export -->
         <dependency>
             <groupId>org.apache.poi</groupId>
