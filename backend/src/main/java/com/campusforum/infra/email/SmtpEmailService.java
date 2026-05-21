@@ -1,6 +1,5 @@
 package com.campusforum.infra.email;
 
-import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +28,7 @@ public class SmtpEmailService implements EmailService {
 
             mailSender.send(message);
             log.info("Password reset email sent to: {}", maskEmail(toEmail));
-        } catch (MessagingException e) {
+        } catch (Exception e) {
             // 记录失败但不抛出异常，防止邮箱枚举
             log.error("Failed to send reset email: {}", e.getMessage());
         }
