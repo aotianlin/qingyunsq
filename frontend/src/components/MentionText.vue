@@ -11,19 +11,27 @@ const segments = computed(() => parseMentions(props.text ?? ''));
 </script>
 
 <template>
-  <template
-    v-for="(segment, index) in segments"
-    :key="`${index}-${segment.text}`"
-  >
-    <RouterLink
-      v-if="segment.mention"
-      class="mention-link"
-      :to="{ path: '/search', query: { q: `@${segment.mention}` } }"
+  <span class="mention-text-wrap">
+    <template
+      v-for="(segment, index) in segments"
+      :key="`${index}-${segment.text}`"
     >
-      {{ segment.text }}
-    </RouterLink>
-    <template v-else>
-      {{ segment.text }}
+      <RouterLink
+        v-if="segment.mention"
+        class="mention-link"
+        :to="{ path: '/search', query: { q: `@${segment.mention}` } }"
+      >
+        {{ segment.text }}
+      </RouterLink>
+      <template v-else>{{ segment.text }}</template>
     </template>
-  </template>
+  </span>
 </template>
+
+<style scoped>
+/* 保留内容中的换行符 */
+.mention-text-wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+</style>

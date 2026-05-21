@@ -46,7 +46,19 @@ async function handleRegister() {
     message.success('注册成功，请登录');
     router.push('/login');
   } catch (err: unknown) {
-    message.error(err instanceof Error ? err.message : '注册失败');
+    // 解析后端返回的具体验证错误信息（如"密码长度 6-32 位"）
+    const errMsg = err instanceof Error ? err.message : '注册失败';
+    // 后端 BindException 返回格式为 "field: message; field: message"
+    // 提取中文部分展示给用户
+    const fieldErrors = errMsg.split(';').map((s: string) => {
+      const parts = s.trim().split(':');
+      return parts.length > 1 ? parts.slice(1).join(':').trim() : s.trim();
+    }).filter(Boolean);
+    if (fieldErrors.length > 0 && fieldErrors[0] !== '注册失败') {
+      message.error(fieldErrors.join('；'));
+    } else {
+      message.error(errMsg);
+    }
   } finally {
     loading.value = false;
   }

@@ -215,6 +215,9 @@ public class CommentService {
         commentMapper.deleteById(commentId);
         log.info("Comment deleted: id={}", commentId);
 
+        // 原子递减帖子评论数
+        postMapper.incrementCommentCount(comment.getPostId(), -1);
+
         // 广播评论变更事件
         broadcastCommentChange(comment.getPostId(), comment.getAuthorId(), "COMMENT_DELETED");
     }

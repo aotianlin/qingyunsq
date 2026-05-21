@@ -43,8 +43,10 @@ async function loadChat(peerId: number) {
   activePeerId.value = peerId
   try {
     chatMessages.value = await getConversation(peerId)
-    const peer = chatMessages.value.find(m => m.senderId === peerId || m.receiverId === peerId)
-    activePeerName.value = peer?.sender?.nickname || '用户'
+    // 正确获取对方昵称：从消息中找到对方发送的消息取 sender，或自己发送的消息取 receiver
+    const peerMsg = chatMessages.value.find(m => m.senderId === peerId)
+    const selfMsg = chatMessages.value.find(m => m.receiverId === peerId)
+    activePeerName.value = peerMsg?.sender?.nickname || selfMsg?.receiver?.nickname || '用户'
     await markRead(peerId)
     await nextTick()
     scrollToBottom()
@@ -85,7 +87,13 @@ function peerIdFromMsg(msg: MessageVO): number {
   return msg.senderId === currentUserId ? msg.receiverId : msg.senderId
 }
 
+// 对话列表中显示对方的昵称（而非自己的）
 function peerName(msg: MessageVO): string {
+  // 如果当前用户是发送者，对方是接收者
+  if (msg.senderId === currentUserId) {
+    return msg.receiver?.nickname || '用户'
+  }
+  // 如果当前用户是接收者，对方是发送者
   return msg.sender?.nickname || '用户'
 }
 
@@ -137,7 +145,7 @@ watch(() => route.query.peer, (val) => {
         <button
           class="action-btn back-btn"
           title="返回"
-          @click="router.back()"
+          @click="router.push('/square')"
         >
           <n-icon><ArrowBackOutline /></n-icon>
         </button>
@@ -483,6 +491,9 @@ watch(() => route.query.peer, (val) => {
   height: 100%;
   padding: 24px;
   gap: 16px;
+  /* 确保聊天容器占满可用高度，输入框固定在底部 */
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chat-header {
@@ -521,6 +532,7 @@ watch(() => route.query.peer, (val) => {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  min-height: 0;
   
   /* hide scrollbar for cleaner look */
   &::-webkit-scrollbar {
@@ -628,6 +640,7 @@ watch(() => route.query.peer, (val) => {
   gap: 12px;
   padding: 16px;
   border-radius: 16px;
+  flex-shrink: 0;
   
   .input-actions {
     display: flex;

@@ -6,6 +6,9 @@ spring:
     name: campus-forum
   profiles:
     active: dev
+  jackson:
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd'T'HH:mm:ss
   datasource:
     url: jdbc:mysql://localhost:3306/campus_forum?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: ${MYSQL_USER:root}

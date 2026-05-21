@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NAlert, NButton, NIcon, NInput, NInputNumber, NSelect, NTag, useMessage } from 'naive-ui';
 import { createPost, getPostById } from '@/api/posts';
@@ -23,6 +23,70 @@ const publishScope = ref<'SQUARE' | 'SPACE'>('SQUARE');
 const spaceId = ref<number | undefined>();
 const spaceName = ref('');
 
+// 草稿自动保存相关
+const DRAFT_KEY = 'campus_post_draft';
+
+interface DraftData {
+  title: string;
+  content: string;
+  postType: string;
+  topics: string[];
+  bountyPoints: number;
+  savedAt: number;
+}
+
+/** 从 localStorage 恢复草稿 */
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+    const draft: DraftData = JSON.parse(raw);
+    // 草稿超过 7 天自动丢弃
+    if (Date.now() - draft.savedAt > 7 * 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(DRAFT_KEY);
+      return;
+    }
+    title.value = draft.title || '';
+    content.value = draft.content || '';
+    postType.value = draft.postType || 'NORMAL';
+    topics.value = draft.topics || [];
+    bountyPoints.value = draft.bountyPoints || 0;
+    message.info('已恢复上次未发布的草稿');
+  } catch {
+    localStorage.removeItem(DRAFT_KEY);
+  }
+}
+
+/** 保存草稿到 localStorage */
+function saveDraft() {
+  // 有内容时才保存
+  if (!title.value.trim() && !content.value.trim()) {
+    localStorage.removeItem(DRAFT_KEY);
+    return;
+  }
+  const draft: DraftData = {
+    title: title.value,
+    content: content.value,
+    postType: postType.value,
+    topics: topics.value,
+    bountyPoints: bountyPoints.value,
+    savedAt: Date.now(),
+  };
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+}
+
+/** 清除草稿（发布成功后调用） */
+function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY);
+}
+
+// 监听内容变化，自动保存草稿（防抖）
+let draftTimer: ReturnType<typeof setTimeout> | null = null;
+watch([title, content, postType, topics, bountyPoints], () => {
+  if (draftTimer) clearTimeout(draftTimer);
+  draftTimer = setTimeout(saveDraft, 1000);
+}, { deep: true });
+
 const typeOptions = [
   { label: '普通帖子', value: 'NORMAL' },
   { label: '悬赏问答', value: 'QA' },
@@ -32,6 +96,12 @@ const isQa = computed(() => postType.value === 'QA');
 const contentCount = computed(() => content.value.trim().length);
 
 onMounted(async () => {
+  // 恢复草稿（仅在非引用模式下）
+  const quoteIdParam = route.query.quote;
+  if (!quoteIdParam) {
+    loadDraft();
+  }
+
   const scopeParam = String(route.query.scope || '').toUpperCase();
   const spaceIdParam = Number(route.query.spaceId);
   if (scopeParam === 'SPACE' && Number.isFinite(spaceIdParam) && spaceIdParam > 0) {
@@ -40,7 +110,6 @@ onMounted(async () => {
     spaceName.value = String(route.query.spaceName || '当前学习圈');
   }
 
-  const quoteIdParam = route.query.quote;
   if (!quoteIdParam) return;
 
   quotePostId.value = Number(quoteIdParam);
@@ -89,6 +158,7 @@ async function submit() {
       bountyPoints: isQa.value ? bountyPoints.value : undefined,
       quotePostId: quotePostId.value,
     });
+    clearDraft();
     message.success('发布成功');
     router.push(`/posts/${post.id}`);
   } catch {

@@ -224,7 +224,12 @@ function cancelReply() {
 }
 
 async function submitComment() {
-  if (!post.value || !commentText.value.trim()) return;
+  if (!post.value) return;
+  // 纯空白（空格/回车）时给出明确提示，但允许包含换行的有效内容
+  if (!commentText.value.trim()) {
+    message.warning('评论内容不能为空，请输入有效内容');
+    return;
+  }
   submitting.value = true;
   try {
     await createComment({
