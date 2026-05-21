@@ -16,7 +16,7 @@ export interface NotifyEvent {
  */
 let globalWs: WebSocket | null = null;
 let globalReconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let globalListeners: Set<(event: NotifyEvent) => void> = new Set();
+const globalListeners: Set<(event: NotifyEvent) => void> = new Set();
 let globalConnected = false;
 
 function globalConnect() {
