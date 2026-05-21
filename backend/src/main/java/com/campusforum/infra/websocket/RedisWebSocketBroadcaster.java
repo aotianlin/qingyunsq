@@ -2,8 +2,8 @@ package com.campusforum.infra.websocket;
 
 import com.campusforum.notify.websocket.SessionRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -13,22 +13,40 @@ import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 
+/**
+ * 基于 Redis pub/sub 的 WebSocket 集群广播实现。
+ * 当 RedisMessageListenerContainer 不可用时（如测试环境），降级为本地投递。
+ */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RedisWebSocketBroadcaster implements WebSocketBroadcaster, MessageListener {
 
     private final StringRedisTemplate redisTemplate;
-    private final RedisMessageListenerContainer listenerContainer;
     private final SessionRegistry sessionRegistry;
     private final ObjectMapper objectMapper;
+    private final RedisMessageListenerContainer listenerContainer;
 
     private static final String CHANNEL = "campusforum:ws:broadcast";
 
+    @Autowired
+    public RedisWebSocketBroadcaster(StringRedisTemplate redisTemplate,
+                                     SessionRegistry sessionRegistry,
+                                     ObjectMapper objectMapper,
+                                     @Autowired(required = false) RedisMessageListenerContainer listenerContainer) {
+        this.redisTemplate = redisTemplate;
+        this.sessionRegistry = sessionRegistry;
+        this.objectMapper = objectMapper;
+        this.listenerContainer = listenerContainer;
+    }
+
     @PostConstruct
     public void init() {
-        listenerContainer.addMessageListener(this, new ChannelTopic(CHANNEL));
-        log.info("WebSocket broadcaster subscribed to Redis channel: {}", CHANNEL);
+        if (listenerContainer != null) {
+            listenerContainer.addMessageListener(this, new ChannelTopic(CHANNEL));
+            log.info("WebSocket broadcaster subscribed to Redis channel: {}", CHANNEL);
+        } else {
+            log.warn("RedisMessageListenerContainer not available, WebSocket broadcast in local-only mode");
+        }
     }
 
     @Override
