@@ -58,7 +58,7 @@ jobs:
         env:
           SPRING_PROFILES_ACTIVE: ci
           TESTCONTAINERS_RYUK_DISABLED: "true"
-        run: mvn test -Dspring.profiles.active=ci -Dtestcontainers.reuse.enable=false
+        run: mvn test -e -Dspring.profiles.active=ci -Dtestcontainers.reuse.enable=false
 
   frontend-test:
     runs-on: ubuntu-latest
