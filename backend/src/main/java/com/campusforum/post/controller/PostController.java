@@ -6,6 +6,7 @@ import com.campusforum.post.dto.CreatePostRequest;
 import com.campusforum.post.dto.PostPageRequest;
 import com.campusforum.post.dto.PostVO;
 import com.campusforum.post.dto.ReactionRequest;
+import com.campusforum.post.dto.UpdatePostRequest;
 import com.campusforum.post.service.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,12 @@ public class PostController {
         long userId = StpUtil.getLoginIdAsLong();
         postService.deletePost(userId, id);
         return R.ok();
+    }
+
+    @PutMapping("/{id}")
+    public R<PostVO> update(@PathVariable Long id, @Valid @RequestBody UpdatePostRequest req) {
+        long userId = StpUtil.getLoginIdAsLong();
+        return R.ok(postService.updatePost(userId, id, req));
     }
 
     @PostMapping("/{id}/reactions")

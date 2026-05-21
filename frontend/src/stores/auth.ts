@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { disconnectGlobalWebSocket } from '@/composables/useWebSocket';
 
 interface UserInfo {
   id: number;
@@ -55,6 +56,8 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('role');
       localStorage.removeItem('tenantId');
       localStorage.removeItem('tenantCode');
+      // 退出登录时主动断开 WebSocket，防止退出后仍弹消息提醒
+      disconnectGlobalWebSocket();
     },
   },
 });

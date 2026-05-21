@@ -112,6 +112,19 @@ public class MessageService {
                 .eq(Message::getIsRead, 0));
     }
 
+    @Transactional
+    public int markAllRead(Long userId) {
+        LambdaQueryWrapper<Message> qw = new LambdaQueryWrapper<>();
+        qw.eq(Message::getReceiverId, userId)
+          .eq(Message::getIsRead, 0);
+        List<Message> unread = messageMapper.selectList(qw);
+        for (Message m : unread) {
+            m.setIsRead(1);
+            messageMapper.updateById(m);
+        }
+        return unread.size();
+    }
+
     private MessageVO toVO(Message m) {
         User sender = userMapper.selectById(m.getSenderId());
         UserVO senderVO = null;
@@ -122,11 +135,22 @@ public class MessageService {
                     .avatarUrl(sender.getAvatarUrl())
                     .build();
         }
+        // 同时返回接收者信息，用于对话列表正确显示对方头像和昵称
+        User receiver = userMapper.selectById(m.getReceiverId());
+        UserVO receiverVO = null;
+        if (receiver != null) {
+            receiverVO = UserVO.builder()
+                    .id(receiver.getId())
+                    .nickname(receiver.getNickname())
+                    .avatarUrl(receiver.getAvatarUrl())
+                    .build();
+        }
         return MessageVO.builder()
                 .id(m.getId())
                 .senderId(m.getSenderId())
                 .receiverId(m.getReceiverId())
                 .sender(senderVO)
+                .receiver(receiverVO)
                 .content(m.getContent())
                 .imageUrl(m.getImageUrl())
                 .isRead(m.getIsRead() != null && m.getIsRead() == 1)

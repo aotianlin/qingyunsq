@@ -44,4 +44,15 @@ public class NotifyController {
         notifyService.markAllRead(userId);
         return R.ok();
     }
+
+    @PutMapping("/batch-read")
+    public R<Map<String, Integer>> batchRead(@RequestBody Map<String, List<Long>> body) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        List<Long> ids = body.getOrDefault("ids", List.of());
+        if (ids.size() > 100) {
+            return R.fail(400, "批次大小不能超过 100");
+        }
+        int count = notifyService.batchMarkRead(ids, userId);
+        return R.ok(Map.of("count", count));
+    }
 }

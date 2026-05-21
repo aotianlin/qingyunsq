@@ -1,6 +1,8 @@
 package com.campusforum.report.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.stp.StpUtil;
+import com.campusforum.admin.service.AuditLogService;
 import com.campusforum.common.R;
 import com.campusforum.report.dto.ReportVO;
 import com.campusforum.report.service.ReportService;
@@ -16,6 +18,7 @@ import java.util.Map;
 public class AdminReportController {
 
     private final ReportService reportService;
+    private final AuditLogService auditLogService;
 
     @GetMapping
     @SaCheckPermission("tenant:report:manage")
@@ -33,6 +36,8 @@ public class AdminReportController {
         Integer status = Integer.valueOf(body.get("status").toString());
         String note = (String) body.getOrDefault("note", null);
         reportService.handle(id, status, note);
+        auditLogService.log("REPORT_HANDLE", "report", id,
+                "report handled: status=" + status + " by admin " + StpUtil.getLoginIdAsLong());
         return R.ok();
     }
 
@@ -47,6 +52,8 @@ public class AdminReportController {
         for (Long id : ids) {
             reportService.handle(id, status, note);
         }
+        auditLogService.log("REPORT_BATCH_HANDLE", "report", null,
+                "batch handled " + ids.size() + " reports: status=" + status + " by admin " + StpUtil.getLoginIdAsLong());
         return R.ok();
     }
 }

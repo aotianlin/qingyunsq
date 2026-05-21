@@ -38,6 +38,17 @@ instance.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
+    } else if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after'];
+      const msg = retryAfter
+        ? `请求过于频繁，请 ${retryAfter} 秒后重试`
+        : '请求过于频繁，请稍后重试';
+      console.warn(`[Rate Limited] ${msg}`);
+      error.message = msg;
+    } else if (error.response?.status === 415) {
+      error.message = '该文件类型不支持此操作';
+    } else if (error.response?.status === 413) {
+      error.message = '文件过大';
     }
     return Promise.reject(error);
   },

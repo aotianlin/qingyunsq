@@ -25,3 +25,12 @@ export async function markRead(id: number): Promise<void> {
 export async function markAllRead(): Promise<void> {
   await request({ method: 'PUT', url: '/notifications/read-all' });
 }
+
+export async function batchMarkRead(ids: number[]): Promise<{ count: number }> {
+  const res = await request<{ count: number }>({
+    method: 'PUT',
+    url: '/notifications/batch-read',
+    data: { ids },
+  });
+  return res.data;
+}

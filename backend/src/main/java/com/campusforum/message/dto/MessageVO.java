@@ -13,6 +13,7 @@ public class MessageVO {
     private Long senderId;
     private Long receiverId;
     private UserVO sender;
+    private UserVO receiver;
     private String content;
     private String imageUrl;
     private boolean isRead;

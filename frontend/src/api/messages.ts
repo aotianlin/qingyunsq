@@ -32,3 +32,11 @@ export async function getUnreadCount(): Promise<number> {
   const res = await request<number>({ method: 'GET', url: '/messages/unread-count' })
   return res.data
 }
+
+export async function markAllMessagesRead(): Promise<{ count: number }> {
+  const res = await request<{ count: number }>({
+    method: 'PUT',
+    url: '/messages/read-all',
+  });
+  return res.data;
+}

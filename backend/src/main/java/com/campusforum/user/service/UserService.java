@@ -5,6 +5,8 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.infra.email.EmailProperties;
+import com.campusforum.infra.email.EmailService;
 import com.campusforum.points.service.PointsService;
 import com.campusforum.tenant.TenantContext;
 import com.campusforum.tenant.cache.ActiveTenantCache;
@@ -21,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +34,7 @@ import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -41,6 +45,9 @@ public class UserService {
     private final PointsService pointsService;
     private final StudentNoMappingProperties studentNoMapping;
     private final ActiveTenantCache activeTenantCache;
+    private final EmailService emailService;
+    private final EmailProperties emailProperties;
+    private final StringRedisTemplate stringRedisTemplate;
 
     /**
      * 固定 BCrypt hash，仅用于用户不存在时消耗等量 CPU 时间，防止时序攻击。
@@ -164,10 +171,18 @@ public class UserService {
     private static final Base64.Encoder base64Encoder = Base64.getUrlEncoder().withoutPadding();
 
     /**
-     * 忘记密码：生成重置 token 并存库（实际项目应通过邮件发送，此处仅存库供 reset-password 使用）
+     * 忘记密码：生成重置 token，通过邮件发送重置链接。
+     * 包含频率限制（每邮箱 15 分钟最多 5 次）和旧令牌失效逻辑。
      * 无论邮箱是否存在，统一返回 void，避免用户枚举攻击。
      */
     public void forgotPassword(String email) {
+        // 频率限制检查（无论邮箱是否存在都执行，防止枚举）
+        String rateLimitKey = "reset_rate:" + email;
+        if (isRateLimited(rateLimitKey)) {
+            log.info("Password reset rate limited for email (suppressed)");
+            return; // 静默返回，不暴露限流信息
+        }
+
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
                 .eq(User::getEmail, email));
         // 邮箱不存在时静默返回，不抛异常，防止枚举
@@ -175,15 +190,58 @@ public class UserService {
             log.info("Password reset requested for non-existent email (suppressed)");
             return;
         }
+
+        // 使旧令牌失效
+        user.setResetToken(null);
+        user.setResetTokenExpires(null);
+
+        // 生成新令牌
         byte[] bytes = new byte[32];
         secureRandom.nextBytes(bytes);
         String token = base64Encoder.encodeToString(bytes);
         user.setResetToken(token);
-        user.setResetTokenExpires(LocalDateTime.now().plusHours(1));
+        user.setResetTokenExpires(LocalDateTime.now().plusMinutes(emailProperties.getResetTokenExpireMinutes()));
         userMapper.updateById(user);
-        // SEC-01 修复：不再打印 token 明文，仅记录用户 ID
-        log.info("Password reset token generated for user id={}", user.getId());
-        // TODO: 生产环境应通过邮件服务发送 token，而非 HTTP 响应返回
+
+        // 增加频率计数
+        incrementRateLimit(rateLimitKey);
+
+        // 通过邮件发送重置链接
+        emailService.sendResetEmail(email, token);
+        log.info("Password reset token generated and email sent for user id={}", user.getId());
+    }
+
+    /**
+     * 检查是否超过频率限制
+     */
+    private boolean isRateLimited(String key) {
+        try {
+            String countStr = stringRedisTemplate.opsForValue().get(key);
+            if (countStr != null) {
+                int count = Integer.parseInt(countStr);
+                return count >= emailProperties.getRateLimitMaxRequests();
+            }
+            return false;
+        } catch (Exception e) {
+            // Redis 不可用时不限流（fail-open）
+            log.warn("Redis unavailable for rate limit check, allowing request");
+            return false;
+        }
+    }
+
+    /**
+     * 增加频率限制计数
+     */
+    private void incrementRateLimit(String key) {
+        try {
+            Long count = stringRedisTemplate.opsForValue().increment(key);
+            if (count != null && count == 1) {
+                // 首次设置过期时间
+                stringRedisTemplate.expire(key, emailProperties.getRateLimitWindowMinutes(), TimeUnit.MINUTES);
+            }
+        } catch (Exception e) {
+            log.warn("Redis unavailable for rate limit increment");
+        }
     }
 
     @Transactional

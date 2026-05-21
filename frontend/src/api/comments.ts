@@ -31,3 +31,12 @@ export async function toggleCommentReaction(id: number, type: 'LIKE'): Promise<b
   });
   return res.data;
 }
+
+export async function updateComment(id: number, content: string): Promise<CommentVO> {
+  const res = await request<CommentVO>({
+    method: 'PUT',
+    url: `/comments/${id}`,
+    data: { content },
+  });
+  return res.data;
+}

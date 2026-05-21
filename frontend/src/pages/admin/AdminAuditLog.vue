@@ -16,12 +16,15 @@ const actionOptions: SelectOption[] = [
   { label: '用户封禁', value: 'USER_BAN' },
   { label: '用户解禁', value: 'USER_UNBAN' },
   { label: '角色变更', value: 'USER_ROLE_CHANGE' },
+  { label: '批量封禁/解禁', value: 'USER_BATCH_STATUS' },
   { label: '帖子置顶', value: 'POST_PIN' },
   { label: '帖子精华', value: 'POST_ESSENCE' },
   { label: '帖子状态', value: 'POST_STATUS' },
   { label: '帖子删除', value: 'POST_FORCE_DELETE' },
   { label: '空间状态', value: 'SPACE_STATUS' },
   { label: '空间解散', value: 'SPACE_DISMISS' },
+  { label: '举报处理', value: 'REPORT_HANDLE' },
+  { label: '批量举报处理', value: 'REPORT_BATCH_HANDLE' },
 ];
 
 async function loadLogs(reset = false) {

@@ -5,6 +5,8 @@ import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
 import com.campusforum.common.R;
 import com.campusforum.infra.StorageService;
+import com.campusforum.post.dto.FavoriteVO;
+import com.campusforum.post.service.FavoriteService;
 import com.campusforum.user.dto.UpdateProfileRequest;
 import com.campusforum.user.dto.UserAssetUploadVO;
 import com.campusforum.user.dto.UserVO;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -27,6 +30,7 @@ public class UserController {
 
     private final UserService userService;
     private final StorageService storageService;
+    private final FavoriteService favoriteService;
 
     @Value("${storage.type:local}")
     private String storageType;
@@ -84,6 +88,15 @@ public class UserController {
     @GetMapping("/{id}")
     public R<UserVO> getById(@PathVariable Long id) {
         return R.ok(userService.getById(id));
+    }
+
+    @GetMapping("/me/favorites")
+    public R<List<FavoriteVO>> getFavorites(
+            @RequestParam(required = false) String targetType,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(defaultValue = "20") int limit) {
+        long userId = StpUtil.getLoginIdAsLong();
+        return R.ok(favoriteService.listFavorites(userId, targetType, cursor, limit));
     }
 
     private void validateProfileImage(MultipartFile file) {

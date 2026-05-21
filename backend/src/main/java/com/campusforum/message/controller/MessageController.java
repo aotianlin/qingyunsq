@@ -52,4 +52,11 @@ public class MessageController {
         long userId = StpUtil.getLoginIdAsLong();
         return R.ok(messageService.getUnreadCount(userId));
     }
+
+    @PutMapping("/read-all")
+    public R<Map<String, Integer>> markAllRead() {
+        long userId = StpUtil.getLoginIdAsLong();
+        int count = messageService.markAllRead(userId);
+        return R.ok(Map.of("count", count));
+    }
 }

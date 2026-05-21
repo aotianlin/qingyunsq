@@ -20,6 +20,7 @@ public class Comment {
     private Integer status;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     @TableLogic
     private Integer deleted;
 }

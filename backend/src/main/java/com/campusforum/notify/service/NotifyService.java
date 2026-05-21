@@ -113,6 +113,21 @@ public class NotifyService {
         }
     }
 
+    @Transactional
+    public int batchMarkRead(List<Long> ids, Long userId) {
+        if (ids == null || ids.isEmpty()) return 0;
+        int count = 0;
+        for (Long id : ids) {
+            Notification notif = notificationMapper.selectById(id);
+            if (notif == null || !notif.getReceiverId().equals(userId)) continue;
+            if (notif.getIsRead() == 1) continue; // 已读跳过
+            notif.setIsRead(1);
+            notificationMapper.updateById(notif);
+            count++;
+        }
+        return count;
+    }
+
     private NotificationVO toVO(Notification n) {
         UserVO senderVO = null;
         if (n.getSenderId() != null) {

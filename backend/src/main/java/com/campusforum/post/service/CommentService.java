@@ -10,6 +10,7 @@ import com.campusforum.post.domain.Reaction;
 import com.campusforum.post.dto.CommentVO;
 import com.campusforum.post.dto.CreateCommentRequest;
 import com.campusforum.post.dto.ReactionRequest;
+import com.campusforum.post.dto.UpdateCommentRequest;
 import com.campusforum.post.mapper.CommentMapper;
 import com.campusforum.post.mapper.PostMapper;
 import com.campusforum.post.mapper.ReactionMapper;
@@ -18,12 +19,16 @@ import com.campusforum.qa.mapper.QaQuestionMapper;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
+import com.campusforum.notify.websocket.SessionRegistry;
+import com.campusforum.sensitive.service.SensitiveWordService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,9 +47,18 @@ public class CommentService {
     private final AchievementService achievementService;
     private final QaQuestionMapper qaQuestionMapper;
     private final ReactionMapper reactionMapper;
+    private final SensitiveWordService sensitiveWordService;
+    private final SessionRegistry sessionRegistry;
+    private static final ObjectMapper jsonMapper = new ObjectMapper();
 
     @Transactional
     public CommentVO create(Long userId, CreateCommentRequest req) {
+        // 敏感词过滤：创建前检查
+        int riskLevel = sensitiveWordService.getRiskLevel(req.getContent());
+        if (riskLevel >= 2) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "评论包含敏感内容，请修改后重试");
+        }
+
         Comment comment = new Comment();
         comment.setPostId(req.getPostId());
         comment.setParentId(req.getParentId());
@@ -60,7 +74,7 @@ public class CommentService {
         // Bug fix 1.4: 原子更新帖子评论数
         postMapper.incrementCommentCount(req.getPostId(), 1);
 
-        // 通知
+        // 通知 + WebSocket 推送评论变更事件
         var post = postMapper.selectById(req.getPostId());
         User commenter = userMapper.selectById(userId);
         String commenterName = commenter != null ? commenter.getNickname() : "有人";
@@ -95,6 +109,12 @@ public class CommentService {
         }
 
         log.info("Comment created: id={}, postId={}", comment.getId(), req.getPostId());
+
+        // 广播评论变更事件到帖子作者（用于实时刷新评论区）
+        if (post != null) {
+            broadcastCommentChange(post.getId(), post.getAuthorId(), "NEW_COMMENT");
+        }
+
         return toVO(comment);
     }
 
@@ -194,6 +214,36 @@ public class CommentService {
 
         commentMapper.deleteById(commentId);
         log.info("Comment deleted: id={}", commentId);
+
+        // 原子递减帖子评论数
+        postMapper.incrementCommentCount(comment.getPostId(), -1);
+
+        // 广播评论变更事件
+        broadcastCommentChange(comment.getPostId(), comment.getAuthorId(), "COMMENT_DELETED");
+    }
+
+    @Transactional
+    public CommentVO updateComment(Long userId, Long commentId, UpdateCommentRequest req) {
+        Comment comment = commentMapper.selectById(commentId);
+        if (comment == null || comment.getDeleted() == 1) {
+            throw new BusinessException(ErrorCode.COMMENT_NOT_FOUND);
+        }
+        if (!comment.getAuthorId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "无权编辑此评论");
+        }
+
+        // 敏感词过滤
+        int riskLevel = sensitiveWordService.getRiskLevel(req.getContent());
+        if (riskLevel > 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "评论包含敏感内容，请修改后重试");
+        }
+
+        comment.setContent(req.getContent());
+        comment.setUpdatedAt(LocalDateTime.now());
+        commentMapper.updateById(comment);
+
+        log.info("Comment updated: id={}, authorId={}", commentId, userId);
+        return toVO(comment);
     }
 
     @Transactional
@@ -237,6 +287,25 @@ public class CommentService {
                 "点赞通知", likerName + " 赞了你的评论", "/posts/" + comment.getPostId());
 
         return true;
+    }
+
+    /**
+     * 广播评论变更事件到正在查看该帖子的用户。
+     * 通过 WebSocket 推送 COMMENT_CHANGE 事件，前端收到后自动刷新评论列表。
+     */
+    private void broadcastCommentChange(Long postId, Long postAuthorId, String action) {
+        try {
+            Map<String, Object> payload = Map.of(
+                    "type", "COMMENT_CHANGE",
+                    "postId", postId,
+                    "action", action
+            );
+            String json = jsonMapper.writeValueAsString(payload);
+            // 通知帖子作者（如果在线）
+            sessionRegistry.sendToUser(postAuthorId, json);
+        } catch (Exception e) {
+            log.debug("Failed to broadcast comment change: {}", e.getMessage());
+        }
     }
 
     private CommentVO toVO(Comment comment) {

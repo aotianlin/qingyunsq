@@ -58,3 +58,23 @@ export async function getTagSubscriptions(): Promise<string[]> {
 export async function updateTagSubscriptions(tags: string[]): Promise<void> {
   await request({ method: 'PUT', url: '/users/me/tag-subscriptions', data: { tags } });
 }
+
+export interface FavoriteVO {
+  id: number;
+  targetType: string;
+  targetId: number;
+  collectedAt: string;
+  postTitle?: string;
+  postContentPreview?: string;
+  resourceFileName?: string;
+  resourceFileType?: string;
+}
+
+export async function getFavorites(params: {
+  targetType?: string;
+  cursor?: number;
+  limit?: number;
+}): Promise<FavoriteVO[]> {
+  const res = await request<FavoriteVO[]>({ method: 'GET', url: '/users/me/favorites', params });
+  return res.data;
+}

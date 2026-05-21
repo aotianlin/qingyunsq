@@ -39,31 +39,26 @@ jobs:
           java-version: "17"
           distribution: "temurin"
           cache: maven
-      - name: Initialize MySQL schema
-        run: docker exec -i ${{ job.services.mysql.id }} mysql -uroot -proot < db/schema.sql
       - name: Start MinIO
         run: |
-          docker run -d --name campus-minio-ci \
-            -p 9000:9000 \
+          docker run -d --name minio-ci -p 9000:9000 \
             -e MINIO_ROOT_USER=minioadmin \
             -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio:latest server /data
-
-          for i in {1..30}; do
-            if curl -fsS http://localhost:9000/minio/health/ready >/dev/null; then
-              exit 0
-            fi
-            sleep 2
+            minio/minio server /data
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live && break
+            sleep 1
           done
-
-          docker logs campus-minio-ci
-          exit 1
+          # Create test bucket by directly creating the directory
+          docker exec minio-ci mkdir -p /data/test-bucket
+      - name: Initialize MySQL schema
+        run: docker exec -i ${{ job.services.mysql.id }} mysql -uroot -proot < db/schema.sql
       - name: Run tests
         working-directory: backend
         env:
           SPRING_PROFILES_ACTIVE: ci
           TESTCONTAINERS_RYUK_DISABLED: "true"
-        run: mvn test -Dspring.profiles.active=ci -Dtestcontainers.reuse.enable=false
+        run: mvn test -e -Dspring.profiles.active=ci -Dtestcontainers.reuse.enable=false
 
   frontend-test:
     runs-on: ubuntu-latest

@@ -568,10 +568,58 @@ function syncProfileForm() {
   };
 }
 
+// 圈内随笔草稿保存/恢复
+const COMPOSE_DRAFT_KEY = 'campus_compose_draft';
+
+function saveComposeDraft() {
+  if (!composeTitle.value.trim() && !composeContent.value.trim()) {
+    localStorage.removeItem(COMPOSE_DRAFT_KEY);
+    return;
+  }
+  const draft = {
+    title: composeTitle.value,
+    content: composeContent.value,
+    type: composeType.value,
+    topics: composeTopics.value,
+    spaceId: space.value?.id,
+    savedAt: Date.now(),
+  };
+  localStorage.setItem(COMPOSE_DRAFT_KEY, JSON.stringify(draft));
+}
+
+function loadComposeDraft() {
+  try {
+    const raw = localStorage.getItem(COMPOSE_DRAFT_KEY);
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    // 草稿超过 7 天或不属于当前圈子则丢弃
+    if (Date.now() - draft.savedAt > 7 * 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(COMPOSE_DRAFT_KEY);
+      return;
+    }
+    if (draft.spaceId && draft.spaceId !== space.value?.id) return;
+    composeTitle.value = draft.title || '';
+    composeContent.value = draft.content || '';
+    composeType.value = draft.type || 'NORMAL';
+    composeTopics.value = draft.topics || [];
+    if (draft.title || draft.content) {
+      message.info('已恢复上次未发布的草稿');
+    }
+  } catch {
+    localStorage.removeItem(COMPOSE_DRAFT_KEY);
+  }
+}
+
+function clearComposeDraft() {
+  localStorage.removeItem(COMPOSE_DRAFT_KEY);
+}
+
 function openCompose() {
   if (!space.value) return;
   composeVisible.value = true;
   actionMenuVisible.value = false;
+  // 恢复圈内草稿
+  loadComposeDraft();
 }
 
 function resetCompose() {
@@ -580,6 +628,8 @@ function resetCompose() {
   composeType.value = 'NORMAL';
   composeTopicInput.value = '';
   composeTopics.value = [];
+  // 清除圈内草稿
+  clearComposeDraft();
 }
 
 function closeCompose() {
@@ -587,6 +637,8 @@ function closeCompose() {
   paperRipple.value = null;
   inkStroke.value = null;
   writingPen.value = false;
+  // 关闭时保存草稿（有内容时）
+  saveComposeDraft();
 }
 
 function addComposeTopic() {
@@ -7012,9 +7064,13 @@ watch(() => route.params.id, () => loadSpace());
 
 .paper-stage *,
 .paper-stage input,
-.paper-stage textarea,
-.paper-stage button {
+.paper-stage textarea {
   cursor: var(--pen-cursor) !important;
+}
+
+/* 按钮使用 pointer 光标，确保点击区域直观 */
+.paper-stage button {
+  cursor: pointer !important;
 }
 
 .paper-sheet {

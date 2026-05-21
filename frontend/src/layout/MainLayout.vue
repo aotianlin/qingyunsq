@@ -3,6 +3,9 @@ import { h, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { getMe, logout as apiLogout } from '@/api/auth';
+import { getUnreadCount as getNotifUnreadCount } from '@/api/notifications';
+import { getUnreadCount as getMsgUnreadCount } from '@/api/messages';
+import { useWebSocket } from '@/composables/useWebSocket';
 import {
   ChatbubblesOutline,
   CheckmarkCircleOutline,
@@ -17,13 +20,42 @@ import {
   BonfireOutline,
   AddOutline,
 } from '@vicons/ionicons5';
-import { NAvatar, NDropdown, NIcon, NInput } from 'naive-ui';
+import { NAvatar, NBadge, NDropdown, NIcon, NInput } from 'naive-ui';
 
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const searchKeyword = ref('');
 const headerScrolled = ref(false);
+const notifUnread = ref(0);
+const msgUnread = ref(0);
+
+// 监听 WebSocket 事件，实时更新未读数
+useWebSocket((event) => {
+  if (event.type === 'COMMENT' || event.type === 'LIKE' || event.type === 'REPLY'
+      || event.type === 'MENTION' || event.type === 'ACCEPT' || event.type === 'JOIN'
+      || event.type === 'TAG_SUBSCRIBE' || event.type === 'SYSTEM') {
+    notifUnread.value++;
+    showDesktopNotification(event.title || '新通知', event.content || '');
+  } else if (event.type === 'MESSAGE') {
+    msgUnread.value++;
+    showDesktopNotification('新私信', event.content || '你收到了一条新消息');
+  }
+});
+
+/** 请求浏览器通知权限并显示桌面弹窗 */
+function showDesktopNotification(title: string, body: string) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/favicon.ico' });
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then((perm) => {
+      if (perm === 'granted') {
+        new Notification(title, { body, icon: '/favicon.ico' });
+      }
+    });
+  }
+}
 
 const navLinks = [
   { name: '广场', path: '/square', icon: PlanetOutline },
@@ -58,6 +90,16 @@ onMounted(async () => {
     } catch {
       authStore.logout();
       router.push('/login');
+    }
+  }
+
+  // 加载未读数
+  if (authStore.isLoggedIn) {
+    notifUnread.value = await getNotifUnreadCount().catch(() => 0);
+    msgUnread.value = Number(await getMsgUnreadCount().catch(() => 0));
+    // 请求桌面通知权限
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
     }
   }
 });
@@ -174,9 +216,11 @@ function updateTopHeaderState() {
           title="私信"
           @click="navigate('/messages')"
         >
-          <n-icon size="18">
-            <ChatbubblesOutline />
-          </n-icon>
+          <n-badge :value="msgUnread" :max="99" :show="msgUnread > 0">
+            <n-icon size="18">
+              <ChatbubblesOutline />
+            </n-icon>
+          </n-badge>
         </button>
 
         <button
@@ -184,9 +228,11 @@ function updateTopHeaderState() {
           title="通知"
           @click="navigate('/notifications')"
         >
-          <n-icon size="18">
-            <NotificationsOutline />
-          </n-icon>
+          <n-badge :value="notifUnread" :max="99" :show="notifUnread > 0">
+            <n-icon size="18">
+              <NotificationsOutline />
+            </n-icon>
+          </n-badge>
         </button>
 
         <n-dropdown

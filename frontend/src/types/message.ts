@@ -7,6 +7,11 @@ export interface MessageVO {
     nickname: string
     avatarUrl?: string
   } | null
+  receiver: {
+    id: number
+    nickname: string
+    avatarUrl?: string
+  } | null
   content: string
   imageUrl?: string
   isRead: boolean
