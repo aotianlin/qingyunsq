@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
+import { computed, nextTick, ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NModal, NSpin, NIcon, useMessage } from 'naive-ui';
 import {
-  PlanetOutline,
-  BonfireOutline,
   SparklesOutline,
   LibraryOutline,
   CheckmarkCircleOutline,
   NotificationsOutline,
-  StarOutline,
+  CopyOutline,
+  RefreshOutline,
   SearchOutline,
   MenuOutline,
   ShareSocialOutline,
@@ -21,14 +20,26 @@ import {
   PersonOutline,
   DocumentTextOutline
 } from '@vicons/ionicons5';
-import { getSpaceById, getSpaceMembers, getSpacePosts } from '@/api/spaces';
-import { createPost } from '@/api/posts';
+import { getSpaceById, getSpaceMembers, getSpacePosts, joinSpace, leaveSpace, updateSpace } from '@/api/spaces';
+import { createPost, getPostById, toggleReaction } from '@/api/posts';
+import { createComment, getComments, toggleCommentReaction } from '@/api/comments';
 import { getResources, uploadResource } from '@/api/resources';
-import { getMyProfile } from '@/api/users';
+import { createChallenge, getChallenges } from '@/api/checkin';
+import { getMyProfile, getUserById, updateProfile, uploadProfileAsset } from '@/api/users';
+import { follow, getFollowCounts, getUserFollowers, getUserFollowing, isFollowing, unfollow } from '@/api/follows';
+import { getUserAchievements } from '@/api/achievement';
+import { getNotifications, getUnreadCount, markRead } from '@/api/notifications';
+import { getBalance, getPointsLogs } from '@/api/points';
+import { acceptAnswer, getQaInfo } from '@/api/qa';
 import type { SpaceVO, SpaceMemberVO } from '@/types/space';
-import type { PostVO } from '@/types/post';
+import type { CommentVO, PostVO } from '@/types/post';
 import type { ResourceVO } from '@/types/resource';
 import type { UserVO } from '@/types/user';
+import type { CheckinChallengeVO } from '@/types/checkin';
+import type { AchievementVO } from '@/types/achievement';
+import type { NotificationVO } from '@/types/notification';
+import type { PointsLogVO } from '@/types/points';
+import type { QaQuestionVO } from '@/types/qa';
 import auroraBg from '@/assets/images/aurora_bg.png';
 
 const route = useRoute();
@@ -39,9 +50,16 @@ const space = ref<SpaceVO | null>(null);
 const members = ref<SpaceMemberVO[]>([]);
 const posts = ref<PostVO[]>([]);
 const spaceResources = ref<ResourceVO[]>([]);
+const checkinChallenges = ref<CheckinChallengeVO[]>([]);
+const notifications = ref<NotificationVO[]>([]);
+const unreadCount = ref(0);
 const myProfile = ref<UserVO | null>(null);
+const profileFollowCounts = ref({ followers: 0, following: 0 });
+const profileAchievements = ref<AchievementVO[]>([]);
 const loading = ref(true);
 const searchKeyword = ref('');
+const searchResultsRef = ref<HTMLElement | null>(null);
+const memberKeyword = ref('');
 const postSort = ref<'latest' | 'hot' | 'essence'>('latest');
 const composeVisible = ref(false);
 const composeTitle = ref('');
@@ -57,47 +75,104 @@ const writingPenPoint = ref({ x: 520, y: 84 });
 const inkStroke = ref<{ char: string; x: number; y: number; key: number } | null>(null);
 const actionMenuVisible = ref(false);
 const notificationVisible = ref(false);
+const notificationLoading = ref(false);
 const noticeVisible = ref(false);
 const activeMembersVisible = ref(false);
 const uploadVisible = ref(false);
 const uploadInputRef = ref<HTMLInputElement | null>(null);
 const uploadFile = ref<File | null>(null);
 const uploadDescription = ref('');
-const uploadCollege = ref('');
-const uploadMajor = ref('');
-const uploadCourse = ref('');
+const uploadTagText = ref('');
 const uploadDropActive = ref(false);
 const uploadSubmitting = ref(false);
 const profilePanelVisible = ref(false);
 const profileTab = ref('动态');
+const profileEditVisible = ref(false);
+const profileSaving = ref(false);
+const profileAssetUploading = ref<'avatar' | 'cover' | null>(null);
+const profileAvatarInputRef = ref<HTMLInputElement | null>(null);
+const profileCoverInputRef = ref<HTMLInputElement | null>(null);
+const profileForm = ref({
+  nickname: '',
+  avatarUrl: '',
+  profileCoverUrl: '',
+  bio: '',
+  college: '',
+  major: '',
+  grade: '',
+});
+const profileFollowsVisible = ref(false);
+const profileFollowsTab = ref<'followers' | 'following'>('following');
+const profileFollowsLoading = ref(false);
+const profileFollowUsers = ref<UserVO[]>([]);
+const profileLikesVisible = ref(false);
+const profilePointsVisible = ref(false);
+const profilePointsLoading = ref(false);
+const profilePointsBalance = ref<number | null>(null);
+const profilePointLogs = ref<PointsLogVO[]>([]);
+const postDetailVisible = ref(false);
+const postDetailLoading = ref(false);
+const postDetail = ref<PostVO | null>(null);
+const postDetailComments = ref<CommentVO[]>([]);
+const postDetailQa = ref<QaQuestionVO | null>(null);
+const postDetailCommentText = ref('');
+const postDetailCommentInputRef = ref<HTMLTextAreaElement | null>(null);
+const postDetailReplyTo = ref<{ parentId: number; replyToId: number; nickname: string } | null>(null);
+const postDetailSubmitting = ref(false);
+const postDetailLikeSubmitting = ref(false);
+const postDetailAcceptingId = ref<number | null>(null);
+const postListLikeSubmitting = ref<number | null>(null);
+const postActionVisible = ref(false);
+const postActionTarget = ref<PostVO | null>(null);
+const postActionSubmitting = ref<number | null>(null);
+const postShareVisible = ref(false);
+const postShareTarget = ref<PostVO | null>(null);
+const memberProfileVisible = ref(false);
+const memberProfileLoading = ref(false);
+const memberProfile = ref<UserVO | null>(null);
+const memberProfileFollowCounts = ref({ followers: 0, following: 0 });
+const memberProfileFollowing = ref(false);
+const memberProfileFollowSubmitting = ref(false);
+const memberProfileAchievements = ref<AchievementVO[]>([]);
+const settingName = ref('');
+const settingDescription = ref('');
+const settingVisibility = ref('PUBLIC');
+const settingPostNotice = ref('');
+const settingSensitiveWords = ref('');
+const settingSubmitting = ref(false);
+const spaceActionSubmitting = ref(false);
+const challengeFormVisible = ref(false);
+const challengeName = ref('');
+const challengeDescription = ref('');
+const challengeStartDate = ref('');
+const challengeEndDate = ref('');
+const challengeSubmitting = ref(false);
 let writingTimer: number | undefined;
 
-const sidebarMenus = [
-  { label: '广场', icon: PlanetOutline, path: '/square' },
-  { 
-    label: '学习圈', 
-    icon: BonfireOutline, 
-    path: '/spaces',
-    active: true,
-    children: ['我的圈子', '我加入的', '圈子广场', '圈子管理']
-  },
-  { label: '打卡', icon: CheckmarkCircleOutline, path: '/checkin' },
-  { label: '积分中心', icon: StarOutline, path: '/points' },
-  { label: 'AI 助手', icon: SparklesOutline, path: '/ai' },
-];
-
 const tabs = ['首页', '帖子', '精华', '文件', '成员', '打卡', '设置'];
-const activeTab = ref('帖子');
-const profileTabs = ['动态', '帖子', '回复', '收藏', '打卡', '成就'];
-const uploadAccept = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp';
+const activeTab = ref('首页');
+const profileTabs = ['动态', '帖子', '打卡', '成就'];
+const uploadAccept = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp,.md,.markdown';
 const maxUploadSize = 50 * 1024 * 1024;
-const activeMembers = [
-  { id: 1, nickname: '代码骑士', avatarUrl: '', role: '今日高频回复' },
-  { id: 2, nickname: '算法小能手', avatarUrl: '', role: '资料贡献者' },
-  { id: 3, nickname: '系统设计同学', avatarUrl: '', role: '讨论活跃' },
-  { id: 4, nickname: 'Java 学习者', avatarUrl: '', role: '连续打卡' },
-  { id: 5, nickname: '操作系统读书会', avatarUrl: '', role: '热门发帖' },
-];
+const pointTypeLabels: Record<string, string> = {
+  LOGIN: '每日登录',
+  POST: '发表帖子',
+  LIKED: '收到点赞',
+  ACCEPTED: '回答被采纳',
+  CHECKIN: '每日打卡',
+  BOUNTY: '悬赏支出',
+};
+
+type ProfileFeedItem = {
+  id: string;
+  title: string;
+  description: string;
+  meta: string;
+  type: 'post' | 'resource' | 'challenge' | 'achievement' | 'empty';
+  targetId?: number;
+};
+
+const spaceId = computed(() => Number(route.params.id));
 const sortedPosts = computed(() => {
   const list = [...posts.value];
   if (postSort.value === 'hot') {
@@ -109,16 +184,192 @@ const sortedPosts = computed(() => {
   }
   return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 });
+const essencePosts = computed(() =>
+  posts.value
+    .filter((item) => item.isEssence === 1)
+    .sort((a, b) => b.likeCount + b.commentCount - (a.likeCount + a.commentCount)),
+);
+const visiblePosts = computed(() => (activeTab.value === '精华' ? essencePosts.value : sortedPosts.value));
+const latestPosts = computed(() =>
+  [...posts.value].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 4),
+);
+const recentResources = computed(() =>
+  [...spaceResources.value].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 4),
+);
+const activeChallenges = computed(() => {
+  const today = todayString();
+  return checkinChallenges.value.filter((item) => item.startDate <= today && item.endDate >= today);
+});
+const filteredMembers = computed(() => {
+  const keyword = memberKeyword.value.trim().toLowerCase();
+  if (!keyword) return members.value;
+  return members.value.filter((member) => {
+    const nickname = member.user?.nickname?.toLowerCase() || '';
+    const role = member.role?.toLowerCase() || '';
+    return nickname.includes(keyword) || role.includes(keyword);
+  });
+});
 const activeMemberList = computed(() => {
-  if (members.value.length > 0) {
-    return members.value.map((member) => ({
-      id: member.userId,
-      nickname: member.user?.nickname || '未知用户',
-      avatarUrl: member.user?.avatarUrl || '',
-      role: member.role === 'OWNER' ? '圈主' : member.role === 'ADMIN' ? '管理员' : '成员',
+  return members.value.map((member) => ({
+    id: member.userId,
+    nickname: member.user?.nickname || '未知用户',
+    avatarUrl: member.user?.avatarUrl || '',
+    role: member.role === 'OWNER' ? '圈主' : member.role === 'ADMIN' ? '管理员' : '成员',
+  }));
+});
+const canManageSpace = computed(() =>
+  ['OWNER', 'ADMIN'].includes(space.value?.memberRole || '') || space.value?.ownerId === myProfile.value?.id,
+);
+const canLeaveSpace = computed(() => Boolean(space.value?.isMember && space.value.memberRole !== 'OWNER'));
+const visibilityLabel = computed(() => {
+  const map: Record<string, string> = {
+    PUBLIC: '公开圈子',
+    REVIEW: '审核加入',
+    PRIVATE: '私密圈子',
+  };
+  return map[space.value?.visibility || ''] || '公开圈子';
+});
+const memberRoleLabel = computed(() => {
+  if (!space.value?.isMember) return '未加入';
+  const role = space.value.memberRole || 'MEMBER';
+  if (role === 'OWNER') return '圈主';
+  if (role === 'ADMIN') return '管理员';
+  return '成员';
+});
+const spaceStatusLabel = computed(() => (space.value?.status === 1 ? '正常' : '已停用'));
+const noticeText = computed(() => space.value?.postNotice?.trim() || '圈主暂未发布公告。');
+const sensitiveWordList = computed(() =>
+  (space.value?.sensitiveWords || '')
+    .split(/[,，\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean),
+);
+const activityTrend = computed(() => {
+  const buckets = Array.from({ length: 7 }, (_, index) => {
+    const day = new Date();
+    day.setDate(day.getDate() - (6 - index));
+    return { label: day.toISOString().slice(0, 10), value: 0 };
+  });
+  const addActivity = (value?: string, weight = 1) => {
+    if (!value) return;
+    const key = value.slice(0, 10);
+    const bucket = buckets.find((item) => item.label === key);
+    if (bucket) bucket.value += weight;
+  };
+
+  posts.value.forEach((post) => addActivity(post.createdAt, 1 + Math.min(5, post.commentCount)));
+  spaceResources.value.forEach((resource) => addActivity(resource.createdAt, 2));
+  checkinChallenges.value.forEach((challenge) => addActivity(challenge.createdAt, 3));
+  return buckets;
+});
+const activityScore = computed(() => activityTrend.value.reduce((sum, item) => sum + item.value, 0));
+const activityChange = computed(() => {
+  const trend = activityTrend.value;
+  const previous = trend.slice(0, 3).reduce((sum, item) => sum + item.value, 0);
+  const current = trend.slice(4).reduce((sum, item) => sum + item.value, 0);
+  if (previous === 0 && current === 0) return '0%';
+  if (previous === 0) return '+100%';
+  const delta = ((current - previous) / previous) * 100;
+  return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`;
+});
+const activityTrendPath = computed(() => {
+  const max = Math.max(1, ...activityTrend.value.map((item) => item.value));
+  return activityTrend.value
+    .map((item, index) => {
+      const x = (index / 6) * 100;
+      const y = 26 - (item.value / max) * 22;
+      return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+});
+const activityTrendPoints = computed(() => {
+  const max = Math.max(1, ...activityTrend.value.map((item) => item.value));
+  return activityTrend.value.map((item, index) => ({
+    x: (index / 6) * 100,
+    y: 26 - (item.value / max) * 22,
+  }));
+});
+const profileSpacePosts = computed(() => {
+  const userId = myProfile.value?.id;
+  if (!userId) return [];
+  return posts.value.filter((post) => post.authorId === userId);
+});
+const profileSpaceResources = computed(() => {
+  const userId = myProfile.value?.id;
+  if (!userId) return [];
+  return spaceResources.value.filter((resource) => resource.uploaderId === userId);
+});
+const profileLikeCount = computed(() =>
+  profileSpacePosts.value.reduce((sum, post) => sum + post.likeCount, 0),
+);
+const profileLikedPosts = computed(() =>
+  [...profileSpacePosts.value]
+    .filter((post) => post.likeCount > 0)
+    .sort((a, b) => b.likeCount - a.likeCount || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+);
+const awardedAchievements = computed(() => profileAchievements.value.filter((item) => item.awarded));
+const profileCheckinChallenges = computed(() => {
+  const userId = myProfile.value?.id;
+  return checkinChallenges.value
+    .filter((item) => item.isMember || item.creatorId === userId)
+    .sort((a, b) => (b.myConsecutiveDays || 0) - (a.myConsecutiveDays || 0) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+});
+const profileCheckinStreak = computed(() =>
+  Math.max(0, ...profileCheckinChallenges.value.map((item) => item.myConsecutiveDays || 0)),
+);
+const profileCoverImage = computed(() => myProfile.value?.profileCoverUrl?.trim() || auroraBg);
+const profileFeedItems = computed<ProfileFeedItem[]>(() => {
+  if (profileTab.value === '帖子') {
+    return profileSpacePosts.value.slice(0, 4).map((post) => ({
+      id: `post-${post.id}`,
+      title: postTitle(post),
+      description: postPreview(post.content),
+      meta: `${formatTime(post.createdAt)} · ${post.likeCount} 赞 · ${post.commentCount} 评论`,
+      type: 'post',
+      targetId: post.id,
     }));
   }
-  return activeMembers;
+  if (profileTab.value === '打卡') {
+    return profileCheckinChallenges.value
+      .slice(0, 4)
+      .map((challenge) => ({
+        id: `challenge-${challenge.id}`,
+        title: challenge.name,
+        description: challenge.description || '这个打卡挑战还没有简介。',
+        meta: `累计 ${challenge.myTotalDays || 0} 天 · 连续 ${challenge.myConsecutiveDays || 0} 天`,
+        type: 'challenge',
+        targetId: challenge.id,
+      }));
+  }
+  if (profileTab.value === '成就') {
+    return profileAchievements.value.slice(0, 5).map((achievement) => ({
+      id: `achievement-${achievement.id}`,
+      title: achievement.name,
+      description: achievement.description,
+      meta: achievement.awarded ? '已解锁' : '待解锁',
+      type: 'achievement',
+    }));
+  }
+  if (profileTab.value === '动态') {
+    const postItems = profileSpacePosts.value.slice(0, 2).map((post) => ({
+      id: `post-${post.id}`,
+      title: postTitle(post),
+      description: postPreview(post.content),
+      meta: `${formatTime(post.createdAt)} · 来自 ${space.value?.name || '当前学习圈'}`,
+      type: 'post' as const,
+      targetId: post.id,
+    }));
+    const resourceItems = profileSpaceResources.value.slice(0, 2).map((resource) => ({
+      id: `resource-${resource.id}`,
+      title: resource.fileName,
+      description: resource.description || '圈内资料更新',
+      meta: `${formatFileSize(resource.fileSize)} · ${formatTime(resource.createdAt)}`,
+      type: 'resource' as const,
+      targetId: resource.id,
+    }));
+    return [...postItems, ...resourceItems];
+  }
+  return [];
 });
 const profileDisplay = computed(() => {
   const user = myProfile.value;
@@ -133,43 +384,188 @@ const profileDisplay = computed(() => {
     email: user?.email || '未绑定邮箱',
   };
 });
+const searchTerm = computed(() => searchKeyword.value.trim());
+const searchQuery = computed(() => searchTerm.value.toLowerCase());
+const searchPosts = computed(() => {
+  const query = searchQuery.value;
+  if (!query) return [];
+  return posts.value
+    .filter((post) => {
+      const fields = [
+        post.title || '',
+        post.content || '',
+        post.author?.nickname || '',
+        post.tags.join(' '),
+        post.topics.join(' '),
+        post.type || '',
+      ];
+      return fields.join(' ').toLowerCase().includes(query);
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+});
+const searchResources = computed(() => {
+  const query = searchQuery.value;
+  if (!query) return [];
+  return spaceResources.value
+    .filter((resource) => {
+      const fields = [
+        resource.fileName || '',
+        resource.description || '',
+        resource.uploader?.nickname || '',
+        resource.tags.join(' '),
+        resource.college || '',
+        resource.major || '',
+        resource.course || '',
+        resource.semester || '',
+      ];
+      return fields.join(' ').toLowerCase().includes(query);
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+});
+const searchMembers = computed(() => {
+  const query = searchQuery.value;
+  if (!query) return [];
+  return members.value
+    .filter((member) => {
+      const fields = [
+        member.user?.nickname || '',
+        member.user?.email || '',
+        member.role || '',
+        member.user?.id ? String(member.user.id) : '',
+      ];
+      return fields.join(' ').toLowerCase().includes(query);
+    })
+    .sort((a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime());
+});
+const searchChallenges = computed(() => {
+  const query = searchQuery.value;
+  if (!query) return [];
+  return checkinChallenges.value
+    .filter((challenge) => {
+      const fields = [
+        challenge.name || '',
+        challenge.description || '',
+        challenge.creator?.nickname || '',
+        challenge.rule || '',
+      ];
+      return fields.join(' ').toLowerCase().includes(query);
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+});
+const searchTotalCount = computed(
+  () => searchPosts.value.length + searchResources.value.length + searchMembers.value.length + searchChallenges.value.length,
+);
+const isPostDetailAuthor = computed(() => Boolean(postDetail.value && myProfile.value?.id === postDetail.value.authorId));
+const postDetailAuthorName = computed(() => postDetail.value?.author?.nickname || '匿名用户');
+const memberProfileDisplay = computed(() => {
+  const user = memberProfile.value;
+  return {
+    nickname: user?.nickname || '校园学习者',
+    avatarUrl: user?.avatarUrl || '',
+    coverUrl: user?.profileCoverUrl?.trim() || auroraBg,
+    initial: (user?.nickname || '学').charAt(0).toUpperCase(),
+    title: [user?.college, user?.major, user?.grade].filter(Boolean).join(' · ') || '正在完善学习档案',
+    bio: user?.bio || '还没有写下个人简介。',
+    points: user?.points ?? 0,
+    role: user?.role || 'USER',
+    joinedAt: user?.createdAt,
+  };
+});
+const memberProfilePosts = computed(() => {
+  const userId = memberProfile.value?.id;
+  if (!userId) return [];
+  return posts.value
+    .filter((post) => post.authorId === userId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+});
+const memberProfileLikeCount = computed(() =>
+  memberProfilePosts.value.reduce((sum, post) => sum + post.likeCount, 0),
+);
+const spaceLink = computed(() => {
+  if (typeof window === 'undefined') {
+    return `/spaces/${spaceId.value}`;
+  }
+  return `${window.location.origin}/spaces/${spaceId.value}`;
+});
 
 async function loadSpace() {
   loading.value = true;
   try {
-    const id = Number(route.params.id);
-    space.value = await getSpaceById(id);
-    members.value = await getSpaceMembers(id, undefined, 50);
-    posts.value = await getSpacePosts(id, undefined, 10);
-    try {
-      myProfile.value = await getMyProfile();
-    } catch {
-      myProfile.value = null;
+    const id = spaceId.value;
+    const [spaceResult, memberResult, postResult, profileResult, resourceResult, challengeResult] = await Promise.all([
+      getSpaceById(id),
+      getSpaceMembers(id, undefined, 100).catch(() => []),
+      getSpacePosts(id, undefined, 50).catch(() => []),
+      getMyProfile().catch(() => null),
+      getResources({ spaceId: id, limit: 50 }).catch(() => []),
+      getChallenges({ spaceId: id, limit: 50 }).catch(() => []),
+    ]);
+
+    space.value = spaceResult;
+    members.value = memberResult;
+    posts.value = postResult;
+    myProfile.value = profileResult;
+    spaceResources.value = resourceResult;
+    checkinChallenges.value = challengeResult;
+    syncSettingForm();
+    syncProfileForm();
+    if (profileResult?.id) {
+      await loadProfileExtras(profileResult.id);
     }
-    try {
-      spaceResources.value = await getResources({ spaceId: id, limit: 30 });
-    } catch {
-      spaceResources.value = [];
-    }
-  } catch {
+    unreadCount.value = await getUnreadCount().catch(() => 0);
+  } catch (error) {
+    console.error(error);
     spaceResources.value = [];
-    space.value = {
-      id: 1,
-      ownerId: 1,
-      owner: null,
-      name: '计算机科学与技术',
-      description: 'CS学习交流圈',
-      category: 'MAJOR',
-      visibility: 'PUBLIC',
-      memberCount: 2341,
-      postCount: 8712,
-      status: 1,
-      isMember: false,
-      memberRole: null,
-      createdAt: new Date().toISOString(),
-    };
+    checkinChallenges.value = [];
+    members.value = [];
+    posts.value = [];
+    space.value = null;
+    message.error('学习圈数据加载失败');
   }
   loading.value = false;
+}
+
+async function loadProfileExtras(userId: number) {
+  const [counts, achievements] = await Promise.all([
+    getFollowCounts(userId).catch(() => ({ followers: 0, following: 0 })),
+    getUserAchievements(userId).catch(() => []),
+  ]);
+  profileFollowCounts.value = counts;
+  profileAchievements.value = achievements;
+}
+
+async function loadNotifications() {
+  notificationLoading.value = true;
+  try {
+    notifications.value = await getNotifications(undefined, 10);
+  } catch {
+    notifications.value = [];
+  } finally {
+    notificationLoading.value = false;
+  }
+}
+
+function syncSettingForm() {
+  if (!space.value) return;
+  settingName.value = space.value.name || '';
+  settingDescription.value = space.value.description || '';
+  settingVisibility.value = space.value.visibility || 'PUBLIC';
+  settingPostNotice.value = space.value.postNotice || '';
+  settingSensitiveWords.value = space.value.sensitiveWords || '';
+}
+
+function syncProfileForm() {
+  const profile = myProfile.value;
+  if (!profile) return;
+  profileForm.value = {
+    nickname: profile.nickname || '',
+    avatarUrl: profile.avatarUrl || '',
+    profileCoverUrl: profile.profileCoverUrl || '',
+    bio: profile.bio || '',
+    college: profile.college || '',
+    major: profile.major || '',
+    grade: profile.grade || '',
+  };
 }
 
 function openCompose() {
@@ -312,9 +708,7 @@ function goUploadResource() {
 function resetUploadForm() {
   uploadFile.value = null;
   uploadDescription.value = '';
-  uploadCollege.value = '';
-  uploadMajor.value = '';
-  uploadCourse.value = '';
+  uploadTagText.value = '';
   uploadDropActive.value = false;
   if (uploadInputRef.value) {
     uploadInputRef.value.value = '';
@@ -356,15 +750,18 @@ async function submitSpaceResource() {
     message.warning('请先选择一个文件');
     return;
   }
+  const tags = parseUploadTags(uploadTagText.value);
+  if (tags.length === 0) {
+    message.warning('请至少填写一个资源标签');
+    return;
+  }
 
   uploadSubmitting.value = true;
   try {
     const resource = await uploadResource(uploadFile.value, {
       visibility: 'SPACE',
       spaceId: space.value.id,
-      college: uploadCollege.value.trim() || undefined,
-      major: uploadMajor.value.trim() || undefined,
-      course: uploadCourse.value.trim() || undefined,
+      tags,
       description: uploadDescription.value.trim() || undefined,
     });
     spaceResources.value = [resource, ...spaceResources.value.filter((item) => item.id !== resource.id)];
@@ -379,30 +776,594 @@ async function submitSpaceResource() {
   }
 }
 
+function parseUploadTags(value: string) {
+  return value
+    .split(/[\s,，#]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+async function toggleSpaceMembership() {
+  if (!space.value || spaceActionSubmitting.value) return;
+  spaceActionSubmitting.value = true;
+  try {
+    if (space.value.isMember && canLeaveSpace.value) {
+      await leaveSpace(space.value.id);
+      message.success('已退出学习圈');
+    } else if (!space.value.isMember) {
+      await joinSpace(space.value.id);
+      message.success(space.value.visibility === 'REVIEW' ? '已提交加入申请' : '已加入学习圈');
+    }
+    space.value = await getSpaceById(space.value.id);
+    members.value = await getSpaceMembers(space.value.id, undefined, 100).catch(() => members.value);
+    syncSettingForm();
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '操作失败');
+  } finally {
+    spaceActionSubmitting.value = false;
+  }
+}
+
+async function submitSpaceSettings() {
+  if (!space.value || !canManageSpace.value || settingSubmitting.value) return;
+  if (!settingName.value.trim()) {
+    message.warning('圈子名称不能为空');
+    return;
+  }
+
+  settingSubmitting.value = true;
+  try {
+    space.value = await updateSpace(space.value.id, {
+      name: settingName.value.trim(),
+      description: settingDescription.value.trim() || undefined,
+      visibility: settingVisibility.value,
+      postNotice: settingPostNotice.value.trim(),
+      sensitiveWords: settingSensitiveWords.value.trim(),
+    });
+    syncSettingForm();
+    message.success('圈子设置已保存');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '保存失败');
+  } finally {
+    settingSubmitting.value = false;
+  }
+}
+
+function openChallengeForm() {
+  activeTab.value = '打卡';
+  const today = todayString();
+  const end = new Date();
+  end.setDate(end.getDate() + 21);
+  challengeStartDate.value = today;
+  challengeEndDate.value = end.toISOString().slice(0, 10);
+  challengeName.value = '';
+  challengeDescription.value = '';
+  challengeFormVisible.value = true;
+}
+
+async function submitChallenge() {
+  if (!space.value || challengeSubmitting.value) return;
+  if (!challengeName.value.trim() || !challengeStartDate.value || !challengeEndDate.value) {
+    message.warning('请填写挑战名称和日期范围');
+    return;
+  }
+  if (challengeEndDate.value < challengeStartDate.value) {
+    message.warning('结束日期不能早于开始日期');
+    return;
+  }
+
+  challengeSubmitting.value = true;
+  try {
+    const challenge = await createChallenge({
+      name: challengeName.value.trim(),
+      description: challengeDescription.value.trim() || undefined,
+      spaceId: space.value.id,
+      startDate: challengeStartDate.value,
+      endDate: challengeEndDate.value,
+    });
+    checkinChallenges.value = [challenge, ...checkinChallenges.value.filter((item) => item.id !== challenge.id)];
+    challengeFormVisible.value = false;
+    message.success('圈内打卡挑战已创建');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '创建失败');
+  } finally {
+    challengeSubmitting.value = false;
+  }
+}
+
 function goNotifications() {
   notificationVisible.value = true;
+  loadNotifications();
 }
 
 function goProfile() {
   profilePanelVisible.value = true;
   actionMenuVisible.value = false;
+  if (myProfile.value?.id) {
+    loadProfileExtras(myProfile.value.id);
+  }
 }
 
-function goUser(userId?: number | null) {
+async function openMemberProfile(userId?: number | null) {
   if (!userId) {
     message.warning('暂时没有该成员的主页信息');
     return;
   }
-  router.push(`/users/${userId}`);
+  activeMembersVisible.value = false;
+  profileFollowsVisible.value = false;
+  if (myProfile.value?.id === userId) {
+    goProfile();
+    return;
+  }
+
+  memberProfileVisible.value = true;
+  memberProfileLoading.value = true;
+  try {
+    const [user, counts, achievements, following] = await Promise.all([
+      getUserById(userId),
+      getFollowCounts(userId).catch(() => ({ followers: 0, following: 0 })),
+      getUserAchievements(userId).catch(() => []),
+      isFollowing(userId).catch(() => false),
+    ]);
+    memberProfile.value = user;
+    memberProfileFollowCounts.value = counts;
+    memberProfileAchievements.value = achievements;
+    memberProfileFollowing.value = following;
+  } catch (error) {
+    memberProfile.value = null;
+    message.error(error instanceof Error ? error.message : '成员资料加载失败');
+  } finally {
+    memberProfileLoading.value = false;
+  }
 }
 
-function goPost(postId?: number) {
+async function openMemberProfileFromPostDetail(userId?: number | null) {
+  postDetailVisible.value = false;
+  await nextTick();
+  await openMemberProfile(userId);
+}
+
+async function toggleMemberProfileFollow() {
+  const userId = memberProfile.value?.id;
+  if (!userId || memberProfileFollowSubmitting.value) return;
+  memberProfileFollowSubmitting.value = true;
+  try {
+    if (memberProfileFollowing.value) {
+      await unfollow(userId);
+      memberProfileFollowing.value = false;
+      memberProfileFollowCounts.value = {
+        ...memberProfileFollowCounts.value,
+        followers: Math.max(0, memberProfileFollowCounts.value.followers - 1),
+      };
+      message.success('已取消关注');
+    } else {
+      await follow(userId);
+      memberProfileFollowing.value = true;
+      memberProfileFollowCounts.value = {
+        ...memberProfileFollowCounts.value,
+        followers: memberProfileFollowCounts.value.followers + 1,
+      };
+      message.success('已关注');
+    }
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '关注操作失败');
+  } finally {
+    memberProfileFollowSubmitting.value = false;
+  }
+}
+
+async function openProfileFollows(tab: 'followers' | 'following') {
+  if (!myProfile.value?.id) return;
+  profileFollowsTab.value = tab;
+  profileFollowsVisible.value = true;
+  profileFollowsLoading.value = true;
+  try {
+    profileFollowUsers.value =
+      tab === 'followers'
+        ? await getUserFollowers(myProfile.value.id, undefined, 30)
+        : await getUserFollowing(myProfile.value.id, undefined, 30);
+  } catch {
+    profileFollowUsers.value = [];
+    message.error('关注列表加载失败');
+  } finally {
+    profileFollowsLoading.value = false;
+  }
+}
+
+function openProfileLikes() {
+  profileLikesVisible.value = true;
+}
+
+async function openProfilePoints() {
+  const userId = myProfile.value?.id;
+  if (!userId) return;
+  profilePointsVisible.value = true;
+  profilePointsLoading.value = true;
+  try {
+    const [balance, logs] = await Promise.all([
+      getBalance(userId).catch(() => profileDisplay.value.points),
+      getPointsLogs(userId, undefined, 30).catch(() => []),
+    ]);
+    profilePointsBalance.value = balance;
+    profilePointLogs.value = logs;
+  } catch {
+    profilePointLogs.value = [];
+    profilePointsBalance.value = profileDisplay.value.points;
+    message.error('积分明细加载失败');
+  } finally {
+    profilePointsLoading.value = false;
+  }
+}
+
+function syncPostInLists(updatedPost: PostVO) {
+  posts.value = posts.value.map((item) => (item.id === updatedPost.id ? { ...item, ...updatedPost } : item));
+  if (postDetail.value?.id === updatedPost.id) {
+    postDetail.value = { ...postDetail.value, ...updatedPost };
+  }
+  if (postActionTarget.value?.id === updatedPost.id) {
+    postActionTarget.value = { ...postActionTarget.value, ...updatedPost };
+  }
+  if (postShareTarget.value?.id === updatedPost.id) {
+    postShareTarget.value = { ...postShareTarget.value, ...updatedPost };
+  }
+}
+
+async function refreshPostComments(postId: number) {
+  postDetailComments.value = await getComments(postId, undefined, 30, postDetail.value?.type === 'QA');
+}
+
+async function goPost(postId?: number) {
   if (!postId) return;
-  router.push(`/posts/${postId}`);
+  postActionVisible.value = false;
+  postShareVisible.value = false;
+  postDetailVisible.value = true;
+  postDetailLoading.value = true;
+  postDetail.value = null;
+  postDetailComments.value = [];
+  postDetailQa.value = null;
+  postDetailCommentText.value = '';
+  postDetailReplyTo.value = null;
+  try {
+    const detail = await getPostById(postId);
+    postDetail.value = detail;
+    syncPostInLists(detail);
+    const [comments, qa] = await Promise.all([
+      getComments(postId, undefined, 30, detail.type === 'QA').catch(() => []),
+      detail.type === 'QA' ? getQaInfo(postId).catch(() => null) : Promise.resolve(null),
+    ]);
+    postDetailComments.value = comments;
+    postDetailQa.value = qa;
+  } catch (error) {
+    postDetail.value = null;
+    message.error(error instanceof Error ? error.message : '帖子详情加载失败');
+  } finally {
+    postDetailLoading.value = false;
+  }
+}
+
+async function togglePostListLike(post?: PostVO | null) {
+  if (!post || postListLikeSubmitting.value === post.id) return;
+  postListLikeSubmitting.value = post.id;
+  try {
+    const liked = await toggleReaction(post.id, 'LIKE');
+    const delta = liked === post.liked ? 0 : liked ? 1 : -1;
+    syncPostInLists({
+      ...post,
+      liked,
+      likeCount: Math.max(0, post.likeCount + delta),
+    });
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '点赞失败');
+  } finally {
+    postListLikeSubmitting.value = null;
+  }
+}
+
+async function togglePostCollect(post?: PostVO | null) {
+  if (!post || postActionSubmitting.value === post.id) return;
+  postActionSubmitting.value = post.id;
+  try {
+    const collected = await toggleReaction(post.id, 'COLLECT');
+    syncPostInLists({ ...post, collected });
+    message.success(collected ? '已收藏帖子' : '已取消收藏');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '收藏操作失败');
+  } finally {
+    postActionSubmitting.value = null;
+  }
+}
+
+function openPostActions(post: PostVO) {
+  postActionTarget.value = post;
+  postActionVisible.value = true;
+  postShareVisible.value = false;
+}
+
+function openPostDetailFromActions(post?: PostVO | null) {
+  if (!post) return;
+  postActionVisible.value = false;
+  postShareVisible.value = false;
+  goPost(post.id);
+}
+
+async function togglePostDetailLike() {
+  const detail = postDetail.value;
+  if (!detail || postDetailLikeSubmitting.value) return;
+  postDetailLikeSubmitting.value = true;
+  try {
+    const liked = await toggleReaction(detail.id, 'LIKE');
+    const delta = liked === detail.liked ? 0 : liked ? 1 : -1;
+    postDetail.value = {
+      ...detail,
+      liked,
+      likeCount: Math.max(0, detail.likeCount + delta),
+    };
+    syncPostInLists(postDetail.value);
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '点赞失败');
+  } finally {
+    postDetailLikeSubmitting.value = false;
+  }
+}
+
+function replyPostDetailComment(comment: CommentVO) {
+  postDetailReplyTo.value = {
+    parentId: comment.parentId ?? comment.id,
+    replyToId: comment.id,
+    nickname: comment.author?.nickname || '匿名用户',
+  };
+  postDetailCommentText.value = '';
+  nextTick(() => postDetailCommentInputRef.value?.focus());
+}
+
+function cancelPostDetailReply() {
+  postDetailReplyTo.value = null;
+  postDetailCommentText.value = '';
+}
+
+async function submitPostDetailComment() {
+  const detail = postDetail.value;
+  const content = postDetailCommentText.value.trim();
+  if (!detail || !content || postDetailSubmitting.value) return;
+  postDetailSubmitting.value = true;
+  try {
+    await createComment({
+      postId: detail.id,
+      parentId: postDetailReplyTo.value?.parentId,
+      replyToId: postDetailReplyTo.value?.replyToId,
+      content,
+    });
+    postDetailCommentText.value = '';
+    postDetailReplyTo.value = null;
+    await refreshPostComments(detail.id);
+    postDetail.value = {
+      ...detail,
+      commentCount: detail.commentCount + 1,
+    };
+    syncPostInLists(postDetail.value);
+    message.success('评论已发布');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '评论失败');
+  } finally {
+    postDetailSubmitting.value = false;
+  }
+}
+
+async function likePostDetailComment(comment: CommentVO) {
+  try {
+    const liked = await toggleCommentReaction(comment.id, 'LIKE');
+    const nextCount = Math.max(0, (comment.likeCount || 0) + (liked ? 1 : -1));
+    const patchComment = (item: CommentVO): CommentVO => ({
+      ...item,
+      likeCount: item.id === comment.id ? nextCount : item.likeCount,
+      replies: item.replies?.map(patchComment) || [],
+    });
+    postDetailComments.value = postDetailComments.value.map(patchComment);
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '评论点赞失败');
+  }
+}
+
+async function acceptPostDetailAnswer(commentId: number) {
+  const detail = postDetail.value;
+  if (!detail || postDetailAcceptingId.value) return;
+  postDetailAcceptingId.value = commentId;
+  try {
+    postDetailQa.value = await acceptAnswer(detail.id, commentId);
+    message.success('已采纳该回答');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '采纳失败');
+  } finally {
+    postDetailAcceptingId.value = null;
+  }
 }
 
 function goResource(resourceId: number) {
   router.push(`/resources/${resourceId}`);
+}
+
+function goChallenge(challengeId: number) {
+  router.push(`/checkin/${challengeId}`);
+}
+
+function openProfileFeedItem(item: ProfileFeedItem) {
+  if (!profileFeedItemActionable(item)) return;
+  if (item.type === 'post' && item.targetId) {
+    profilePanelVisible.value = false;
+    goPost(item.targetId);
+    return;
+  }
+  profilePanelVisible.value = false;
+  if (item.type === 'resource') {
+    activeTab.value = '文件';
+  } else if (item.type === 'challenge') {
+    activeTab.value = '打卡';
+  }
+}
+
+function openProfileFeedMore(item: ProfileFeedItem) {
+  if (!profileFeedItemActionable(item)) return;
+  if (item.type === 'post' && item.targetId) {
+    const post = posts.value.find((entry) => entry.id === item.targetId);
+    if (post) {
+      openPostActions(post);
+      return;
+    }
+  }
+  openProfileFeedItem(item);
+}
+
+function openMemberPostInSpace(postId: number) {
+  memberProfileVisible.value = false;
+  goPost(postId);
+}
+
+function profileTabCount(tab: string) {
+  if (tab === '帖子') return profileSpacePosts.value.length;
+  if (tab === '打卡') return profileCheckinChallenges.value.length;
+  if (tab === '成就') return profileAchievements.value.length;
+  return profileSpacePosts.value.length + profileSpaceResources.value.length + profileCheckinChallenges.value.length;
+}
+
+function profileFeedItemActionable(item: ProfileFeedItem) {
+  return Boolean(item.targetId && ['post', 'resource', 'challenge'].includes(item.type));
+}
+
+function profileItemTypeLabel(type: ProfileFeedItem['type']) {
+  const map: Record<ProfileFeedItem['type'], string> = {
+    post: '帖子',
+    resource: '资料',
+    challenge: '打卡',
+    achievement: '成就',
+    empty: '动态',
+  };
+  return map[type];
+}
+
+function profileItemSourceLabel(item: ProfileFeedItem) {
+  if (profileFeedItemActionable(item)) return '点击查看详情';
+  if (item.type === 'achievement') return item.meta;
+  return '来自当前学习圈';
+}
+
+function startProfileCompose() {
+  profilePanelVisible.value = false;
+  goCreatePost();
+}
+
+function viewProfileCheckins() {
+  profilePanelVisible.value = false;
+  activeTab.value = '打卡';
+}
+
+function openProfileChallengeInSpace() {
+  viewProfileCheckins();
+}
+
+function openProfileEditor() {
+  syncProfileForm();
+  profileEditVisible.value = true;
+}
+
+function openProfileAssetPicker(target: 'avatar' | 'cover') {
+  if (profileAssetUploading.value) return;
+  if (target === 'avatar') {
+    profileAvatarInputRef.value?.click();
+  } else {
+    profileCoverInputRef.value?.click();
+  }
+}
+
+async function handleProfileAssetChange(event: Event, target: 'avatar' | 'cover') {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file || profileAssetUploading.value) return;
+  if (!file.type.startsWith('image/')) {
+    message.warning('请选择图片文件');
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    message.warning('图片不能超过 5MB');
+    return;
+  }
+
+  profileAssetUploading.value = target;
+  try {
+    const asset = await uploadProfileAsset(file);
+    if (target === 'avatar') {
+      profileForm.value.avatarUrl = asset.url;
+    } else {
+      profileForm.value.profileCoverUrl = asset.url;
+    }
+    message.success(target === 'avatar' ? '头像已上传' : '主页封面已上传');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '图片上传失败');
+  } finally {
+    profileAssetUploading.value = null;
+  }
+}
+
+async function submitProfileEdit() {
+  if (!myProfile.value || profileSaving.value) return;
+  if (!profileForm.value.nickname.trim()) {
+    message.warning('昵称不能为空');
+    return;
+  }
+
+  profileSaving.value = true;
+  try {
+    myProfile.value = await updateProfile({
+      nickname: profileForm.value.nickname.trim(),
+      avatarUrl: profileForm.value.avatarUrl.trim(),
+      profileCoverUrl: profileForm.value.profileCoverUrl.trim(),
+      bio: profileForm.value.bio.trim(),
+      college: profileForm.value.college.trim(),
+      major: profileForm.value.major.trim(),
+      grade: profileForm.value.grade.trim(),
+    });
+    syncProfileForm();
+    profileEditVisible.value = false;
+    message.success('个人资料已更新');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '保存个人资料失败');
+  } finally {
+    profileSaving.value = false;
+  }
+}
+
+async function refreshProfilePanel() {
+  try {
+    const profile = await getMyProfile();
+    myProfile.value = profile;
+    syncProfileForm();
+    await loadProfileExtras(profile.id);
+    message.success('个人主页已刷新');
+  } catch {
+    message.error('个人主页刷新失败');
+  }
+}
+
+async function openNotification(notification: NotificationVO) {
+  try {
+    if (!notification.isRead) {
+      await markRead(notification.id);
+      notification.isRead = true;
+      unreadCount.value = Math.max(0, unreadCount.value - 1);
+    }
+  } catch {
+    // 已读状态失败不阻断跳转，通知内容本身仍可继续打开。
+  }
+  if (notification.redirectUrl) {
+    notificationVisible.value = false;
+    const postMatch = notification.redirectUrl.match(/^\/posts\/(\d+)$/);
+    if (postMatch) {
+      await goPost(Number(postMatch[1]));
+      return;
+    }
+    router.push(notification.redirectUrl);
+  }
 }
 
 function openActionMenu() {
@@ -419,10 +1380,35 @@ function openActiveMembers() {
   activeMembersVisible.value = true;
 }
 
+async function refreshSpaceData() {
+  await loadSpace();
+  if (space.value) {
+    message.success('后端数据已刷新');
+  }
+}
+
+async function copySpaceLink() {
+  try {
+    await navigator.clipboard.writeText(spaceLink.value);
+    message.success('圈子链接已复制');
+  } catch {
+    message.info(spaceLink.value);
+  }
+}
+
 function handleSearch() {
-  const keyword = searchKeyword.value.trim();
-  if (!keyword) return;
-  router.push({ path: '/search', query: { q: keyword, type: 'POST', spaceId: String(route.params.id) } });
+  if (!searchTerm.value) return;
+  nextTick(() => {
+    searchResultsRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+function clearSearch() {
+  searchKeyword.value = '';
+}
+
+function todayString() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function formatTime(value?: string) {
@@ -430,6 +1416,28 @@ function formatTime(value?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '刚刚';
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDate(value?: string) {
+  if (!value) return '持续更新';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '持续更新';
+  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function formatCompactNumber(value?: number | null) {
+  const count = value ?? 0;
+  if (count >= 10000) return `${(count / 10000).toFixed(1)}万`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+  return String(count);
+}
+
+function pointTypeLabel(type: string) {
+  return pointTypeLabels[type] || type || '积分变动';
+}
+
+function pointReferenceText(reference?: string | null) {
+  return reference?.trim() || '系统结算';
 }
 
 function postTitle(post: PostVO) {
@@ -451,8 +1459,21 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-async function sharePost(postId: number) {
-  const url = `${window.location.origin}/posts/${postId}`;
+function postShareUrl(postId?: number) {
+  if (!postId) return '';
+  if (typeof window === 'undefined') return `/posts/${postId}`;
+  return `${window.location.origin}/posts/${postId}`;
+}
+
+function openPostShare(post: PostVO) {
+  postShareTarget.value = post;
+  postShareVisible.value = true;
+  postActionVisible.value = false;
+}
+
+async function copyPostLink(post?: PostVO | null) {
+  const url = postShareUrl(post?.id);
+  if (!url) return;
   try {
     await navigator.clipboard.writeText(url);
     message.success('帖子链接已复制');
@@ -462,12 +1483,13 @@ async function sharePost(postId: number) {
 }
 
 onMounted(loadSpace);
+watch(() => route.params.id, () => loadSpace());
 </script>
 
 <template>
   <div class="layout-container">
     <div class="main-wrapper">
-      <!-- Top Header -->
+      <!-- 顶部栏 -->
       <header class="top-header">
         <div class="header-left" @click="router.push('/spaces')">
           <n-icon size="20">
@@ -498,6 +1520,12 @@ onMounted(loadSpace);
             <n-icon size="22">
               <NotificationsOutline />
             </n-icon>
+            <span
+              v-if="unreadCount > 0"
+              class="header-unread-dot"
+            >
+              {{ unreadCount > 99 ? '99+' : unreadCount }}
+            </span>
           </button>
           <button
             class="header-action-btn"
@@ -534,10 +1562,16 @@ onMounted(loadSpace);
               返回学习圈
             </button>
             <div class="embedded-profile__actions">
-              <button title="资料">
-                <n-icon size="18"><DocumentTextOutline /></n-icon>
+              <button
+                title="刷新个人主页"
+                @click="refreshProfilePanel"
+              >
+                <n-icon size="18"><RefreshOutline /></n-icon>
               </button>
-              <button title="设置">
+              <button
+                title="编辑资料"
+                @click="openProfileEditor"
+              >
                 <n-icon size="18"><SettingsOutline /></n-icon>
               </button>
             </div>
@@ -547,47 +1581,72 @@ onMounted(loadSpace);
             <div class="embedded-profile__container">
               <section class="profile-cover-card">
                 <img
-                  :src="auroraBg"
+                  :src="profileCoverImage"
                   alt="个人主页封面"
+                  @click="openProfileEditor"
                 />
                 <div class="profile-cover-card__shade" />
                 <div class="profile-identity">
-                  <div class="profile-avatar-large">
+                  <button
+                    class="profile-avatar-large"
+                    type="button"
+                    title="修改头像"
+                    @click="openProfileEditor"
+                  >
                     <img
                       v-if="profileDisplay.avatarUrl"
                       :src="profileDisplay.avatarUrl"
                       :alt="profileDisplay.nickname"
                     />
                     <span v-else>{{ profileDisplay.initial }}</span>
-                  </div>
+                  </button>
                   <div class="profile-copy">
                     <div class="profile-name-row">
                       <h2>{{ profileDisplay.nickname }}</h2>
                       <span>{{ profileDisplay.role }}</span>
                     </div>
                     <p>{{ profileDisplay.title }}</p>
-                    <small>{{ profileDisplay.bio }}</small>
+                    <button
+                      class="profile-bio-edit"
+                      type="button"
+                      title="修改个人简介"
+                      @click="openProfileEditor"
+                    >
+                      {{ profileDisplay.bio }}
+                    </button>
                   </div>
                 </div>
               </section>
 
               <div class="profile-metrics">
-                <article>
+                <button
+                  type="button"
+                  @click="openProfileFollows('following')"
+                >
                   <span>关注</span>
-                  <strong>128</strong>
-                </article>
-                <article>
+                  <strong>{{ formatCompactNumber(profileFollowCounts.following) }}</strong>
+                </button>
+                <button
+                  type="button"
+                  @click="openProfileFollows('followers')"
+                >
                   <span>粉丝</span>
-                  <strong>1,234</strong>
-                </article>
-                <article>
+                  <strong>{{ formatCompactNumber(profileFollowCounts.followers) }}</strong>
+                </button>
+                <button
+                  type="button"
+                  @click="openProfileLikes"
+                >
                   <span>获赞</span>
-                  <strong>8,912</strong>
-                </article>
-                <article>
+                  <strong>{{ formatCompactNumber(profileLikeCount) }}</strong>
+                </button>
+                <button
+                  type="button"
+                  @click="openProfilePoints"
+                >
                   <span>积分</span>
-                  <strong>{{ profileDisplay.points }}</strong>
-                </article>
+                  <strong>{{ formatCompactNumber(profileDisplay.points) }}</strong>
+                </button>
               </div>
 
               <div class="profile-content-grid">
@@ -599,66 +1658,122 @@ onMounted(loadSpace);
                       :class="{ active: profileTab === tab }"
                       @click="profileTab = tab"
                     >
-                      {{ tab }}
+                      <span>{{ tab }}</span>
+                      <small>{{ profileTabCount(tab) }}</small>
                     </button>
                   </nav>
 
-                  <article class="profile-feed-card glass-card">
+                  <article
+                    v-for="item in profileFeedItems"
+                    :key="item.id"
+                    class="profile-feed-card glass-card"
+                    :class="{ actionable: profileFeedItemActionable(item) }"
+                    @click="openProfileFeedItem(item)"
+                  >
                     <div class="profile-feed-card__head">
                       <div class="profile-avatar-small">
                         {{ profileDisplay.initial }}
                       </div>
                       <div>
-                        <strong>{{ profileDisplay.nickname }}</strong>
-                        <span>刚刚查看了 {{ space?.name || '当前学习圈' }}</span>
+                        <strong>{{ item.title }}</strong>
+                        <span>{{ item.meta }}</span>
                       </div>
-                      <n-icon class="profile-feed-card__more">
-                        <MenuOutline />
-                      </n-icon>
+                      <span class="profile-feed-card__type">{{ profileItemTypeLabel(item.type) }}</span>
+                      <button
+                        v-if="profileFeedItemActionable(item)"
+                        class="profile-feed-card__more"
+                        type="button"
+                        title="更多操作"
+                        @click.stop="openProfileFeedMore(item)"
+                      >
+                        <n-icon>
+                          <MenuOutline />
+                        </n-icon>
+                      </button>
                     </div>
-                    <p>
-                      {{ profileTab }}内容会在这里汇总展示。当前先保留在学习圈内查看，不打断正在浏览的圈子页面。
-                    </p>
+                    <p>{{ item.description }}</p>
                     <div class="profile-attachment">
-                      <n-icon size="22"><DocumentTextOutline /></n-icon>
+                      <n-icon size="22">
+                        <DocumentTextOutline />
+                      </n-icon>
                       <div>
-                        <strong>{{ space?.name || '学习圈' }}资料动态</strong>
-                        <span>{{ spaceResources.length }} 份圈内文件</span>
+                        <strong>{{ space?.name || '当前学习圈' }}</strong>
+                        <span>{{ profileItemSourceLabel(item) }}</span>
                       </div>
-                    </div>
-                    <div class="profile-feed-card__actions">
-                      <span><n-icon><ThumbsUpOutline /></n-icon> 24</span>
-                      <span><n-icon><ChatboxOutline /></n-icon> 36</span>
-                      <span><n-icon><ShareSocialOutline /></n-icon> 分享</span>
                     </div>
                   </article>
+                  <div
+                    v-if="profileFeedItems.length === 0"
+                    class="empty-inline glass-card"
+                  >
+                    <p>当前没有可展示的 {{ profileTab }} 数据。</p>
+                    <button
+                      v-if="profileTab === '帖子' || profileTab === '动态'"
+                      class="outline-action"
+                      @click="startProfileCompose"
+                    >
+                      发布圈内帖子
+                    </button>
+                    <button
+                      v-else-if="profileTab === '打卡'"
+                      class="outline-action"
+                      @click="viewProfileCheckins"
+                    >
+                      查看圈内打卡
+                    </button>
+                  </div>
                 </main>
 
                 <aside class="profile-side">
                   <section class="profile-widget glass-card">
                     <div class="profile-widget__header">
                       <h3>个人成就</h3>
-                      <span>查看全部</span>
+                      <span>{{ awardedAchievements.length }}/{{ profileAchievements.length || 0 }}</span>
                     </div>
                     <div class="profile-badges">
-                      <i>学</i>
-                      <i>研</i>
-                      <i>答</i>
-                      <i>勤</i>
+                      <button
+                        v-for="achievement in profileAchievements.slice(0, 4)"
+                        :key="achievement.id"
+                        :title="achievement.name"
+                        type="button"
+                        :class="{ locked: !achievement.awarded }"
+                        @click="profileTab = '成就'"
+                      >
+                        {{ achievement.name.charAt(0) }}
+                      </button>
+                      <div
+                        v-if="profileAchievements.length === 0"
+                        class="profile-widget-empty"
+                      >
+                        暂无成就数据
+                      </div>
                     </div>
                   </section>
 
                   <section class="profile-widget glass-card">
                     <div class="profile-widget__header">
                       <h3>近期打卡</h3>
-                      <span>连续 21 天</span>
+                      <span>连续 {{ profileCheckinStreak }} 天</span>
                     </div>
-                    <div class="profile-calendar">
-                      <span
-                        v-for="i in 21"
-                        :key="i"
-                        :class="{ active: i % 5 !== 0 }"
-                      />
+                    <div
+                      v-if="profileCheckinChallenges.length"
+                      class="profile-checkin-list"
+                    >
+                      <button
+                        v-for="challenge in profileCheckinChallenges.slice(0, 3)"
+                        :key="challenge.id"
+                        type="button"
+                        @click="openProfileChallengeInSpace"
+                      >
+                        <strong>{{ challenge.name }}</strong>
+                        <span>累计 {{ challenge.myTotalDays || 0 }} 天 · 连续 {{ challenge.myConsecutiveDays || 0 }} 天</span>
+                      </button>
+                    </div>
+                    <div
+                      v-else
+                      class="profile-widget-empty"
+                    >
+                      暂无圈内打卡记录
                     </div>
                   </section>
                 </aside>
@@ -667,6 +1782,622 @@ onMounted(loadSpace);
           </div>
         </section>
       </Transition>
+
+      <NModal
+        v-model:show="profileEditVisible"
+        preset="card"
+        title="编辑个人主页"
+        class="space-modal profile-edit-modal"
+        transform-origin="center"
+        :style="{ width: 'min(92vw, 620px)' }"
+      >
+        <section class="profile-edit-panel">
+          <div class="profile-edit-preview">
+            <img
+              :src="profileForm.profileCoverUrl || auroraBg"
+              alt="个人主页封面预览"
+            />
+            <button
+              class="profile-edit-cover-action"
+              type="button"
+              :disabled="Boolean(profileAssetUploading)"
+              @click="openProfileAssetPicker('cover')"
+            >
+              {{ profileAssetUploading === 'cover' ? '上传中...' : '更换封面' }}
+            </button>
+            <button
+              class="profile-edit-avatar"
+              type="button"
+              :disabled="Boolean(profileAssetUploading)"
+              @click="openProfileAssetPicker('avatar')"
+            >
+              <img
+                v-if="profileForm.avatarUrl"
+                :src="profileForm.avatarUrl"
+                alt="头像预览"
+              />
+              <span v-else>{{ profileDisplay.initial }}</span>
+              <small>{{ profileAssetUploading === 'avatar' ? '上传中' : '更换头像' }}</small>
+            </button>
+          </div>
+          <input
+            ref="profileAvatarInputRef"
+            class="profile-asset-input"
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            @change="handleProfileAssetChange($event, 'avatar')"
+          />
+          <input
+            ref="profileCoverInputRef"
+            class="profile-asset-input"
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            @change="handleProfileAssetChange($event, 'cover')"
+          />
+          <div class="profile-edit-grid">
+            <label class="settings-field">
+              <span>昵称</span>
+              <input
+                v-model="profileForm.nickname"
+                maxlength="64"
+              />
+            </label>
+            <div class="settings-field profile-upload-field">
+              <span>头像</span>
+              <button
+                type="button"
+                :disabled="Boolean(profileAssetUploading)"
+                @click="openProfileAssetPicker('avatar')"
+              >
+                {{ profileForm.avatarUrl ? '重新选择头像' : '选择头像图片' }}
+              </button>
+            </div>
+            <div class="settings-field wide profile-upload-field">
+              <span>主页封面</span>
+              <button
+                type="button"
+                :disabled="Boolean(profileAssetUploading)"
+                @click="openProfileAssetPicker('cover')"
+              >
+                {{ profileForm.profileCoverUrl ? '重新选择封面' : '选择封面图片' }}
+              </button>
+            </div>
+            <label class="settings-field">
+              <span>学院</span>
+              <input
+                v-model="profileForm.college"
+                maxlength="64"
+              />
+            </label>
+            <label class="settings-field">
+              <span>专业</span>
+              <input
+                v-model="profileForm.major"
+                maxlength="64"
+              />
+            </label>
+            <label class="settings-field">
+              <span>年级</span>
+              <input
+                v-model="profileForm.grade"
+                maxlength="8"
+              />
+            </label>
+            <label class="settings-field wide">
+              <span>个人简介</span>
+              <textarea
+                v-model="profileForm.bio"
+                maxlength="255"
+                placeholder="写下你的学习方向、兴趣或近期目标"
+              />
+            </label>
+          </div>
+          <div class="settings-actions">
+            <button
+              class="outline-action"
+              type="button"
+              @click="profileEditVisible = false"
+            >
+              取消
+            </button>
+            <button
+              class="neon-btn"
+              type="button"
+              :disabled="profileSaving"
+              @click="submitProfileEdit"
+            >
+              {{ profileSaving ? '保存中...' : '保存个人主页' }}
+            </button>
+          </div>
+        </section>
+      </NModal>
+
+      <NModal
+        v-model:show="profileFollowsVisible"
+        preset="card"
+        :title="profileFollowsTab === 'followers' ? '粉丝' : '关注'"
+        class="space-modal compact-modal"
+        transform-origin="center"
+        :style="{ width: '360px' }"
+      >
+        <div class="profile-follow-switch">
+          <button
+            :class="{ active: profileFollowsTab === 'following' }"
+            type="button"
+            @click="openProfileFollows('following')"
+          >
+            关注
+          </button>
+          <button
+            :class="{ active: profileFollowsTab === 'followers' }"
+            type="button"
+            @click="openProfileFollows('followers')"
+          >
+            粉丝
+          </button>
+        </div>
+        <div class="active-member-list">
+          <article
+            v-if="profileFollowsLoading"
+            class="notice-modal-item"
+          >
+            <p>列表加载中...</p>
+          </article>
+          <article
+            v-else-if="profileFollowUsers.length === 0"
+            class="notice-modal-item"
+          >
+            <strong>{{ profileFollowsTab === 'followers' ? '暂无粉丝' : '暂无关注' }}</strong>
+            <p>新的关系会在当前窗口内展示。</p>
+          </article>
+          <button
+            v-for="followUser in profileFollowUsers"
+            v-else
+            :key="followUser.id"
+            class="active-member-item"
+            type="button"
+            @click="openMemberProfile(followUser.id)"
+          >
+            <img
+              v-if="followUser.avatarUrl"
+              :src="followUser.avatarUrl"
+              :alt="followUser.nickname"
+            />
+            <span v-else class="member-avatar-fallback">{{ followUser.nickname.charAt(0).toUpperCase() }}</span>
+            <span class="member-copy">
+              <strong>{{ followUser.nickname }}</strong>
+              <small>{{ [followUser.college, followUser.major].filter(Boolean).join(' · ') || followUser.bio || '校园学习者' }}</small>
+            </span>
+          </button>
+        </div>
+      </NModal>
+
+      <NModal
+        v-model:show="profileLikesVisible"
+        preset="card"
+        title="获赞明细"
+        class="space-modal compact-modal"
+        transform-origin="center"
+        :style="{ width: '420px' }"
+      >
+        <div class="profile-stat-summary">
+          <span>当前学习圈获赞</span>
+          <strong>{{ formatCompactNumber(profileLikeCount) }}</strong>
+          <p>统计你在本学习圈发布帖子的点赞数。</p>
+        </div>
+        <div class="profile-stat-list">
+          <article
+            v-if="profileLikedPosts.length === 0"
+            class="notice-modal-item"
+          >
+            <strong>暂无获赞记录</strong>
+            <p>发布圈内帖子并获得点赞后，会在这里展示明细。</p>
+          </article>
+          <button
+            v-for="post in profileLikedPosts"
+            v-else
+            :key="post.id"
+            class="profile-stat-item"
+            type="button"
+            @click="profileLikesVisible = false; goPost(post.id)"
+          >
+            <span class="stat-item-copy">
+              <strong>{{ postTitle(post) }}</strong>
+              <small>{{ formatTime(post.createdAt) }} · {{ post.commentCount }} 评论</small>
+            </span>
+            <span class="stat-item-value">{{ formatCompactNumber(post.likeCount) }} 赞</span>
+          </button>
+        </div>
+      </NModal>
+
+      <NModal
+        v-model:show="profilePointsVisible"
+        preset="card"
+        title="积分明细"
+        class="space-modal compact-modal"
+        transform-origin="center"
+        :style="{ width: '440px' }"
+      >
+        <div class="profile-stat-summary points">
+          <span>当前可用积分</span>
+          <strong>{{ formatCompactNumber(profilePointsBalance ?? profileDisplay.points) }}</strong>
+          <p>来自登录、发帖、被点赞、打卡等后端积分记录。</p>
+        </div>
+        <div class="profile-stat-list">
+          <article
+            v-if="profilePointsLoading"
+            class="notice-modal-item"
+          >
+            <p>积分明细加载中...</p>
+          </article>
+          <article
+            v-else-if="profilePointLogs.length === 0"
+            class="notice-modal-item"
+          >
+            <strong>暂无积分记录</strong>
+            <p>参与学习圈互动后，积分变化会同步到这里。</p>
+          </article>
+          <article
+            v-for="entry in profilePointLogs"
+            v-else
+            :key="entry.id"
+            class="profile-points-item"
+          >
+            <span class="stat-item-copy">
+              <strong>{{ pointTypeLabel(entry.type) }}</strong>
+              <small>{{ pointReferenceText(entry.reference) }} · {{ formatTime(entry.createdAt) }}</small>
+            </span>
+            <span
+              class="stat-item-value"
+              :class="{ negative: entry.amount < 0 }"
+            >
+              {{ entry.amount > 0 ? '+' : '' }}{{ entry.amount }}
+            </span>
+          </article>
+        </div>
+      </NModal>
+
+      <NModal
+        v-model:show="memberProfileVisible"
+        preset="card"
+        title="圈内成员资料"
+        class="space-modal member-profile-modal"
+        transform-origin="center"
+        :style="{ width: 'min(92vw, 760px)' }"
+      >
+        <section class="member-profile-panel">
+          <div
+            v-if="memberProfileLoading"
+            class="member-profile-loading"
+          >
+            <n-spin size="small" />
+            <span>正在拉取成员资料...</span>
+          </div>
+          <template v-else-if="memberProfile">
+            <div class="member-profile-cover">
+              <img
+                :src="memberProfileDisplay.coverUrl"
+                alt="成员主页封面"
+              />
+              <div class="member-profile-cover__shade" />
+              <div class="member-profile-identity">
+                <div class="member-profile-avatar">
+                  <img
+                    v-if="memberProfileDisplay.avatarUrl"
+                    :src="memberProfileDisplay.avatarUrl"
+                    :alt="memberProfileDisplay.nickname"
+                  />
+                  <span v-else>{{ memberProfileDisplay.initial }}</span>
+                </div>
+                <div>
+                  <div class="member-profile-name">
+                    <h3>{{ memberProfileDisplay.nickname }}</h3>
+                    <span>{{ memberProfileDisplay.role }}</span>
+                  </div>
+                  <p>{{ memberProfileDisplay.title }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="member-profile-metrics">
+              <article>
+                <span>关注</span>
+                <strong>{{ formatCompactNumber(memberProfileFollowCounts.following) }}</strong>
+              </article>
+              <article>
+                <span>粉丝</span>
+                <strong>{{ formatCompactNumber(memberProfileFollowCounts.followers) }}</strong>
+              </article>
+              <article>
+                <span>圈内获赞</span>
+                <strong>{{ formatCompactNumber(memberProfileLikeCount) }}</strong>
+              </article>
+              <article>
+                <span>积分</span>
+                <strong>{{ formatCompactNumber(memberProfileDisplay.points) }}</strong>
+              </article>
+            </div>
+
+            <div class="member-profile-body">
+              <main>
+                <section class="member-profile-section">
+                  <div class="member-profile-section__head">
+                    <h4>资料简介</h4>
+                    <button
+                      type="button"
+                      :disabled="memberProfileFollowSubmitting"
+                      @click="toggleMemberProfileFollow"
+                    >
+                      {{ memberProfileFollowSubmitting ? '处理中...' : (memberProfileFollowing ? '已关注' : '关注') }}
+                    </button>
+                  </div>
+                  <p>{{ memberProfileDisplay.bio }}</p>
+                  <small>加入时间 {{ formatDate(memberProfileDisplay.joinedAt) }}</small>
+                </section>
+
+                <section class="member-profile-section">
+                  <div class="member-profile-section__head">
+                    <h4>圈内帖子</h4>
+                    <span>{{ memberProfilePosts.length }}</span>
+                  </div>
+                  <button
+                    v-for="post in memberProfilePosts.slice(0, 3)"
+                    :key="post.id"
+                    class="member-profile-post"
+                    type="button"
+                    @click="openMemberPostInSpace(post.id)"
+                  >
+                    <strong>{{ postTitle(post) }}</strong>
+                    <span>{{ formatTime(post.createdAt) }} · {{ post.likeCount }} 赞 · {{ post.commentCount }} 评论</span>
+                  </button>
+                  <div
+                    v-if="memberProfilePosts.length === 0"
+                    class="profile-widget-empty"
+                  >
+                    这个成员还没有在当前学习圈发帖
+                  </div>
+                </section>
+              </main>
+
+              <aside class="member-profile-section">
+                <div class="member-profile-section__head">
+                  <h4>成就</h4>
+                  <span>{{ memberProfileAchievements.filter((item) => item.awarded).length }}/{{ memberProfileAchievements.length }}</span>
+                </div>
+                <div class="member-profile-badges">
+                  <button
+                    v-for="achievement in memberProfileAchievements.slice(0, 6)"
+                    :key="achievement.id"
+                    type="button"
+                    :class="{ locked: !achievement.awarded }"
+                    :title="achievement.name"
+                  >
+                    {{ achievement.name.charAt(0) }}
+                  </button>
+                  <div
+                    v-if="memberProfileAchievements.length === 0"
+                    class="profile-widget-empty"
+                  >
+                    暂无成就数据
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </template>
+          <div
+            v-else
+            class="profile-widget-empty"
+          >
+            暂时无法加载这个成员的资料
+          </div>
+        </section>
+      </NModal>
+
+      <NModal
+        v-model:show="postDetailVisible"
+        preset="card"
+        title="圈内帖子详情"
+        class="space-modal post-detail-modal"
+        transform-origin="center"
+        :style="{ width: 'min(94vw, 860px)' }"
+      >
+        <section class="post-detail-panel">
+          <div
+            v-if="postDetailLoading"
+            class="profile-widget-empty detail-loading"
+          >
+            <n-spin size="medium" />
+            <span>帖子加载中...</span>
+          </div>
+          <template v-else-if="postDetail">
+            <article class="detail-post-card">
+              <header class="detail-post-head">
+                <button
+                  class="detail-author"
+                  type="button"
+                  @click="openMemberProfileFromPostDetail(postDetail.authorId)"
+                >
+                  <span class="detail-avatar">{{ postDetailAuthorName.charAt(0).toUpperCase() }}</span>
+                  <span>
+                    <strong>{{ postDetailAuthorName }}</strong>
+                    <small>{{ formatTime(postDetail.createdAt) }} · 阅读 {{ postDetail.viewCount }}</small>
+                  </span>
+                </button>
+                <div class="detail-badges">
+                  <span v-if="postDetail.isEssence === 1">精华</span>
+                  <span v-if="postDetail.type === 'QA'">问答</span>
+                </div>
+              </header>
+              <h3>{{ postTitle(postDetail) }}</h3>
+              <p class="detail-content">{{ postDetail.content }}</p>
+              <div
+                v-if="postDetail.topics?.length || postDetail.tags?.length"
+                class="detail-tags"
+              >
+                <span
+                  v-for="topic in postDetail.topics"
+                  :key="`topic-${topic}`"
+                >
+                  #{{ topic }}
+                </span>
+                <span
+                  v-for="tag in postDetail.tags"
+                  :key="`tag-${tag}`"
+                >
+                  {{ tag }}
+                </span>
+              </div>
+              <div
+                v-if="postDetail.type === 'QA' && postDetailQa"
+                class="detail-qa-strip"
+              >
+                <strong>悬赏 {{ postDetailQa.bountyPoints }} 积分</strong>
+                <span>{{ postDetailQa.isSolved ? '已采纳答案' : '等待回答' }}</span>
+              </div>
+              <div class="detail-actions">
+                <button
+                  type="button"
+                  :class="{ active: postDetail.liked }"
+                  :disabled="postDetailLikeSubmitting"
+                  @click="togglePostDetailLike"
+                >
+                  <n-icon><ThumbsUpOutline /></n-icon>
+                  {{ postDetail.liked ? '已赞' : '点赞' }} {{ postDetail.likeCount }}
+                </button>
+                <button
+                  type="button"
+                  @click="nextTick(() => postDetailCommentInputRef?.focus())"
+                >
+                  <n-icon><ChatboxOutline /></n-icon>
+                  评论 {{ postDetail.commentCount }}
+                </button>
+              </div>
+            </article>
+
+            <section class="detail-comment-editor">
+              <div
+                v-if="postDetailReplyTo"
+                class="detail-reply-banner"
+              >
+                正在回复 @{{ postDetailReplyTo.nickname }}
+                <button
+                  type="button"
+                  @click="cancelPostDetailReply"
+                >
+                  取消
+                </button>
+              </div>
+              <textarea
+                ref="postDetailCommentInputRef"
+                v-model="postDetailCommentText"
+                placeholder="写下你的想法，参与当前学习圈讨论"
+                maxlength="2000"
+              />
+              <div class="detail-editor-actions">
+                <button
+                  class="outline-action"
+                  type="button"
+                  @click="cancelPostDetailReply"
+                >
+                  清空
+                </button>
+                <button
+                  class="neon-btn"
+                  type="button"
+                  :disabled="postDetailSubmitting || !postDetailCommentText.trim()"
+                  @click="submitPostDetailComment"
+                >
+                  {{ postDetailSubmitting ? '发布中...' : '发布评论' }}
+                </button>
+              </div>
+            </section>
+
+            <section class="detail-comments">
+              <header>
+                <h4>评论</h4>
+                <span>{{ postDetailComments.length }} 条</span>
+              </header>
+              <article
+                v-if="postDetailComments.length === 0"
+                class="profile-widget-empty"
+              >
+                还没有评论，来抢首评吧
+              </article>
+              <article
+                v-for="comment in postDetailComments"
+                v-else
+                :key="comment.id"
+                class="detail-comment"
+              >
+                <div class="detail-comment-main">
+                  <button
+                    class="detail-avatar small"
+                    type="button"
+                    @click="openMemberProfileFromPostDetail(comment.authorId)"
+                  >
+                    {{ (comment.author?.nickname || '匿').charAt(0).toUpperCase() }}
+                  </button>
+                  <div class="detail-comment-body">
+                    <div class="detail-comment-head">
+                      <strong>{{ comment.author?.nickname || '匿名用户' }}</strong>
+                      <span>{{ formatTime(comment.createdAt) }}</span>
+                    </div>
+                    <p>{{ comment.content }}</p>
+                    <div class="detail-comment-actions">
+                      <button
+                        type="button"
+                        @click="replyPostDetailComment(comment)"
+                      >
+                        回复
+                      </button>
+                      <button
+                        type="button"
+                        @click="likePostDetailComment(comment)"
+                      >
+                        点赞 {{ comment.likeCount || 0 }}
+                      </button>
+                      <button
+                        v-if="isPostDetailAuthor && postDetail.type === 'QA' && !postDetailQa?.isSolved"
+                        type="button"
+                        :disabled="postDetailAcceptingId === comment.id"
+                        @click="acceptPostDetailAnswer(comment.id)"
+                      >
+                        {{ postDetailAcceptingId === comment.id ? '采纳中...' : '采纳' }}
+                      </button>
+                    </div>
+                    <div
+                      v-if="comment.replies?.length"
+                      class="detail-replies"
+                    >
+                      <article
+                        v-for="reply in comment.replies"
+                        :key="reply.id"
+                        class="detail-reply"
+                      >
+                        <strong>{{ reply.author?.nickname || '匿名用户' }}</strong>
+                        <span>{{ formatTime(reply.createdAt) }}</span>
+                        <p>{{ reply.content }}</p>
+                        <button
+                          type="button"
+                          @click="replyPostDetailComment(reply)"
+                        >
+                          回复
+                        </button>
+                      </article>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </section>
+          </template>
+          <div
+            v-else
+            class="profile-widget-empty"
+          >
+            暂时无法加载这个帖子
+          </div>
+        </section>
+      </NModal>
 
       <NModal
         v-model:show="actionMenuVisible"
@@ -697,6 +2428,87 @@ onMounted(loadSpace);
       </NModal>
 
       <NModal
+        v-model:show="postActionVisible"
+        preset="card"
+        title="帖子操作"
+        class="space-modal compact-modal"
+        transform-origin="center"
+        :style="{ width: '320px' }"
+      >
+        <div class="quick-actions">
+          <button
+            :disabled="!postActionTarget"
+            @click="openPostDetailFromActions(postActionTarget)"
+          >
+            <n-icon>
+              <ChatboxOutline />
+            </n-icon>
+            查看帖子详情
+          </button>
+          <button
+            :disabled="!postActionTarget || postActionSubmitting === postActionTarget?.id"
+            @click="togglePostCollect(postActionTarget)"
+          >
+            <n-icon>
+              <LibraryOutline />
+            </n-icon>
+            {{ postActionTarget?.collected ? '取消收藏' : '收藏帖子' }}
+          </button>
+          <button
+            :disabled="!postActionTarget"
+            @click="postActionTarget && openPostShare(postActionTarget)"
+          >
+            <n-icon>
+              <ShareSocialOutline />
+            </n-icon>
+            分享帖子
+          </button>
+          <button
+            :disabled="!postActionTarget"
+            @click="copyPostLink(postActionTarget)"
+          >
+            <n-icon>
+              <CopyOutline />
+            </n-icon>
+            复制链接
+          </button>
+        </div>
+      </NModal>
+
+      <NModal
+        v-model:show="postShareVisible"
+        preset="card"
+        title="分享帖子"
+        class="space-modal tiny-modal"
+        transform-origin="center"
+        :style="{ width: '320px' }"
+      >
+        <div class="notice-modal-list">
+          <article class="post-share-preview">
+            <strong>{{ postShareTarget?.title || '无标题帖子' }}</strong>
+            <p>{{ postPreview(postShareTarget?.content || '') }}</p>
+            <span>{{ postShareUrl(postShareTarget?.id) }}</span>
+          </article>
+          <button
+            class="outline-action"
+            type="button"
+            :disabled="!postShareTarget"
+            @click="copyPostLink(postShareTarget)"
+          >
+            复制链接
+          </button>
+          <button
+            class="neon-btn"
+            type="button"
+            :disabled="!postShareTarget"
+            @click="openPostDetailFromActions(postShareTarget)"
+          >
+            打开帖子详情
+          </button>
+        </div>
+      </NModal>
+
+      <NModal
         v-model:show="notificationVisible"
         preset="card"
         title="通知"
@@ -705,7 +2517,27 @@ onMounted(loadSpace);
         :style="{ width: '300px' }"
       >
         <div class="notice-modal-list">
-          <article class="notice-modal-item">
+          <article
+            v-if="notificationLoading"
+            class="notice-modal-item"
+          >
+            <p>通知加载中...</p>
+          </article>
+          <article
+            v-for="notification in notifications"
+            :key="notification.id"
+            class="notice-modal-item"
+            :class="{ unread: !notification.isRead }"
+            @click="openNotification(notification)"
+          >
+            <strong>{{ notification.title }}</strong>
+            <p>{{ notification.content }}</p>
+            <span>{{ formatDate(notification.createdAt) }}</span>
+          </article>
+          <article
+            v-if="!notificationLoading && notifications.length === 0"
+            class="notice-modal-item"
+          >
             <strong>暂无新的圈内通知</strong>
             <p>评论、回复与成员动态会汇总在这里。</p>
             <button
@@ -728,11 +2560,22 @@ onMounted(loadSpace);
       >
         <div class="notice-modal-list">
           <article class="notice-modal-item">
-            <strong>欢迎加入本学习圈</strong>
-            <p>请遵守发帖规范，友善交流，共同进步！</p>
-            <span>2024-05-01</span>
+            <strong>圈子公告</strong>
+            <p>{{ noticeText }}</p>
+            <span>{{ formatDate(space?.createdAt) }}</span>
           </article>
-          <article class="notice-modal-item">
+          <article
+            v-if="sensitiveWordList.length > 0"
+            class="notice-modal-item"
+          >
+            <strong>发帖敏感词</strong>
+            <p>{{ sensitiveWordList.join('、') }}</p>
+            <span>仅圈内管理可修改</span>
+          </article>
+          <article
+            v-else
+            class="notice-modal-item"
+          >
             <strong>暂无更多公告</strong>
             <p>新的圈子公告会在这里集中展示。</p>
             <span>持续更新</span>
@@ -749,11 +2592,18 @@ onMounted(loadSpace);
         :style="{ width: '330px' }"
       >
         <div class="active-member-list">
+          <article
+            v-if="activeMemberList.length === 0"
+            class="notice-modal-item"
+          >
+            <strong>暂无成员数据</strong>
+            <p>成员列表会在加入学习圈后同步展示。</p>
+          </article>
           <button
             v-for="member in activeMemberList"
             :key="member.id"
             class="active-member-item"
-            @click="goUser(member.id)"
+            @click="openMemberProfile(member.id)"
           >
             <img
               v-if="member.avatarUrl"
@@ -823,28 +2673,12 @@ onMounted(loadSpace);
           </button>
 
           <div class="upload-form-grid">
-            <label class="upload-field">
-              <span>学院</span>
-              <input
-                v-model="uploadCollege"
-                maxlength="64"
-                placeholder="计算机学院"
-              />
-            </label>
-            <label class="upload-field">
-              <span>专业</span>
-              <input
-                v-model="uploadMajor"
-                maxlength="64"
-                placeholder="软件工程"
-              />
-            </label>
             <label class="upload-field wide">
-              <span>课程</span>
+              <span>标签 / 主题</span>
               <input
-                v-model="uploadCourse"
-                maxlength="128"
-                placeholder="Java 程序设计"
+                v-model="uploadTagText"
+                maxlength="120"
+                placeholder="例如：Java 程序设计 期末复习 笔记"
               />
             </label>
             <label class="upload-field wide">
@@ -855,6 +2689,9 @@ onMounted(loadSpace);
                 placeholder="这份资料适合谁、覆盖哪些重点..."
               />
             </label>
+          </div>
+          <div class="tag-hint">
+            可用空格、逗号或 # 分隔，最多展示 8 个标签。
           </div>
 
           <footer class="upload-actions">
@@ -1019,9 +2856,9 @@ onMounted(loadSpace);
         </template>
         <template v-else-if="space">
           <div class="space-layout">
-            <!-- Center Column -->
+            <!-- 主内容列 -->
             <div class="center-col">
-              <!-- Space Banner -->
+              <!-- 圈子头图 -->
               <div class="space-banner glass-card">
                 <div class="banner-bg" />
                 <div class="banner-content">
@@ -1035,33 +2872,204 @@ onMounted(loadSpace);
                   </div>
                   <div class="space-info">
                     <div class="title-row">
-                      <h2>{{ space.name || '计算机科学与技术' }}</h2>
-                      <span class="tag">公开圈子</span>
+                      <h2>{{ space.name }}</h2>
+                      <span class="tag">{{ visibilityLabel }}</span>
                     </div>
                     <p class="desc">
-                      {{ space.description || 'CS学习交流圈' }}
+                      {{ space.description || '圈主还没有填写简介。' }}
                     </p>
                     <div class="stats">
-                      成员 {{ space.memberCount || '2,341' }} <span class="dot">·</span> 
-                      帖子 {{ space.postCount || '8,712' }} <span class="dot">·</span> 
-                      今日活跃 342
+                      成员 {{ formatCompactNumber(space.memberCount) }} <span class="dot">·</span>
+                      帖子 {{ formatCompactNumber(space.postCount) }} <span class="dot">·</span>
+                      文件 {{ formatCompactNumber(spaceResources.length) }} <span class="dot">·</span>
+                      打卡 {{ formatCompactNumber(checkinChallenges.length) }}
                     </div>
                   </div>
-                  <button
-                    class="neon-btn header-btn"
-                    @click="goCreatePost"
-                  >
-                    + 发布帖子
-                  </button>
+                  <div class="banner-actions">
+                    <button
+                      v-if="!space.isMember"
+                      class="outline-action header-btn"
+                      :disabled="spaceActionSubmitting"
+                      @click="toggleSpaceMembership"
+                    >
+                      {{ spaceActionSubmitting ? '处理中...' : '加入圈子' }}
+                    </button>
+                    <button
+                      v-else-if="canLeaveSpace"
+                      class="outline-action header-btn"
+                      :disabled="spaceActionSubmitting"
+                      @click="toggleSpaceMembership"
+                    >
+                      {{ spaceActionSubmitting ? '处理中...' : '退出圈子' }}
+                    </button>
+                    <button
+                      class="neon-btn header-btn"
+                      @click="goCreatePost"
+                    >
+                      + 发布帖子
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <!-- Tabs -->
+              <section
+                v-if="searchTerm"
+                ref="searchResultsRef"
+                class="space-search-panel glass-card"
+              >
+                <header class="space-search-head">
+                  <div>
+                    <h3>圈内搜索结果</h3>
+                    <p>关键词「{{ searchTerm }}」，当前学习圈内共找到 {{ searchTotalCount }} 项。</p>
+                  </div>
+                  <button
+                    class="outline-action"
+                    type="button"
+                    @click="clearSearch"
+                  >
+                    清空搜索
+                  </button>
+                </header>
+
+                <div class="space-search-summary">
+                  <article>
+                    <span>帖子</span>
+                    <strong>{{ searchPosts.length }}</strong>
+                  </article>
+                  <article>
+                    <span>文件</span>
+                    <strong>{{ searchResources.length }}</strong>
+                  </article>
+                  <article>
+                    <span>成员</span>
+                    <strong>{{ searchMembers.length }}</strong>
+                  </article>
+                  <article>
+                    <span>打卡</span>
+                    <strong>{{ searchChallenges.length }}</strong>
+                  </article>
+                </div>
+
+                <div
+                  v-if="searchTotalCount === 0"
+                  class="empty-inline glass-card"
+                >
+                  <p>当前学习圈里没有匹配内容。</p>
+                  <button
+                    class="neon-btn"
+                    type="button"
+                    @click="clearSearch"
+                  >
+                    换个关键词
+                  </button>
+                </div>
+
+                <div
+                  v-else
+                  class="space-search-groups"
+                >
+                  <section
+                    v-if="searchPosts.length"
+                    class="space-search-group"
+                  >
+                    <header>
+                      <h4>匹配帖子</h4>
+                      <span>{{ searchPosts.length }} 条</span>
+                    </header>
+                    <article
+                      v-for="post in searchPosts"
+                      :key="`post-${post.id}`"
+                      class="compact-data-row search-result-row"
+                      @click="goPost(post.id)"
+                    >
+                      <div>
+                        <strong>{{ postTitle(post) }}</strong>
+                        <span>{{ post.author?.nickname || '匿名用户' }} · {{ formatTime(post.createdAt) }}</span>
+                      </div>
+                      <small>{{ post.likeCount }} 赞 / {{ post.commentCount }} 评</small>
+                    </article>
+                  </section>
+
+                  <section
+                    v-if="searchResources.length"
+                    class="space-search-group"
+                  >
+                    <header>
+                      <h4>匹配文件</h4>
+                      <span>{{ searchResources.length }} 份</span>
+                    </header>
+                    <article
+                      v-for="resource in searchResources"
+                      :key="`resource-${resource.id}`"
+                      class="compact-data-row search-result-row"
+                      @click="goResource(resource.id)"
+                    >
+                      <div>
+                        <strong>{{ resource.fileName }}</strong>
+                        <span>{{ resource.uploader?.nickname || '未知上传者' }} · {{ formatTime(resource.createdAt) }}</span>
+                      </div>
+                      <small>{{ formatFileSize(resource.fileSize) }}</small>
+                    </article>
+                  </section>
+
+                  <section
+                    v-if="searchMembers.length"
+                    class="space-search-group"
+                  >
+                    <header>
+                      <h4>匹配成员</h4>
+                      <span>{{ searchMembers.length }} 人</span>
+                    </header>
+                    <button
+                      v-for="member in searchMembers"
+                      :key="`member-${member.userId}`"
+                      class="active-member-item search-member-row"
+                      type="button"
+                      @click="openMemberProfile(member.userId)"
+                    >
+                      <img
+                        v-if="member.user?.avatarUrl"
+                        :src="member.user.avatarUrl"
+                        :alt="member.user?.nickname || '圈内成员'"
+                      />
+                      <span v-else class="member-avatar-fallback">{{ memberInitial(member) }}</span>
+                      <span class="member-copy">
+                        <strong>{{ member.user?.nickname || '未知用户' }}</strong>
+                        <small>{{ member.role === 'OWNER' ? '圈主' : (member.role === 'ADMIN' ? '管理员' : '成员') }} · {{ formatDate(member.joinedAt) }} 加入</small>
+                      </span>
+                    </button>
+                  </section>
+
+                  <section
+                    v-if="searchChallenges.length"
+                    class="space-search-group"
+                  >
+                    <header>
+                      <h4>匹配打卡</h4>
+                      <span>{{ searchChallenges.length }} 个</span>
+                    </header>
+                    <article
+                      v-for="challenge in searchChallenges"
+                      :key="`challenge-${challenge.id}`"
+                      class="compact-data-row search-result-row"
+                      @click="goChallenge(challenge.id)"
+                    >
+                      <div>
+                        <strong>{{ challenge.name }}</strong>
+                        <span>{{ challenge.description || '这个打卡挑战还没有简介。' }}</span>
+                      </div>
+                      <small>{{ challenge.memberCount }} 人参与</small>
+                    </article>
+                  </section>
+                </div>
+              </section>
+
+              <!-- 圈子分页 -->
               <div class="space-tabs">
                 <div
                   v-for="tab in tabs"
-                  :key="tab" 
-                  class="tab-item" 
+                  :key="tab"
+                  class="tab-item"
                   :class="{ active: activeTab === tab }"
                   @click="activeTab = tab"
                 >
@@ -1069,7 +3077,154 @@ onMounted(loadSpace);
                 </div>
               </div>
 
-              <!-- Filter -->
+              <div
+                v-if="activeTab === '首页'"
+                class="home-view"
+              >
+                <div class="overview-grid">
+                  <button
+                    class="overview-card"
+                    @click="activeTab = '帖子'"
+                  >
+                    <span>帖子</span>
+                    <strong>{{ formatCompactNumber(posts.length) }}</strong>
+                    <small>当前已加载讨论</small>
+                  </button>
+                  <button
+                    class="overview-card"
+                    @click="activeTab = '文件'"
+                  >
+                    <span>文件</span>
+                    <strong>{{ formatCompactNumber(spaceResources.length) }}</strong>
+                    <small>圈内资料</small>
+                  </button>
+                  <button
+                    class="overview-card"
+                    @click="activeTab = '成员'"
+                  >
+                    <span>成员</span>
+                    <strong>{{ formatCompactNumber(space.memberCount) }}</strong>
+                    <small>活跃成员数据</small>
+                  </button>
+                  <button
+                    class="overview-card"
+                    @click="activeTab = '打卡'"
+                  >
+                    <span>打卡</span>
+                    <strong>{{ formatCompactNumber(activeChallenges.length) }}</strong>
+                    <small>进行中的挑战</small>
+                  </button>
+                </div>
+
+                <section class="home-section">
+                  <header>
+                    <div>
+                      <h3>最新讨论</h3>
+                      <span>来自后端的圈内帖子</span>
+                    </div>
+                    <button @click="activeTab = '帖子'">
+                      查看全部
+                    </button>
+                  </header>
+                  <article
+                    v-for="post in latestPosts"
+                    :key="post.id"
+                    class="compact-data-row"
+                    @click="goPost(post.id)"
+                  >
+                    <div>
+                      <strong>{{ postTitle(post) }}</strong>
+                      <span>{{ post.author?.nickname || '匿名用户' }} · {{ formatTime(post.createdAt) }}</span>
+                    </div>
+                    <small>{{ post.likeCount }} 赞 / {{ post.commentCount }} 评</small>
+                  </article>
+                  <div
+                    v-if="latestPosts.length === 0"
+                    class="empty-inline glass-card"
+                  >
+                    <p>这个圈子还没有帖子。</p>
+                    <button
+                      class="neon-btn"
+                      @click="goCreatePost"
+                    >
+                      发布第一篇帖子
+                    </button>
+                  </div>
+                </section>
+
+                <section class="home-section">
+                  <header>
+                    <div>
+                      <h3>资料更新</h3>
+                      <span>按上传时间展示</span>
+                    </div>
+                    <button @click="activeTab = '文件'">
+                      进入文件
+                    </button>
+                  </header>
+                  <article
+                    v-for="resource in recentResources"
+                    :key="resource.id"
+                    class="compact-data-row"
+                    @click="goResource(resource.id)"
+                  >
+                    <div>
+                      <strong>{{ resource.fileName }}</strong>
+                      <span>{{ resource.uploader?.nickname || '未知上传者' }} · {{ formatTime(resource.createdAt) }}</span>
+                    </div>
+                    <small>{{ formatFileSize(resource.fileSize) }}</small>
+                  </article>
+                  <div
+                    v-if="recentResources.length === 0"
+                    class="empty-inline glass-card"
+                  >
+                    <p>圈内暂无文件资料。</p>
+                    <button
+                      class="neon-btn"
+                      @click="goUploadResource"
+                    >
+                      上传资料
+                    </button>
+                  </div>
+                </section>
+
+                <section class="home-section">
+                  <header>
+                    <div>
+                      <h3>进行中打卡</h3>
+                      <span>绑定当前学习圈的打卡挑战</span>
+                    </div>
+                    <button @click="activeTab = '打卡'">
+                      查看打卡
+                    </button>
+                  </header>
+                  <article
+                    v-for="challenge in activeChallenges.slice(0, 3)"
+                    :key="challenge.id"
+                    class="compact-data-row"
+                    @click="goChallenge(challenge.id)"
+                  >
+                    <div>
+                      <strong>{{ challenge.name }}</strong>
+                      <span>{{ challenge.startDate }} ~ {{ challenge.endDate }}</span>
+                    </div>
+                    <small>{{ challenge.memberCount }} 人参与</small>
+                  </article>
+                  <div
+                    v-if="activeChallenges.length === 0"
+                    class="empty-inline glass-card"
+                  >
+                    <p>圈内暂无进行中的打卡挑战。</p>
+                    <button
+                      class="neon-btn"
+                      @click="openChallengeForm"
+                    >
+                      创建挑战
+                    </button>
+                  </div>
+                </section>
+              </div>
+
               <div v-if="activeTab === '帖子'" class="post-filters">
                 <span
                   :class="{ active: postSort === 'latest' }"
@@ -1091,10 +3246,9 @@ onMounted(loadSpace);
                 </span>
               </div>
 
-              <!-- Post List -->
-              <div v-if="activeTab === '帖子'" class="post-list">
+              <div v-if="['帖子', '精华'].includes(activeTab)" class="post-list">
                 <div
-                  v-for="post in sortedPosts"
+                  v-for="post in visiblePosts"
                   :key="post.id"
                   class="post-item glass-card"
                   @click="goPost(post.id)"
@@ -1102,22 +3256,29 @@ onMounted(loadSpace);
                   <div class="post-author">
                     <button
                       class="avatar author-avatar"
-                      @click.stop="goUser(post.authorId)"
+                      @click.stop="openMemberProfile(post.authorId)"
                     >
                       {{ post.author?.nickname?.charAt(0)?.toUpperCase() || 'U' }}
                     </button>
                     <div class="author-info">
                       <span
                         class="name"
-                        @click.stop="goUser(post.authorId)"
+                        @click.stop="openMemberProfile(post.authorId)"
                       >
                         {{ post.author?.nickname || '匿名用户' }}
                       </span>
                       <span class="time">{{ formatTime(post.createdAt) }}</span>
                     </div>
-                    <n-icon class="more-icon">
-                      <MenuOutline />
-                    </n-icon>
+                    <button
+                      class="post-more-btn"
+                      type="button"
+                      title="帖子操作"
+                      @click.stop="openPostActions(post)"
+                    >
+                      <n-icon>
+                        <MenuOutline />
+                      </n-icon>
+                    </button>
                   </div>
                   <h3 class="post-title">
                     {{ postTitle(post) }}
@@ -1137,23 +3298,44 @@ onMounted(loadSpace);
                   <p class="post-preview">
                     {{ postPreview(post.content) }}
                   </p>
-                  <div class="post-actions">
-                    <span class="action"><n-icon><ThumbsUpOutline /></n-icon> {{ post.likeCount }}</span>
-                    <span class="action"><n-icon><ChatboxOutline /></n-icon> {{ post.commentCount }}</span>
-                    <span
+                  <div
+                    class="post-actions"
+                    @click.stop
+                  >
+                    <button
+                      class="action"
+                      type="button"
+                      :class="{ active: post.liked }"
+                      :disabled="postListLikeSubmitting === post.id"
+                      :aria-pressed="post.liked"
+                      @click.stop="togglePostListLike(post)"
+                    >
+                      <n-icon><ThumbsUpOutline /></n-icon>
+                      {{ post.likeCount }}
+                    </button>
+                    <button
+                      class="action"
+                      type="button"
+                      @click.stop="goPost(post.id)"
+                    >
+                      <n-icon><ChatboxOutline /></n-icon>
+                      {{ post.commentCount }}
+                    </button>
+                    <button
                       class="action right"
-                      @click.stop="sharePost(post.id)"
+                      type="button"
+                      @click.stop="openPostShare(post)"
                     >
                       <n-icon><ShareSocialOutline /></n-icon> 分享
-                    </span>
+                    </button>
                   </div>
                 </div>
 
                 <div
-                  v-if="sortedPosts.length === 0"
+                  v-if="visiblePosts.length === 0"
                   class="empty-inline glass-card"
                 >
-                  <p>圈内暂时没有帖子。</p>
+                  <p>{{ activeTab === '精华' ? '圈内暂时没有精华帖。' : '圈内暂时没有帖子。' }}</p>
                   <button
                     class="neon-btn"
                     @click="goCreatePost"
@@ -1163,24 +3345,27 @@ onMounted(loadSpace);
                 </div>
               </div>
 
-              <!-- Members Tab -->
               <div v-if="activeTab === '成员'" class="members-view">
                 <div class="member-header">
-                  <h3>圈子成员</h3>
+                  <h3>圈子成员 · {{ formatCompactNumber(space.memberCount) }}</h3>
                   <div class="search-member">
-                    <input type="text" placeholder="搜索成员昵称" />
+                    <input
+                      v-model="memberKeyword"
+                      type="text"
+                      placeholder="搜索成员昵称或角色"
+                    />
                   </div>
                 </div>
                 <div class="member-grid">
                   <div
-                    v-for="m in members"
+                    v-for="m in filteredMembers"
                     :key="m.userId"
                     class="member-card glass-card"
-                    @click="goUser(m.userId)"
+                    @click="openMemberProfile(m.userId)"
                   >
                     <button
                       class="avatar"
-                      @click.stop="goUser(m.userId)"
+                      @click.stop="openMemberProfile(m.userId)"
                     >
                       {{ memberInitial(m) }}
                     </button>
@@ -1189,29 +3374,15 @@ onMounted(loadSpace);
                       <span class="role">{{ m.role === 'OWNER' ? '圈主' : (m.role === 'ADMIN' ? '管理员' : '成员') }}</span>
                     </div>
                   </div>
-                  <!-- 成员为空时展示占位成员卡片，避免成员区视觉上完全塌陷。 -->
-                  <template v-if="members.length === 0">
-                    <div
-                      v-for="i in 5"
-                      :key="i"
-                      class="member-card glass-card"
-                    >
-                      <div
-                        class="avatar"
-                        style="background: var(--cf-gradient-primary);"
-                      >
-                        U
-                      </div>
-                      <div class="info">
-                        <span class="name">学习者 {{ i }}</span>
-                        <span class="role">成员</span>
-                      </div>
-                    </div>
-                  </template>
+                </div>
+                <div
+                  v-if="filteredMembers.length === 0"
+                  class="empty-inline glass-card"
+                >
+                  <p>没有找到匹配的成员。</p>
                 </div>
               </div>
 
-              <!-- Files Tab -->
               <div v-if="activeTab === '文件'" class="files-view glass-card">
                 <div
                   v-if="spaceResources.length === 0"
@@ -1258,6 +3429,17 @@ onMounted(loadSpace);
                         <template v-if="resource.fileType"> · {{ resource.fileType.toUpperCase() }}</template>
                         <template v-if="resource.uploader?.nickname"> · {{ resource.uploader.nickname }}</template>
                       </span>
+                      <div
+                        v-if="resource.tags?.length"
+                        class="resource-tags"
+                      >
+                        <span
+                          v-for="tag in resource.tags.slice(0, 4)"
+                          :key="`${resource.id}-${tag}`"
+                        >
+                          {{ tag }}
+                        </span>
+                      </div>
                       <p v-if="resource.description">
                         {{ resource.description }}
                       </p>
@@ -1266,17 +3448,323 @@ onMounted(loadSpace);
                 </div>
               </div>
 
-              <!-- Other Tabs Fallback -->
-              <div v-if="!['帖子', '成员', '文件'].includes(activeTab)" class="files-view glass-card">
-                <div class="empty-state">
-                  <p>该功能模块建设中...</p>
+              <div v-if="activeTab === '打卡'" class="checkin-view">
+                <div class="resource-list-header">
+                  <div>
+                    <h3>圈内打卡</h3>
+                    <span>{{ checkinChallenges.length }} 个挑战已绑定当前学习圈</span>
+                  </div>
+                  <button
+                    class="neon-btn"
+                    @click="openChallengeForm"
+                  >
+                    创建挑战
+                  </button>
                 </div>
+
+                <NModal
+                  v-model:show="challengeFormVisible"
+                  preset="card"
+                  title="创建挑战"
+                  class="space-modal challenge-modal"
+                  transform-origin="center"
+                  :style="{ width: 'min(92vw, 620px)' }"
+                >
+                  <div class="settings-panel challenge-form-panel">
+                    <div class="settings-form-grid">
+                      <label class="settings-field">
+                        <span>挑战名称</span>
+                        <input
+                          v-model="challengeName"
+                          maxlength="64"
+                          placeholder="例如：Java 每日刷题"
+                        />
+                      </label>
+                      <label class="settings-field">
+                        <span>开始日期</span>
+                        <input
+                          v-model="challengeStartDate"
+                          type="date"
+                        />
+                      </label>
+                      <label class="settings-field">
+                        <span>结束日期</span>
+                        <input
+                          v-model="challengeEndDate"
+                          type="date"
+                        />
+                      </label>
+                      <label class="settings-field wide">
+                        <span>简介</span>
+                        <textarea
+                          v-model="challengeDescription"
+                          maxlength="500"
+                          placeholder="说明打卡规则、适合人群和目标..."
+                        />
+                      </label>
+                    </div>
+                    <div class="settings-actions">
+                      <button
+                        class="outline-action"
+                        @click="challengeFormVisible = false"
+                      >
+                        取消
+                      </button>
+                      <button
+                        class="neon-btn"
+                        :disabled="challengeSubmitting"
+                        @click="submitChallenge"
+                      >
+                        {{ challengeSubmitting ? '创建中...' : '保存挑战' }}
+                      </button>
+                    </div>
+                  </div>
+                </NModal>
+
+                <div
+                  v-if="checkinChallenges.length === 0"
+                  class="files-view glass-card"
+                >
+                  <div class="empty-state">
+                    <n-icon size="48" color="rgba(255,255,255,0.2)">
+                      <CheckmarkCircleOutline />
+                    </n-icon>
+                    <p>当前学习圈暂无打卡挑战。</p>
+                    <button
+                      class="neon-btn"
+                      @click="openChallengeForm"
+                    >
+                      创建第一个挑战
+                    </button>
+                  </div>
+                </div>
+                <div
+                  v-else
+                  class="challenge-grid"
+                >
+                  <article
+                    v-for="challenge in checkinChallenges"
+                    :key="challenge.id"
+                    class="challenge-card glass-card"
+                    @click="goChallenge(challenge.id)"
+                  >
+                    <div class="challenge-card__top">
+                      <strong>{{ challenge.name }}</strong>
+                      <span :class="{ active: challenge.startDate <= todayString() && challenge.endDate >= todayString() }">
+                        {{ challenge.startDate <= todayString() && challenge.endDate >= todayString() ? '进行中' : '未进行' }}
+                      </span>
+                    </div>
+                    <p>{{ challenge.description || '这个打卡挑战还没有简介。' }}</p>
+                    <div class="challenge-card__meta">
+                      <span>{{ challenge.startDate }} ~ {{ challenge.endDate }}</span>
+                      <span>{{ challenge.memberCount }} 人参与</span>
+                      <span v-if="challenge.isMember">我的连续 {{ challenge.myConsecutiveDays }} 天</span>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <div v-if="activeTab === '设置'" class="settings-view">
+                <section class="settings-panel glass-card">
+                  <header>
+                    <div>
+                      <h3>圈子设置</h3>
+                      <span>{{ canManageSpace ? '管理当前学习圈配置与公告' : '查看圈子信息并管理自己的加入状态' }}</span>
+                    </div>
+                  </header>
+
+                  <div class="settings-summary-grid">
+                    <article>
+                      <span>成员身份</span>
+                      <strong>{{ memberRoleLabel }}</strong>
+                    </article>
+                    <article>
+                      <span>加入方式</span>
+                      <strong>{{ visibilityLabel }}</strong>
+                    </article>
+                    <article>
+                      <span>圈子状态</span>
+                      <strong>{{ spaceStatusLabel }}</strong>
+                    </article>
+                    <article>
+                      <span>创建时间</span>
+                      <strong>{{ formatDate(space.createdAt) }}</strong>
+                    </article>
+                  </div>
+
+                  <div class="settings-action-grid">
+                    <button
+                      class="settings-action-card"
+                      @click="copySpaceLink"
+                    >
+                      <n-icon><CopyOutline /></n-icon>
+                      <span>
+                        <strong>复制圈子链接</strong>
+                        <small>{{ spaceLink }}</small>
+                      </span>
+                    </button>
+                    <button
+                      class="settings-action-card"
+                      @click="refreshSpaceData"
+                    >
+                      <n-icon><RefreshOutline /></n-icon>
+                      <span>
+                        <strong>刷新后端数据</strong>
+                        <small>重新拉取圈子、成员、帖子、资料和打卡数据</small>
+                      </span>
+                    </button>
+                    <button
+                      class="settings-action-card"
+                      @click="openNoticeList"
+                    >
+                      <n-icon><NotificationsOutline /></n-icon>
+                      <span>
+                        <strong>查看圈子公告</strong>
+                        <small>{{ noticeText }}</small>
+                      </span>
+                    </button>
+                    <button
+                      class="settings-action-card"
+                      @click="openActiveMembers"
+                    >
+                      <n-icon><PeopleOutline /></n-icon>
+                      <span>
+                        <strong>查看成员</strong>
+                        <small>{{ formatCompactNumber(space.memberCount) }} 名成员</small>
+                      </span>
+                    </button>
+                    <button
+                      class="settings-action-card"
+                      @click="goCreatePost"
+                    >
+                      <n-icon><SparklesOutline /></n-icon>
+                      <span>
+                        <strong>发布帖子</strong>
+                        <small>直接向当前学习圈发帖</small>
+                      </span>
+                    </button>
+                    <button
+                      class="settings-action-card"
+                      @click="goUploadResource"
+                    >
+                      <n-icon><DocumentTextOutline /></n-icon>
+                      <span>
+                        <strong>上传资料</strong>
+                        <small>{{ formatCompactNumber(spaceResources.length) }} 份资料已收纳</small>
+                      </span>
+                    </button>
+                    <button
+                      class="settings-action-card"
+                      @click="openChallengeForm"
+                    >
+                      <n-icon><CheckmarkCircleOutline /></n-icon>
+                      <span>
+                        <strong>创建打卡</strong>
+                        <small>{{ formatCompactNumber(checkinChallenges.length) }} 个圈内挑战</small>
+                      </span>
+                    </button>
+                  </div>
+
+                  <div class="settings-actions left">
+                    <button
+                      v-if="!space.isMember"
+                      class="outline-action"
+                      :disabled="spaceActionSubmitting"
+                      @click="toggleSpaceMembership"
+                    >
+                      {{ spaceActionSubmitting ? '处理中...' : '加入圈子' }}
+                    </button>
+                    <button
+                      v-else-if="canLeaveSpace"
+                      class="outline-action"
+                      :disabled="spaceActionSubmitting"
+                      @click="toggleSpaceMembership"
+                    >
+                      {{ spaceActionSubmitting ? '处理中...' : '退出圈子' }}
+                    </button>
+                  </div>
+
+                  <template v-if="canManageSpace">
+                    <div class="settings-form-grid">
+                      <label class="settings-field">
+                        <span>圈子名称</span>
+                        <input
+                          v-model="settingName"
+                          maxlength="64"
+                        />
+                      </label>
+                      <label class="settings-field">
+                        <span>加入方式</span>
+                        <select v-model="settingVisibility">
+                          <option value="PUBLIC">公开加入</option>
+                          <option value="REVIEW">申请审核</option>
+                        </select>
+                      </label>
+                      <label class="settings-field wide">
+                        <span>简介</span>
+                        <textarea
+                          v-model="settingDescription"
+                          maxlength="255"
+                          placeholder="一句话说明这个学习圈的方向"
+                        />
+                      </label>
+                      <label class="settings-field wide">
+                        <span>公告</span>
+                        <textarea
+                          v-model="settingPostNotice"
+                          maxlength="2000"
+                          placeholder="同步给成员的圈子公告"
+                        />
+                      </label>
+                      <label class="settings-field wide">
+                        <span>敏感词</span>
+                        <textarea
+                          v-model="settingSensitiveWords"
+                          maxlength="2000"
+                          placeholder="可用逗号或换行分隔"
+                        />
+                      </label>
+                    </div>
+                    <div class="settings-actions">
+                      <button
+                        class="outline-action"
+                        @click="syncSettingForm"
+                      >
+                        重置表单
+                      </button>
+                      <button
+                        class="neon-btn"
+                        :disabled="settingSubmitting"
+                        @click="submitSpaceSettings"
+                      >
+                        {{ settingSubmitting ? '保存中...' : '保存设置' }}
+                      </button>
+                    </div>
+                  </template>
+
+                  <template v-else>
+                    <div class="settings-readonly-grid">
+                      <article>
+                        <span>圈子简介</span>
+                        <p>{{ space.description || '圈主暂未填写简介。' }}</p>
+                      </article>
+                      <article>
+                        <span>圈子公告</span>
+                        <p>{{ noticeText }}</p>
+                      </article>
+                      <article>
+                        <span>发帖敏感词</span>
+                        <p>{{ sensitiveWordList.length ? sensitiveWordList.join('、') : '圈主暂未配置敏感词。' }}</p>
+                      </article>
+                    </div>
+                  </template>
+                </section>
               </div>
             </div>
 
-            <!-- Right Column -->
+            <!-- 右侧数据列 -->
             <div class="right-col">
-              <!-- Notice Card -->
+              <!-- 圈子公告 -->
               <div class="widget-card glass-card">
                 <div class="widget-header">
                   <h3>圈子公告</h3>
@@ -1288,14 +3776,13 @@ onMounted(loadSpace);
                   </span>
                 </div>
                 <div class="notice-content">
-                  <p>欢迎加入本学习圈！请遵守发帖规范，友善交流，共同进步！</p>
+                  <p>{{ noticeText }}</p>
                   <div class="date">
-                    2024-05-01
+                    {{ formatDate(space.createdAt) }}
                   </div>
                 </div>
               </div>
 
-              <!-- Data Card -->
               <div class="widget-card glass-card">
                 <div class="widget-header">
                   <h3>圈子数据</h3>
@@ -1303,53 +3790,27 @@ onMounted(loadSpace);
                 <div class="data-content">
                   <div class="data-row">
                     <span class="label">活跃趋势 (7日)</span>
-                    <span class="value">342 <span class="up">+12.5%</span></span>
+                    <span class="value">
+                      {{ activityScore }}
+                      <span class="up">{{ activityChange }}</span>
+                    </span>
                   </div>
-                  <!-- CSS Simulated Chart -->
                   <div class="mock-chart">
                     <svg
                       viewBox="0 0 100 30"
                       class="chart-svg"
                     >
                       <path
-                        d="M0,20 L20,10 L40,25 L60,5 L80,15 L100,5"
+                        :d="activityTrendPath"
                         fill="none"
                         stroke="#6366f1"
                         stroke-width="2"
                       />
                       <circle
-                        cx="0"
-                        cy="20"
-                        r="2"
-                        fill="#6366f1"
-                      />
-                      <circle
-                        cx="20"
-                        cy="10"
-                        r="2"
-                        fill="#6366f1"
-                      />
-                      <circle
-                        cx="40"
-                        cy="25"
-                        r="2"
-                        fill="#6366f1"
-                      />
-                      <circle
-                        cx="60"
-                        cy="5"
-                        r="2"
-                        fill="#6366f1"
-                      />
-                      <circle
-                        cx="80"
-                        cy="15"
-                        r="2"
-                        fill="#6366f1"
-                      />
-                      <circle
-                        cx="100"
-                        cy="5"
+                        v-for="point in activityTrendPoints"
+                        :key="`${point.x}-${point.y}`"
+                        :cx="point.x"
+                        :cy="point.y"
                         r="2"
                         fill="#6366f1"
                       />
@@ -1362,23 +3823,29 @@ onMounted(loadSpace);
                       @click="openActiveMembers"
                     >
                       <div
+                        v-for="member in activeMemberList.slice(0, 3)"
+                        :key="member.id"
                         class="avatar"
-                        style="background:#ef4444"
-                      />
-                      <div
-                        class="avatar"
-                        style="background:#3b82f6"
-                      />
-                      <div
-                        class="avatar"
-                        style="background:#10b981"
-                      />
-                      <span class="count">> 2,341</span>
+                      >
+                        {{ member.nickname.charAt(0).toUpperCase() }}
+                      </div>
+                      <span class="count">{{ formatCompactNumber(space.memberCount) }}</span>
                     </button>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        </template>
+        <template v-else>
+          <div class="empty-inline glass-card">
+            <p>没有找到这个学习圈，或当前账号没有访问权限。</p>
+            <button
+              class="neon-btn"
+              @click="router.push('/spaces')"
+            >
+              返回学习圈广场
+            </button>
           </div>
         </template>
       </div>
@@ -1478,6 +3945,7 @@ onMounted(loadSpace);
     }
 
     .header-action-btn {
+      position: relative;
       width: 40px;
       height: 40px;
       padding: 8px;
@@ -1498,7 +3966,7 @@ onMounted(loadSpace);
         transform: translate3d(0, -2px, 0);
       }
     }
-    
+
     .avatar {
       width: 32px;
       height: 32px;
@@ -1527,6 +3995,43 @@ onMounted(loadSpace);
   scroll-behavior: smooth;
 }
 
+.header-unread-dot {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 18px;
+  box-shadow: 0 8px 18px color-mix(in srgb, #ef4444 35%, transparent);
+}
+
+.outline-action {
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 12px;
+  background: var(--cf-bg-glass);
+  color: var(--cf-text-primary);
+  cursor: pointer;
+  font-weight: 800;
+  transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.22s ease, opacity 0.22s ease;
+
+  &:hover:not(:disabled) {
+    transform: translate3d(0, -1px, 0);
+    border-color: var(--cf-border-strong);
+    box-shadow: var(--cf-shadow-soft);
+  }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.58;
+  }
+}
+
 .embedded-profile {
   position: absolute;
   inset: 0;
@@ -1535,11 +4040,32 @@ onMounted(loadSpace);
   flex-direction: column;
   overflow: hidden;
   color: var(--cf-text-primary);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--cf-bg-readable) 92%, transparent), color-mix(in srgb, var(--cf-bg-base) 96%, transparent)),
-    var(--cf-bg-base);
-  backdrop-filter: blur(calc(var(--cf-backdrop-blur) + 4px)) saturate(142%);
-  -webkit-backdrop-filter: blur(calc(var(--cf-backdrop-blur) + 4px)) saturate(142%);
+  background-color: var(--cf-bg-base);
+  background-image: var(--cf-bg-environment);
+  background-position: 0 0, center, center;
+  background-size: 32px 32px, 140% 140%, 140% 140%;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  &::before {
+    background:
+      linear-gradient(180deg, transparent, color-mix(in srgb, var(--cf-bg-base) 74%, transparent)),
+      repeating-linear-gradient(90deg, transparent 0 74px, color-mix(in srgb, var(--cf-text-primary) 4%, transparent) 74px 75px);
+    opacity: 0.72;
+  }
+
+  &::after {
+    background: linear-gradient(120deg, transparent 0%, color-mix(in srgb, var(--cf-primary) 8%, transparent) 48%, transparent 100%);
+    opacity: 0.55;
+    transform: translate3d(-18%, -12%, 0);
+  }
 }
 
 .profile-panel-enter-active,
@@ -1556,6 +4082,8 @@ onMounted(loadSpace);
 .embedded-profile__top {
   height: 64px;
   flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1563,9 +4091,12 @@ onMounted(loadSpace);
   padding: 0 32px;
   border-bottom: 1px solid var(--cf-border-glass);
   background:
-    linear-gradient(180deg, var(--cf-surface-highlight), transparent 70%),
-    var(--cf-bg-glass-strong);
-  box-shadow: 0 18px 58px color-mix(in srgb, var(--cf-text-primary) 8%, transparent);
+    linear-gradient(180deg, var(--cf-surface-highlight), transparent 72%),
+    linear-gradient(90deg, var(--cf-bg-glass-strong), var(--cf-bg-glass-soft));
+  box-shadow: 0 20px 70px color-mix(in srgb, var(--cf-text-primary) 9%, transparent), 0 -1px 0
+    color-mix(in srgb, #ffffff 36%, transparent) inset;
+  backdrop-filter: blur(var(--cf-backdrop-blur)) saturate(136%);
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur)) saturate(136%);
 }
 
 .embedded-profile__back,
@@ -1583,6 +4114,13 @@ onMounted(loadSpace);
     transform: translate3d(0, -1px, 0);
     border-color: var(--cf-border-strong);
     box-shadow: var(--cf-shadow-soft);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.56;
+    transform: none;
+    box-shadow: none;
   }
 }
 
@@ -1605,24 +4143,42 @@ onMounted(loadSpace);
 }
 
 .embedded-profile__scroll {
+  position: relative;
+  z-index: 1;
   flex: 1;
   overflow-y: auto;
   padding: 32px;
+  scroll-behavior: smooth;
 }
 
 .embedded-profile__container {
-  width: min(100%, 1100px);
+  width: min(100%, 1200px);
   margin: 0 auto 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 32px;
+  align-items: start;
 }
 
 .profile-cover-card {
   position: relative;
   overflow: hidden;
-  min-height: 300px;
+  min-height: 164px;
+  grid-column: 1;
   border: 1px solid var(--cf-border-glass);
-  border-radius: 22px;
-  background: var(--cf-bg-glass);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--cf-secondary) 16%, transparent), transparent 58%),
+    linear-gradient(315deg, color-mix(in srgb, var(--cf-primary) 14%, transparent), transparent 52%),
+    var(--cf-bg-glass);
   box-shadow: var(--cf-shadow-card);
+  transition: transform 0.3s var(--cf-motion-ease), box-shadow 0.3s var(--cf-motion-ease), border-color 0.3s ease;
+
+  &:hover {
+    transform: translate3d(0, -4px, 0);
+    border-color: var(--cf-border-strong);
+    box-shadow: var(--cf-shadow-card-hover);
+  }
 
   > img {
     position: absolute;
@@ -1630,8 +4186,13 @@ onMounted(loadSpace);
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0.88;
-    filter: saturate(112%);
+    cursor: pointer;
+    opacity: 0.34;
+    filter: saturate(112%) contrast(0.96);
+    transform: scale(1.08) translate3d(-1.4%, -1.2%, 0);
+    transform-origin: center;
+    animation: profileCoverDrift 24s ease-in-out infinite alternate;
+    will-change: transform;
   }
 }
 
@@ -1639,36 +4200,46 @@ onMounted(loadSpace);
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, transparent 18%, color-mix(in srgb, var(--cf-bg-base) 38%, transparent) 66%, var(--cf-bg-readable)),
-    radial-gradient(circle at 18% 24%, color-mix(in srgb, var(--cf-primary) 22%, transparent), transparent 34%),
-    radial-gradient(circle at 82% 28%, color-mix(in srgb, var(--cf-secondary) 18%, transparent), transparent 32%);
+    radial-gradient(circle at 12% 16%, color-mix(in srgb, var(--cf-primary) 22%, transparent), transparent 28%),
+    radial-gradient(circle at 78% 62%, color-mix(in srgb, var(--cf-secondary) 18%, transparent), transparent 30%);
+  background-size: 130% 130%, 125% 125%;
+  opacity: 0.72;
+  animation: profileCoverLight 18s ease-in-out infinite alternate;
+  pointer-events: none;
 }
 
 .profile-identity {
   position: absolute;
-  left: 34px;
-  right: 34px;
-  bottom: 28px;
+  inset: 0;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 24px;
+  padding: 32px;
 }
 
 .profile-avatar-large {
-  width: 122px;
-  height: 122px;
+  border: 1px solid color-mix(in srgb, #ffffff 54%, transparent);
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   overflow: hidden;
   flex: 0 0 auto;
-  border: 4px solid color-mix(in srgb, var(--cf-bg-readable) 92%, transparent);
   background: var(--cf-gradient-primary);
   color: var(--cf-text-inverse);
-  box-shadow: 0 20px 48px color-mix(in srgb, var(--cf-text-primary) 22%, transparent);
+  cursor: pointer;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--cf-secondary) 22%, transparent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 48px;
+  font-size: 34px;
   font-weight: 900;
+  padding: 0;
+  transition: transform 0.22s var(--cf-motion-ease), box-shadow 0.22s ease;
+
+  &:hover {
+    transform: translate3d(0, -2px, 0) scale(1.015);
+    box-shadow: var(--cf-shadow-card-hover);
+  }
 
   img {
     width: 100%;
@@ -1680,17 +4251,29 @@ onMounted(loadSpace);
 .profile-copy {
   min-width: 0;
 
-  p,
-  small {
+  p {
     margin: 0;
     color: var(--cf-text-secondary);
   }
+}
 
-  small {
-    display: block;
-    margin-top: 8px;
-    font-size: 14px;
-    line-height: 1.5;
+.profile-bio-edit {
+  display: block;
+  margin-top: 8px;
+  max-width: 620px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--cf-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  line-height: 1.55;
+  transition: color 0.22s ease, border-color 0.22s ease, background 0.22s ease;
+
+  &:hover {
+    color: var(--cf-primary);
+    background: transparent;
   }
 }
 
@@ -1704,7 +4287,7 @@ onMounted(loadSpace);
   h2 {
     margin: 0;
     color: var(--cf-text-primary);
-    font-size: 30px;
+    font-size: 24px;
     line-height: 1.15;
   }
 
@@ -1723,19 +4306,36 @@ onMounted(loadSpace);
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
-  margin: 18px 0 24px;
+  grid-column: 1;
+  margin: 14px 0 16px;
 
-  article {
+  article,
+  button {
+    min-height: 112px;
     border: 1px solid var(--cf-border-glass);
     border-radius: 16px;
     background:
       linear-gradient(180deg, var(--cf-surface-highlight), transparent 58%),
       var(--cf-bg-glass);
-    box-shadow: 0 14px 36px color-mix(in srgb, var(--cf-text-primary) 6%, transparent);
+    box-shadow: var(--cf-shadow-card);
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    justify-content: space-between;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+    transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.22s ease;
+
+    &:hover {
+      transform: translate3d(0, -2px, 0);
+      border-color: var(--cf-border-strong);
+      box-shadow: var(--cf-shadow-soft);
+    }
   }
 
   span {
@@ -1745,35 +4345,53 @@ onMounted(loadSpace);
 
   strong {
     color: var(--cf-text-primary);
-    font-size: 22px;
+    font-size: 28px;
+    line-height: 1;
   }
 }
 
 .profile-content-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 24px;
+  display: contents;
+}
+
+.profile-feed {
+  grid-column: 1;
+  min-width: 0;
 }
 
 .profile-tabs {
   display: flex;
-  gap: 8px;
-  padding: 8px;
+  gap: 12px;
+  border-bottom: 1px solid var(--cf-border-glass);
   margin-bottom: 16px;
-  border: 1px solid var(--cf-border-glass);
-  border-radius: 16px;
   background: var(--cf-bg-glass-soft);
-  box-shadow: 0 14px 34px color-mix(in srgb, var(--cf-text-primary) 5%, transparent);
+  border-radius: 16px 16px 0 0;
+  padding: 0 10px;
+  box-shadow: 0 14px 38px color-mix(in srgb, var(--cf-text-primary) 5%, transparent);
 
   button {
     border: none;
-    border-radius: 12px;
+    border-radius: 0;
     background: transparent;
     color: var(--cf-text-secondary);
     cursor: pointer;
-    padding: 9px 13px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 13px 10px;
     font-weight: 800;
     transition: color 0.22s ease, background 0.22s ease, transform 0.22s var(--cf-motion-ease);
+
+    small {
+      min-width: 18px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--cf-text-primary) 8%, transparent);
+      color: inherit;
+      padding: 2px 6px;
+      font-size: 11px;
+      line-height: 1.2;
+    }
 
     &:hover {
       color: var(--cf-text-primary);
@@ -1781,9 +4399,24 @@ onMounted(loadSpace);
     }
 
     &.active {
-      background: var(--cf-primary);
-      color: var(--cf-text-inverse);
-      box-shadow: var(--cf-shadow-glow);
+      background: transparent;
+      color: var(--cf-text-primary);
+      box-shadow: none;
+
+      &::after {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        left: 10px;
+        width: calc(100% - 20px);
+        height: 2px;
+        background: var(--cf-primary);
+        box-shadow: 0 -2px 10px color-mix(in srgb, var(--cf-primary) 52%, transparent);
+      }
+
+      small {
+        background: color-mix(in srgb, var(--cf-text-primary) 8%, transparent);
+      }
     }
   }
 }
@@ -1792,10 +4425,30 @@ onMounted(loadSpace);
 .profile-widget {
   padding: 20px;
   background:
-    linear-gradient(180deg, var(--cf-surface-highlight), transparent 58%),
+    linear-gradient(180deg, var(--cf-surface-highlight), transparent 62%),
     var(--cf-bg-glass);
   border: 1px solid var(--cf-border-glass);
+  border-radius: 16px;
   box-shadow: var(--cf-shadow-card);
+}
+
+.profile-feed-card {
+  cursor: default;
+
+  &.actionable {
+    cursor: pointer;
+    transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.22s ease;
+
+    &:hover {
+      transform: translate3d(0, -2px, 0);
+      border-color: var(--cf-border-strong);
+      box-shadow: var(--cf-shadow-card-hover);
+    }
+  }
+
+  & + .profile-feed-card {
+    margin-top: 16px;
+  }
 }
 
 .profile-feed-card__head {
@@ -1826,7 +4479,7 @@ onMounted(loadSpace);
   height: 40px;
   border-radius: 50%;
   flex: 0 0 auto;
-  background: var(--cf-gradient-primary);
+  background: linear-gradient(135deg, var(--cf-secondary), var(--cf-primary));
   color: var(--cf-text-inverse);
   display: inline-flex;
   align-items: center;
@@ -1835,8 +4488,41 @@ onMounted(loadSpace);
 }
 
 .profile-feed-card__more {
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
   margin-left: auto;
   color: var(--cf-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, background 0.22s ease, color 0.22s ease;
+
+  &:hover {
+    transform: translate3d(0, -1px, 0);
+    border-color: var(--cf-border-glass);
+    background: var(--cf-bg-glass-soft);
+    color: var(--cf-primary);
+  }
+}
+
+.profile-feed-card__type {
+  margin-left: auto;
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 7px;
+  background: var(--cf-bg-glass);
+  color: var(--cf-text-secondary);
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 800;
+
+  + .profile-feed-card__more {
+    margin-left: 6px;
+  }
 }
 
 .profile-feed-card p {
@@ -1850,7 +4536,7 @@ onMounted(loadSpace);
   gap: 12px;
   align-items: center;
   border: 1px solid var(--cf-border-glass);
-  border-radius: 14px;
+  border-radius: 13px;
   background: var(--cf-bg-glass-soft);
   padding: 14px;
   color: var(--cf-primary);
@@ -1896,9 +4582,11 @@ onMounted(loadSpace);
 }
 
 .profile-side {
+  grid-column: 2;
+  grid-row: 1 / span 3;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
 }
 
 .profile-widget__header {
@@ -1926,34 +4614,223 @@ onMounted(loadSpace);
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 
-  i {
+  button {
     aspect-ratio: 1;
-    border: 1px solid color-mix(in srgb, var(--cf-primary) 24%, transparent);
+    border: 1px solid color-mix(in srgb, var(--cf-primary) 26%, transparent);
     border-radius: 12px;
-    background: color-mix(in srgb, var(--cf-primary) 11%, var(--cf-bg-glass));
+    background: color-mix(in srgb, var(--cf-primary) 12%, var(--cf-bg-glass));
     color: var(--cf-primary);
+    cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-style: normal;
+    font: inherit;
     font-weight: 900;
     box-shadow: inset 0 0 18px color-mix(in srgb, var(--cf-primary) 8%, transparent);
+    transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, opacity 0.22s ease;
+
+    &:hover {
+      transform: translate3d(0, -2px, 0);
+      border-color: var(--cf-border-strong);
+    }
+
+    &.locked {
+      opacity: 0.5;
+      filter: grayscale(0.55);
+    }
   }
 }
 
-.profile-calendar {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 7px;
+.profile-checkin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+
+  button {
+    border: 1px solid var(--cf-border-glass);
+    border-radius: 13px;
+    background: var(--cf-bg-glass-soft);
+    color: var(--cf-text-primary);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 11px 12px;
+    text-align: left;
+    transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.22s ease;
+
+    &:hover {
+      transform: translate3d(0, -1px, 0);
+      border-color: var(--cf-border-strong);
+      box-shadow: var(--cf-shadow-soft);
+    }
+  }
+
+  strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   span {
-    aspect-ratio: 1;
-    border-radius: 5px;
-    background: color-mix(in srgb, var(--cf-text-primary) 7%, transparent);
+    color: var(--cf-text-muted);
+    font-size: 12px;
+  }
+}
+
+.profile-widget-empty {
+  grid-column: 1 / -1;
+  border: 1px dashed var(--cf-border-glass);
+  border-radius: 12px;
+  background: var(--cf-bg-glass-soft);
+  color: var(--cf-text-muted);
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.profile-edit-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.profile-edit-preview {
+  position: relative;
+  overflow: hidden;
+  min-height: 200px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.2);
+
+  > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 20%, color-mix(in srgb, var(--cf-bg-base) 52%, transparent));
+  }
+}
+
+.profile-edit-avatar {
+  position: absolute;
+  z-index: 1;
+  left: 22px;
+  bottom: 18px;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid color-mix(in srgb, var(--cf-bg-readable) 88%, transparent);
+  background: var(--cf-gradient-primary);
+  color: var(--cf-text-inverse);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--cf-text-primary) 18%, transparent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 0;
+
+  small {
+    position: absolute;
+    inset: auto 0 0;
+    background: color-mix(in srgb, #000 54%, transparent);
+    color: #fff;
+    font-size: 11px;
+    line-height: 24px;
+    text-align: center;
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.profile-edit-cover-action,
+.profile-upload-field button {
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 12px;
+  background: var(--cf-bg-glass);
+  color: var(--cf-primary);
+  cursor: pointer;
+  font-weight: 900;
+  transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.22s ease, opacity 0.22s ease;
+
+  &:hover:not(:disabled) {
+    transform: translate3d(0, -1px, 0);
+    border-color: var(--cf-border-strong);
+    box-shadow: var(--cf-shadow-soft);
+  }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.62;
+  }
+}
+
+.profile-edit-cover-action {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1;
+  padding: 9px 13px;
+}
+
+.profile-asset-input {
+  display: none;
+}
+
+.profile-upload-field {
+  button {
+    min-height: 42px;
+    padding: 9px 12px;
+    text-align: left;
+  }
+}
+
+.profile-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.profile-follow-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+
+  button {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--cf-text-secondary);
+    cursor: pointer;
+    padding: 10px 12px;
+    font-weight: 900;
+    transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease;
+
+    &:hover {
+      transform: translate3d(0, -1px, 0);
+      border-color: var(--cf-border-strong);
+    }
 
     &.active {
       background: var(--cf-primary);
-      box-shadow: 0 0 14px color-mix(in srgb, var(--cf-primary) 26%, transparent);
+      color: var(--cf-text-inverse);
+      box-shadow: var(--cf-shadow-glow);
     }
   }
 }
@@ -2035,7 +4912,18 @@ onMounted(loadSpace);
           .stats { color: var(--cf-text-muted); font-size: 13px; .dot { margin: 0 8px; } }
         }
 
-        .header-btn { padding: 10px 24px; }
+        .banner-actions {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          gap: 10px;
+        }
+
+        .header-btn {
+          min-height: 42px;
+          padding: 10px 20px;
+          white-space: nowrap;
+        }
       }
     }
 
@@ -2072,6 +4960,98 @@ onMounted(loadSpace);
           }
         }
       }
+    }
+
+    .space-search-panel {
+      padding: 18px;
+      margin: 18px 0 24px;
+    }
+
+    .space-search-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h3 {
+        color: var(--cf-text-primary);
+        font-size: 20px;
+      }
+
+      p {
+        color: var(--cf-text-secondary);
+        font-size: 13px;
+        margin-top: 5px;
+      }
+    }
+
+    .space-search-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+
+      article {
+        border: 1px solid var(--cf-border-glass);
+        border-radius: 12px;
+        background: var(--cf-bg-glass-soft);
+        min-height: 72px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      span {
+        color: var(--cf-text-secondary);
+        font-size: 12px;
+      }
+
+      strong {
+        color: var(--cf-text-primary);
+        font-size: 22px;
+        line-height: 1;
+      }
+    }
+
+    .space-search-groups {
+      display: grid;
+      gap: 14px;
+    }
+
+    .space-search-group {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+
+      > header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 2px;
+
+        h4 {
+          margin: 0;
+          color: var(--cf-text-primary);
+          font-size: 15px;
+        }
+
+        span {
+          color: var(--cf-text-muted);
+          font-size: 12px;
+        }
+      }
+    }
+
+    .search-result-row,
+    .search-member-row {
+      background: var(--cf-bg-glass-soft);
     }
 
     .post-filters {
@@ -2117,13 +5097,13 @@ onMounted(loadSpace);
           border-color: var(--cf-border-strong);
           box-shadow: var(--cf-shadow-card-hover);
         }
-        
+
         .post-author {
           display: flex;
           align-items: center;
           gap: 12px;
           margin-bottom: 16px;
-          
+
           .avatar {
             width: 36px;
             height: 36px;
@@ -2147,7 +5127,27 @@ onMounted(loadSpace);
             .name { font-size: 14px; color: var(--cf-text-primary); font-weight: 500; cursor: pointer; }
             .time { font-size: 12px; color: var(--cf-text-muted); }
           }
-          .more-icon { margin-left: auto; color: var(--cf-text-secondary); cursor: pointer; }
+          .post-more-btn {
+            margin-left: auto;
+            width: 34px;
+            height: 34px;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            background: transparent;
+            color: var(--cf-text-secondary);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, background 0.22s ease, color 0.22s ease;
+
+            &:hover {
+              transform: translate3d(0, -1px, 0);
+              border-color: var(--cf-border-glass);
+              background: var(--cf-bg-glass-soft);
+              color: var(--cf-primary);
+            }
+          }
         }
 
         .post-title {
@@ -2176,11 +5176,23 @@ onMounted(loadSpace);
           display: flex;
           gap: 24px;
           .action {
+            border: none;
+            background: transparent;
+            padding: 0;
             display: flex; align-items: center; gap: 6px; color: var(--cf-text-secondary); font-size: 14px; cursor: pointer;
+            font: inherit;
             transition: color 0.22s ease, transform 0.22s var(--cf-motion-ease);
             &:hover {
               color: var(--cf-primary);
               transform: translate3d(0, -1px, 0);
+            }
+            &.active {
+              color: var(--cf-primary);
+            }
+            &:disabled {
+              cursor: wait;
+              opacity: 0.62;
+              transform: none;
             }
             &.right { margin-left: auto; }
           }
@@ -2237,7 +5249,7 @@ onMounted(loadSpace);
           .label { font-size: 14px; color: var(--cf-text-secondary); }
           .value { font-size: 18px; font-weight: bold; color: var(--cf-text-primary); }
           .up { color: #10b981; font-size: 12px; margin-left: 8px; font-weight: normal; }
-          
+
           &.mt { margin-top: 24px; margin-bottom: 0; }
         }
 
@@ -2264,6 +5276,13 @@ onMounted(loadSpace);
             height: 28px;
             border-radius: 50%;
             border: 2px solid color-mix(in srgb, var(--cf-bg-base) 72%, transparent);
+            background: var(--cf-gradient-primary);
+            color: var(--cf-text-inverse);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 900;
             margin-left: -8px;
             box-shadow: 0 8px 18px color-mix(in srgb, var(--cf-text-primary) 10%, transparent);
             &:first-child { margin-left: 0; }
@@ -2272,6 +5291,835 @@ onMounted(loadSpace);
         }
       }
     }
+  }
+}
+
+.home-view,
+.checkin-view,
+.settings-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.overview-card {
+  min-height: 112px;
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, var(--cf-surface-highlight), transparent 58%),
+    var(--cf-bg-glass);
+  color: var(--cf-text-primary);
+  cursor: pointer;
+  padding: 16px;
+  text-align: left;
+  box-shadow: var(--cf-shadow-card);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.24s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.24s ease;
+
+  &:hover {
+    transform: translate3d(0, -3px, 0);
+    border-color: var(--cf-border-strong);
+    box-shadow: var(--cf-shadow-card-hover);
+  }
+
+  span,
+  small {
+    color: var(--cf-text-secondary);
+  }
+
+  strong {
+    font-size: 28px;
+    line-height: 1;
+  }
+}
+
+.home-section,
+.settings-panel {
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, var(--cf-surface-highlight), transparent 62%),
+    var(--cf-bg-glass);
+  box-shadow: var(--cf-shadow-card);
+  padding: 20px;
+}
+
+.home-section header,
+.settings-panel header,
+.resource-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+
+  h3 {
+    margin: 0 0 4px;
+    color: var(--cf-text-primary);
+    font-size: 18px;
+  }
+
+  span {
+    color: var(--cf-text-muted);
+    font-size: 13px;
+  }
+
+  button {
+    border: 1px solid var(--cf-border-glass);
+    border-radius: 999px;
+    background: var(--cf-bg-glass);
+    color: var(--cf-primary);
+    cursor: pointer;
+    padding: 8px 12px;
+    font-weight: 800;
+  }
+}
+
+.compact-data-row {
+  min-height: 68px;
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 13px;
+  background: var(--cf-bg-glass-soft);
+  color: var(--cf-text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 14px;
+  transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.22s ease;
+
+  & + .compact-data-row {
+    margin-top: 9px;
+  }
+
+  &:hover {
+    transform: translate3d(0, -2px, 0);
+    border-color: var(--cf-border-strong);
+    box-shadow: var(--cf-shadow-soft);
+  }
+
+  div {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span,
+  small {
+    color: var(--cf-text-secondary);
+    font-size: 12px;
+  }
+
+  small {
+    flex: 0 0 auto;
+  }
+}
+
+.challenge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.challenge-card {
+  padding: 18px;
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, var(--cf-surface-highlight), transparent 58%),
+    var(--cf-bg-glass);
+  cursor: pointer;
+  transition: transform 0.24s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.24s ease;
+
+  &:hover {
+    transform: translate3d(0, -3px, 0);
+    border-color: var(--cf-border-strong);
+    box-shadow: var(--cf-shadow-card-hover);
+  }
+
+  p {
+    min-height: 44px;
+    margin: 12px 0;
+    color: var(--cf-text-secondary);
+    line-height: 1.55;
+  }
+}
+
+.challenge-card__top,
+.challenge-card__meta {
+  display: flex;
+  gap: 10px;
+}
+
+.challenge-card__top {
+  align-items: center;
+  justify-content: space-between;
+
+  strong {
+    color: var(--cf-text-primary);
+    font-size: 16px;
+  }
+
+  span {
+    border: 1px solid var(--cf-border-glass);
+    border-radius: 999px;
+    color: var(--cf-text-muted);
+    padding: 3px 8px;
+    font-size: 12px;
+
+    &.active {
+      border-color: color-mix(in srgb, var(--cf-primary) 44%, transparent);
+      color: var(--cf-primary);
+      background: var(--cf-primary-soft);
+    }
+  }
+}
+
+.challenge-card__meta {
+  flex-wrap: wrap;
+
+  span {
+    color: var(--cf-text-muted);
+    font-size: 12px;
+  }
+}
+
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settings-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+
+  article {
+    border: 1px solid var(--cf-border-glass);
+    border-radius: 14px;
+    background: var(--cf-bg-glass-soft);
+    padding: 14px;
+    min-height: 84px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  span {
+    color: var(--cf-text-secondary);
+    font-size: 12px;
+  }
+
+  strong {
+    color: var(--cf-text-primary);
+    font-size: 16px;
+  }
+}
+
+.settings-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.settings-action-card {
+  min-height: 76px;
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 14px;
+  background: var(--cf-bg-glass);
+  color: var(--cf-text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  text-align: left;
+  transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.22s ease;
+
+  &:hover {
+    transform: translate3d(0, -2px, 0);
+    border-color: var(--cf-border-strong);
+    box-shadow: var(--cf-shadow-soft);
+  }
+
+  .n-icon {
+    flex: 0 0 auto;
+    color: var(--cf-primary);
+    font-size: 22px;
+  }
+
+  span {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  strong {
+    color: var(--cf-text-primary);
+    font-size: 14px;
+  }
+
+  small {
+    color: var(--cf-text-muted);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.settings-readonly-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+
+  article {
+    border: 1px solid var(--cf-border-glass);
+    border-radius: 14px;
+    background: var(--cf-bg-glass-soft);
+    padding: 14px;
+  }
+
+  span {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--cf-text-secondary);
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  p {
+    margin: 0;
+    color: var(--cf-text-primary);
+    line-height: 1.65;
+    white-space: pre-wrap;
+  }
+}
+
+.profile-stat-summary {
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--cf-primary) 14%, transparent), transparent 68%),
+    var(--cf-bg-glass);
+  padding: 16px;
+  margin-bottom: 12px;
+
+  &.points {
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--cf-warning) 18%, transparent), transparent 68%),
+      var(--cf-bg-glass);
+  }
+
+  span {
+    color: var(--cf-text-secondary);
+    display: block;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  strong {
+    color: var(--cf-text-primary);
+    display: block;
+    font-size: 34px;
+    line-height: 1;
+  }
+
+  p {
+    color: var(--cf-text-muted);
+    font-size: 13px;
+    line-height: 1.55;
+    margin: 9px 0 0;
+  }
+}
+
+.profile-stat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.profile-stat-item,
+.profile-points-item {
+  width: 100%;
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 12px;
+  background: var(--cf-bg-glass);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  text-align: left;
+}
+
+.profile-stat-item {
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.22s ease;
+
+  &:hover {
+    transform: translate3d(0, -1px, 0);
+    border-color: var(--cf-border-strong);
+    box-shadow: var(--cf-shadow-soft);
+  }
+}
+
+.post-detail-modal {
+  --modal-width: min(94vw, 860px);
+}
+
+.post-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.detail-post-card,
+.detail-comment-editor,
+.detail-comments {
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 16px;
+  background: var(--cf-bg-glass);
+  padding: 16px;
+}
+
+.detail-post-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.detail-author {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  text-align: left;
+
+  strong,
+  small {
+    display: block;
+  }
+
+  strong {
+    color: var(--cf-text-primary);
+    font-size: 15px;
+  }
+
+  small {
+    color: var(--cf-text-muted);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+}
+
+.detail-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--cf-primary) 22%, transparent);
+  background: var(--cf-gradient-primary);
+  color: var(--cf-text-inverse);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 900;
+  flex: 0 0 auto;
+
+  &.small {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+}
+
+.detail-badges,
+.detail-tags,
+.detail-actions,
+.detail-comment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-badges span,
+.detail-tags span {
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 999px;
+  background: var(--cf-bg-glass-soft);
+  color: var(--cf-text-secondary);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.detail-post-card h3 {
+  margin: 0 0 10px;
+  color: var(--cf-text-primary);
+  font-size: 20px;
+}
+
+.detail-content {
+  color: var(--cf-text-primary);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.detail-qa-strip {
+  margin-top: 14px;
+  border: 1px solid color-mix(in srgb, var(--cf-primary) 28%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--cf-primary) 8%, var(--cf-bg-glass));
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.detail-actions {
+  margin-top: 14px;
+
+  button {
+    border: 1px solid var(--cf-border-glass);
+    border-radius: 12px;
+    background: var(--cf-bg-glass-soft);
+    color: var(--cf-text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    font: inherit;
+
+    &.active {
+      border-color: color-mix(in srgb, var(--cf-primary) 40%, transparent);
+      background: color-mix(in srgb, var(--cf-primary) 10%, var(--cf-bg-glass-soft));
+      color: var(--cf-primary);
+    }
+  }
+}
+
+.post-share-preview {
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 14px;
+  background: var(--cf-bg-glass);
+  padding: 14px;
+
+  strong,
+  p,
+  span {
+    display: block;
+  }
+
+  strong {
+    color: var(--cf-text-primary);
+    font-size: 15px;
+    margin-bottom: 6px;
+  }
+
+  p {
+    color: var(--cf-text-secondary);
+    margin: 0 0 10px;
+    line-height: 1.6;
+  }
+
+  span {
+    color: var(--cf-text-muted);
+    font-size: 12px;
+    word-break: break-all;
+  }
+}
+
+.detail-comment-editor textarea {
+  width: 100%;
+  min-height: 110px;
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 14px;
+  background: var(--cf-bg-readable);
+  color: var(--cf-text-primary);
+  padding: 12px 14px;
+  resize: vertical;
+  outline: none;
+}
+
+.detail-reply-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: var(--cf-text-secondary);
+  font-size: 13px;
+
+  button {
+    border: none;
+    background: transparent;
+    color: var(--cf-primary);
+    cursor: pointer;
+    font: inherit;
+  }
+}
+
+.detail-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.detail-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    h4 {
+      margin: 0;
+      color: var(--cf-text-primary);
+      font-size: 16px;
+    }
+
+    span {
+      color: var(--cf-text-muted);
+      font-size: 12px;
+    }
+  }
+}
+
+.detail-comment {
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 14px;
+  background: var(--cf-bg-glass-soft);
+  padding: 12px;
+}
+
+.detail-comment-main {
+  display: flex;
+  gap: 12px;
+}
+
+.detail-comment-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.detail-comment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  strong {
+    color: var(--cf-text-primary);
+    font-size: 14px;
+  }
+
+  span {
+    color: var(--cf-text-muted);
+    font-size: 12px;
+  }
+}
+
+.detail-comment-body p {
+  margin: 8px 0 0;
+  color: var(--cf-text-primary);
+  line-height: 1.65;
+}
+
+.detail-comment-actions {
+  margin-top: 10px;
+
+  button {
+    border: none;
+    background: transparent;
+    color: var(--cf-text-secondary);
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+
+    &:hover {
+      color: var(--cf-primary);
+    }
+  }
+}
+
+.detail-replies {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-left: 14px;
+  border-left: 1px solid var(--cf-border-glass);
+}
+
+.detail-reply {
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 12px;
+  background: var(--cf-bg-glass);
+  padding: 10px 12px;
+
+  strong {
+    color: var(--cf-text-primary);
+    font-size: 13px;
+  }
+
+  span {
+    color: var(--cf-text-muted);
+    font-size: 11px;
+    margin-left: 6px;
+  }
+
+  p {
+    color: var(--cf-text-primary);
+    line-height: 1.6;
+    margin: 6px 0 0;
+  }
+
+  button {
+    border: none;
+    background: transparent;
+    color: var(--cf-primary);
+    cursor: pointer;
+    margin-top: 8px;
+    padding: 0;
+    font: inherit;
+  }
+}
+
+.stat-item-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  strong,
+  small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: var(--cf-text-primary);
+    font-size: 14px;
+  }
+
+  small {
+    color: var(--cf-text-muted);
+    font-size: 12px;
+  }
+}
+
+.stat-item-value {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cf-primary) 12%, transparent);
+  color: var(--cf-primary);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 5px 9px;
+
+  &.negative {
+    background: color-mix(in srgb, var(--cf-danger) 12%, transparent);
+    color: var(--cf-danger);
+  }
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+
+  &.wide {
+    grid-column: 1 / -1;
+  }
+
+  span {
+    color: var(--cf-text-secondary);
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    border: 1px solid var(--cf-border-glass);
+    border-radius: 12px;
+    background: var(--cf-bg-readable);
+    color: var(--cf-text-primary);
+    outline: none;
+    padding: 10px 12px;
+    transition: border-color 0.22s ease, box-shadow 0.22s ease;
+
+    &:focus {
+      border-color: var(--cf-border-strong);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-primary) 10%, transparent);
+    }
+
+    &:disabled {
+      opacity: 0.72;
+      cursor: not-allowed;
+    }
+  }
+
+  textarea {
+    min-height: 96px;
+    resize: vertical;
+  }
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+
+  &.left {
+    justify-content: flex-start;
+    margin-top: 0;
+    margin-bottom: 16px;
+  }
+
+  button {
+    min-height: 40px;
+    padding: 8px 18px;
   }
 }
 
@@ -2367,7 +6215,7 @@ onMounted(loadSpace);
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 4px;
+    margin-bottom: 14px;
 
     h3 {
       margin: 0 0 4px;
@@ -2438,6 +6286,26 @@ onMounted(loadSpace);
       margin: 2px 0 0;
     }
   }
+
+  .resource-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+
+    span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid var(--cf-border-glass);
+      background: var(--cf-bg-glass-soft);
+      color: var(--cf-text-secondary);
+      font-size: 12px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+  }
 }
 
 .empty-inline {
@@ -2486,6 +6354,12 @@ onMounted(loadSpace);
   border-radius: 12px;
   background: var(--cf-bg-glass);
   padding: 12px;
+  cursor: default;
+
+  &.unread {
+    border-color: color-mix(in srgb, var(--cf-primary) 38%, transparent);
+    background: color-mix(in srgb, var(--cf-primary) 8%, var(--cf-bg-glass));
+  }
 
   strong {
     display: block;
@@ -2550,8 +6424,8 @@ onMounted(loadSpace);
   max-width: 540px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, var(--cf-surface-highlight), transparent 58%),
-    var(--cf-bg-readable);
+    linear-gradient(180deg, color-mix(in srgb, var(--cf-bg-base) 16%, transparent), transparent 58%),
+    color-mix(in srgb, var(--cf-bg-base) 72%, transparent);
   border: 1px solid var(--cf-border-glass);
   border-radius: 20px;
   box-shadow:
@@ -2567,6 +6441,265 @@ onMounted(loadSpace);
 
 :global(.upload-modal .n-card__content) {
   padding: 0;
+}
+
+.member-profile-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.member-profile-loading {
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--cf-text-secondary);
+}
+
+.member-profile-cover {
+  position: relative;
+  overflow: hidden;
+  min-height: 220px;
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 18px;
+  background: var(--cf-bg-glass);
+  box-shadow: var(--cf-shadow-card);
+
+  > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.9;
+    transform: scale(1.08) translate3d(-1.2%, -1%, 0);
+    transform-origin: center;
+    animation: profileCoverDrift 26s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+}
+
+.member-profile-cover__shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 18%, color-mix(in srgb, var(--cf-bg-base) 42%, transparent) 68%, var(--cf-bg-readable)),
+    radial-gradient(circle at 18% 24%, color-mix(in srgb, var(--cf-primary) 20%, transparent), transparent 34%),
+    radial-gradient(circle at 82% 24%, color-mix(in srgb, var(--cf-secondary) 16%, transparent), transparent 32%);
+  background-size: 100% 100%, 128% 128%, 124% 124%;
+  animation: profileCoverLight 20s ease-in-out infinite alternate;
+}
+
+.member-profile-identity {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 20px;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+
+  p {
+    margin: 6px 0 0;
+    color: var(--cf-text-secondary);
+  }
+}
+
+.member-profile-avatar {
+  width: 86px;
+  height: 86px;
+  border: 3px solid color-mix(in srgb, var(--cf-bg-readable) 92%, transparent);
+  border-radius: 50%;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: var(--cf-gradient-primary);
+  color: var(--cf-text-inverse);
+  box-shadow: 0 16px 38px color-mix(in srgb, var(--cf-text-primary) 22%, transparent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 900;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.member-profile-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+
+  h3 {
+    margin: 0;
+    color: var(--cf-text-primary);
+    font-size: 24px;
+    line-height: 1.15;
+  }
+
+  span {
+    border: 1px solid color-mix(in srgb, var(--cf-warning) 46%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--cf-warning) 12%, transparent);
+    color: var(--cf-warning);
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 900;
+  }
+}
+
+.member-profile-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+
+  article {
+    border: 1px solid var(--cf-border-glass);
+    border-radius: 14px;
+    background: var(--cf-bg-glass);
+    padding: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  span {
+    color: var(--cf-text-muted);
+    font-size: 12px;
+  }
+
+  strong {
+    color: var(--cf-text-primary);
+    font-size: 20px;
+  }
+}
+
+.member-profile-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px;
+  gap: 14px;
+
+  main {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+}
+
+.member-profile-section {
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, var(--cf-surface-highlight), transparent 58%),
+    var(--cf-bg-glass);
+  padding: 16px;
+
+  p {
+    margin: 0 0 10px;
+    color: var(--cf-text-secondary);
+    line-height: 1.65;
+  }
+
+  small {
+    color: var(--cf-text-muted);
+  }
+}
+
+.member-profile-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+
+  h4 {
+    margin: 0;
+    color: var(--cf-text-primary);
+    font-size: 16px;
+  }
+
+  > span {
+    color: var(--cf-primary);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  button {
+    border: 1px solid color-mix(in srgb, var(--cf-primary) 32%, transparent);
+    border-radius: 999px;
+    background: var(--cf-primary-soft);
+    color: var(--cf-primary);
+    cursor: pointer;
+    padding: 7px 13px;
+    font-weight: 900;
+    transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.22s ease;
+
+    &:hover:not(:disabled) {
+      transform: translate3d(0, -1px, 0);
+      border-color: var(--cf-border-strong);
+      box-shadow: var(--cf-shadow-soft);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.68;
+    }
+  }
+}
+
+.member-profile-post {
+  width: 100%;
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--cf-bg-glass) 82%, transparent);
+  color: var(--cf-text-primary);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 9px;
+  padding: 11px 12px;
+  text-align: left;
+  transition: transform 0.22s var(--cf-motion-ease), border-color 0.22s ease, box-shadow 0.22s ease;
+
+  &:hover {
+    transform: translate3d(0, -1px, 0);
+    border-color: var(--cf-border-strong);
+    box-shadow: var(--cf-shadow-soft);
+  }
+
+  span {
+    color: var(--cf-text-muted);
+    font-size: 12px;
+  }
+}
+
+.member-profile-badges {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+
+  button {
+    aspect-ratio: 1;
+    border: 1px solid color-mix(in srgb, var(--cf-primary) 26%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--cf-primary) 12%, var(--cf-bg-glass));
+    color: var(--cf-primary);
+    cursor: default;
+    font: inherit;
+    font-weight: 900;
+
+    &.locked {
+      opacity: 0.48;
+      filter: grayscale(0.5);
+    }
+  }
 }
 
 .upload-panel {
@@ -2711,7 +6844,7 @@ onMounted(loadSpace);
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
   margin-top: 16px;
 }
@@ -2760,6 +6893,26 @@ onMounted(loadSpace);
   }
 }
 
+.tag-hint {
+  position: relative;
+  z-index: 1;
+  margin-top: 10px;
+  color: var(--cf-text-secondary);
+  font-size: 12px;
+}
+
+.challenge-modal {
+  :deep(.n-card) {
+    background: var(--cf-bg-glass);
+    border: 1px solid var(--cf-border-glass);
+    box-shadow: var(--cf-shadow-card);
+  }
+}
+
+.challenge-form-panel {
+  margin-top: 6px;
+}
+
 .upload-actions {
   position: relative;
   z-index: 1;
@@ -2804,8 +6957,8 @@ onMounted(loadSpace);
   width: 320px;
   max-width: calc(100vw - 36px);
   background:
-    linear-gradient(180deg, var(--cf-surface-highlight), transparent 54%),
-    var(--cf-bg-readable);
+    linear-gradient(180deg, color-mix(in srgb, var(--cf-bg-base) 16%, transparent), transparent 54%),
+    color-mix(in srgb, var(--cf-bg-base) 72%, transparent);
   border: 1px solid var(--cf-border-glass);
   border-radius: 16px;
   box-shadow: 0 24px 72px color-mix(in srgb, var(--cf-text-primary) 18%, transparent), 0 10px 28px
@@ -3262,6 +7415,64 @@ onMounted(loadSpace);
   }
 }
 
+@keyframes profileCoverDrift {
+  0% {
+    transform: scale(1.08) translate3d(-1.4%, -1.2%, 0);
+  }
+  50% {
+    transform: scale(1.12) translate3d(1.2%, 0.8%, 0);
+  }
+  100% {
+    transform: scale(1.09) translate3d(-0.6%, 1.4%, 0);
+  }
+}
+
+@keyframes profileCoverLight {
+  0% {
+    background-position: 0 0, 0 0, 100% 0;
+  }
+  100% {
+    background-position: 0 0, 18% 12%, 78% 18%;
+  }
+}
+
+@keyframes profileEnvironmentDrift {
+  0% {
+    background-position: 0 0, 50% 50%, 50% 50%;
+  }
+  100% {
+    background-position: 0 -96px, 50% 42%, 50% 58%;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .embedded-profile {
+    animation: profileEnvironmentDrift 9s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .embedded-profile,
+  .profile-cover-card > img,
+  .profile-cover-card__shade,
+  .member-profile-cover > img,
+  .member-profile-cover__shade {
+    animation: none;
+  }
+}
+
+@media (max-width: 1080px) {
+  .embedded-profile__container {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-feed,
+  .profile-side {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
 @media (max-width: 720px) {
   .embedded-profile__top,
   .embedded-profile__scroll {
@@ -3269,23 +7480,32 @@ onMounted(loadSpace);
     padding-right: 16px;
   }
 
+  .embedded-profile__top {
+    gap: 10px;
+  }
+
+  .embedded-profile__container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
   .profile-cover-card {
-    min-height: 360px;
+    min-height: 300px;
   }
 
   .profile-identity {
-    left: 20px;
-    right: 20px;
-    bottom: 22px;
+    inset: 0;
+    padding: 22px;
     align-items: flex-start;
     flex-direction: column;
     gap: 14px;
+    justify-content: flex-end;
   }
 
   .profile-avatar-large {
-    width: 94px;
-    height: 94px;
-    font-size: 38px;
+    width: 76px;
+    height: 76px;
+    font-size: 32px;
   }
 
   .profile-name-row h2 {
@@ -3296,8 +7516,24 @@ onMounted(loadSpace);
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .profile-content-grid {
+  .profile-feed,
+  .profile-side {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .member-profile-metrics,
+  .member-profile-body {
     grid-template-columns: 1fr;
+  }
+
+  .member-profile-cover {
+    min-height: 260px;
+  }
+
+  .member-profile-identity {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .profile-tabs {

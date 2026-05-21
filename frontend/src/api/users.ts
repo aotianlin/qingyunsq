@@ -1,6 +1,11 @@
 import { request } from './request';
 import type { UserVO } from '@/types/user';
 
+export interface UserAssetUploadVO {
+  url: string;
+  storageKey: string;
+}
+
 export async function getMyProfile(): Promise<UserVO> {
   const res = await request<UserVO>({ method: 'GET', url: '/users/me' });
   return res.data;
@@ -9,12 +14,25 @@ export async function getMyProfile(): Promise<UserVO> {
 export async function updateProfile(data: {
   nickname?: string;
   avatarUrl?: string;
+  profileCoverUrl?: string;
   bio?: string;
   college?: string;
   major?: string;
   grade?: string;
 }): Promise<UserVO> {
   const res = await request<UserVO>({ method: 'PUT', url: '/users/me', data });
+  return res.data;
+}
+
+export async function uploadProfileAsset(file: File): Promise<UserAssetUploadVO> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await request<UserAssetUploadVO>({
+    method: 'POST',
+    url: '/users/me/assets',
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return res.data;
 }
 

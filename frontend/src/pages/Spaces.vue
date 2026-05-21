@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { NSpin, NIcon } from 'naive-ui';
+import { NSpin, NIcon, NModal, NInput, NSelect, useMessage } from 'naive-ui';
 import {
   PlanetOutline,
   PeopleOutline,
@@ -12,13 +12,20 @@ import {
   ChevronForwardOutline,
   BonfireOutline
 } from '@vicons/ionicons5';
-import { getSpaces } from '@/api/spaces';
+import { createSpace, getSpaces } from '@/api/spaces';
 import type { SpaceVO } from '@/types/space';
 
 const router = useRouter();
+const message = useMessage();
 const spaces = ref<SpaceVO[]>([]);
 const loading = ref(false);
 const category = ref<string | undefined>(undefined);
+const createVisible = ref(false);
+const createSubmitting = ref(false);
+const createName = ref('');
+const createDescription = ref('');
+const createCategory = ref('');
+const createVisibility = ref('PUBLIC');
 
 const categories = [
   { key: undefined, label: '全部学习圈', icon: PlanetOutline },
@@ -27,6 +34,17 @@ const categories = [
   { key: 'CLUB', label: '社团联盟', icon: ColorPaletteOutline },
   { key: 'INTEREST', label: '兴趣圈', icon: BasketballOutline },
 ] as const;
+const categoryOptions = categories
+  .filter((item) => item.key)
+  .map((item) => ({
+    label: item.label,
+    value: item.key as string,
+  }));
+
+const visibilityOptions = [
+  { value: 'PUBLIC', label: '公开（任何人可加入）' },
+  { value: 'REVIEW', label: '审核（需管理员审核）' },
+];
 
 async function loadSpaces() {
   loading.value = true;
@@ -48,8 +66,53 @@ function goDetail(id: number) {
 }
 
 function goCreate() {
-  router.push('/spaces/new');
+  createVisible.value = true;
 }
+
+function resetCreateForm() {
+  createName.value = '';
+  createDescription.value = '';
+  createCategory.value = '';
+  createVisibility.value = 'PUBLIC';
+}
+
+function closeCreateModal() {
+  if (createSubmitting.value) return;
+  createVisible.value = false;
+}
+
+async function submitCreateSpace() {
+  const name = createName.value.trim();
+  if (!name || !createCategory.value) {
+    message.warning('请填写空间名称和分类');
+    return;
+  }
+
+  createSubmitting.value = true;
+  try {
+    const space = await createSpace({
+      name,
+      description: createDescription.value.trim() || undefined,
+      category: createCategory.value,
+      visibility: createVisibility.value,
+    });
+    message.success('学习圈创建成功');
+    createVisible.value = false;
+    resetCreateForm();
+    await loadSpaces();
+    router.push(`/spaces/${space.id}`);
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '创建失败');
+  } finally {
+    createSubmitting.value = false;
+  }
+}
+
+watch(createVisible, (visible) => {
+  if (!visible && !createSubmitting.value) {
+    resetCreateForm();
+  }
+});
 
 function getCategoryColor(cat: string) {
   const colors: Record<string, string> = {
@@ -213,6 +276,76 @@ onMounted(loadSpaces);
         </div>
       </div>
     </div>
+
+    <NModal
+      v-model:show="createVisible"
+      preset="card"
+      title="创建学习圈"
+      class="space-modal create-space-modal"
+      transform-origin="center"
+      :closable="!createSubmitting"
+      :mask-closable="!createSubmitting"
+      :style="{ width: 'min(92vw, 560px)' }"
+      @after-leave="resetCreateForm"
+    >
+      <div class="create-space-form">
+        <label class="create-field">
+          <span>空间名称</span>
+          <NInput
+            v-model:value="createName"
+            placeholder="例如：Java 学习小组"
+            maxlength="64"
+          />
+        </label>
+
+        <label class="create-field">
+          <span>简介</span>
+          <NInput
+            v-model:value="createDescription"
+            type="textarea"
+            placeholder="简单介绍一下空间..."
+            maxlength="255"
+            :autosize="{ minRows: 3, maxRows: 5 }"
+          />
+        </label>
+
+        <label class="create-field">
+          <span>分类</span>
+          <NSelect
+            v-model:value="createCategory"
+            :options="categoryOptions"
+            placeholder="选择分类"
+          />
+        </label>
+
+        <label class="create-field">
+          <span>加入方式</span>
+          <NSelect
+            v-model:value="createVisibility"
+            :options="visibilityOptions"
+          />
+        </label>
+
+        <div class="create-actions">
+          <button
+            class="neon-btn outline-btn"
+            type="button"
+            :disabled="createSubmitting"
+            @click="closeCreateModal"
+          >
+            取消
+          </button>
+          <button
+            class="neon-btn"
+            type="button"
+            :disabled="createSubmitting"
+            @click="submitCreateSpace"
+          >
+            {{ createSubmitting ? '创建中...' : '创建' }}
+          </button>
+        </div>
+      </div>
+    </NModal>
   </div>
 </template>
 
@@ -222,6 +355,32 @@ onMounted(loadSpaces);
   overflow-y: auto;
   background: transparent;
   perspective: 1200px;
+}
+
+:global(.space-modal.create-space-modal.n-card) {
+  width: min(92vw, 560px);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--cf-bg-base) 16%, transparent), transparent 54%),
+    color-mix(in srgb, var(--cf-bg-base) 72%, transparent);
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 16px;
+  box-shadow: 0 24px 72px color-mix(in srgb, var(--cf-text-primary) 18%, transparent), 0 10px 28px
+    color-mix(in srgb, var(--cf-text-primary) 8%, transparent);
+  backdrop-filter: blur(var(--cf-backdrop-blur)) saturate(136%);
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur)) saturate(136%);
+}
+
+:global(.space-modal.create-space-modal .n-card-header) {
+  padding: 14px 14px 6px;
+}
+
+:global(.space-modal.create-space-modal .n-card-header__main) {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+:global(.space-modal.create-space-modal .n-card__content) {
+  padding: 8px 14px 14px;
 }
 
 .header-banner {
@@ -259,6 +418,31 @@ onMounted(loadSpaces);
       font-weight: bold;
     }
   }
+}
+
+.create-space-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.create-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.create-field > span {
+  color: var(--cf-text-secondary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .main-container {

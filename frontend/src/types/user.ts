@@ -9,6 +9,7 @@ export interface UserVO {
   major: string;
   grade: string;
   role: string;
+  profileCoverUrl?: string;
   points: number;
   status: number;
   lastLoginAt: string;

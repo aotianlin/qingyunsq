@@ -1,14 +1,22 @@
 package com.campusforum.user.controller;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.campusforum.common.BusinessException;
+import com.campusforum.common.ErrorCode;
 import com.campusforum.common.R;
+import com.campusforum.infra.StorageService;
 import com.campusforum.user.dto.UpdateProfileRequest;
+import com.campusforum.user.dto.UserAssetUploadVO;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -18,6 +26,10 @@ import java.util.Set;
 public class UserController {
 
     private final UserService userService;
+    private final StorageService storageService;
+
+    @Value("${storage.type:local}")
+    private String storageType;
 
     @GetMapping("/me")
     public R<UserVO> getMe() {
@@ -29,6 +41,18 @@ public class UserController {
     public R<UserVO> updateMe(@Valid @RequestBody UpdateProfileRequest req) {
         long userId = StpUtil.getLoginIdAsLong();
         return R.ok(userService.updateProfile(userId, req));
+    }
+
+    @PostMapping("/me/assets")
+    public R<UserAssetUploadVO> uploadProfileAsset(@RequestParam("file") MultipartFile file) throws IOException {
+        StpUtil.checkLogin();
+        validateProfileImage(file);
+        String storageKey = storageService.upload(file.getInputStream(), file.getOriginalFilename(), file.getContentType());
+        String url = "local".equalsIgnoreCase(storageType) ? "/uploads/" + storageKey : storageKey;
+        return R.ok(UserAssetUploadVO.builder()
+                .url(url)
+                .storageKey(storageKey)
+                .build());
     }
 
     @GetMapping("/me/mute-settings")
@@ -60,5 +84,27 @@ public class UserController {
     @GetMapping("/{id}")
     public R<UserVO> getById(@PathVariable Long id) {
         return R.ok(userService.getById(id));
+    }
+
+    private void validateProfileImage(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "请选择要上传的图片");
+        }
+        if (file.getSize() > 5 * 1024 * 1024L) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "图片不能超过 5MB");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "只能上传图片文件");
+        }
+        String originalName = file.getOriginalFilename();
+        String lowerName = originalName == null ? "" : originalName.toLowerCase(Locale.ROOT);
+        if (!(lowerName.endsWith(".jpg")
+                || lowerName.endsWith(".jpeg")
+                || lowerName.endsWith(".png")
+                || lowerName.endsWith(".gif")
+                || lowerName.endsWith(".webp"))) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "仅支持 JPG、PNG、GIF、WEBP 图片");
+        }
     }
 }

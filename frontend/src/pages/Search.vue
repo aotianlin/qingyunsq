@@ -109,52 +109,55 @@ watch(
 
 <template>
   <div class="search-page">
-    <section class="search-head cf-surface">
-      <button class="back-btn" @click="router.back()">
-        <n-icon size="18"><ArrowBackOutline /></n-icon>
-      </button>
-      <div class="search-head-copy">
-        <span class="cf-pill">Search</span>
-        <h1 class="cf-section-title">
-          全站搜索
-        </h1>
-        <p class="cf-section-subtitle">
-          已补上从全局搜索框携带 `q` 参数进入后的自动检索能力，并统一为新的浅色检索工作台。
-        </p>
-      </div>
-    </section>
+    <div class="search-hero cf-surface">
+      <section class="search-hero-header">
+        <button class="back-btn" @click="router.back()">
+          <n-icon size="18"><ArrowBackOutline /></n-icon>
+        </button>
+        <div class="search-hero-copy">
+          <div class="title-row">
+            <h1 class="cf-section-title">全站搜索</h1>
+            <span class="cf-pill">Search</span>
+          </div>
+          <p class="cf-section-subtitle">
+            一站式检索校园帖子、资源、用户与学习圈，支持全文搜索与精准分类。
+          </p>
+        </div>
+      </section>
 
-    <section class="search-bar cf-card">
-      <n-input
-        v-model:value="keyword"
-        size="large"
-        placeholder="搜索帖子、用户、资源或学习圈"
-        clearable
-        @keyup.enter="doSearch"
-      >
-        <template #prefix>
-          <n-icon><SearchOutline /></n-icon>
-        </template>
-      </n-input>
-      <button class="cf-primary-btn" @click="doSearch">
-        搜索
-      </button>
-    </section>
+      <section class="search-hero-bar">
+        <n-input
+          v-model:value="keyword"
+          size="large"
+          placeholder="搜索关键词..."
+          clearable
+          @keyup.enter="doSearch"
+        >
+          <template #prefix>
+            <n-icon><SearchOutline /></n-icon>
+          </template>
+        </n-input>
+        <button class="cf-primary-btn" @click="doSearch">
+          <n-icon size="20"><SearchOutline /></n-icon>
+          搜索
+        </button>
+      </section>
 
-    <section class="filter-bar cf-surface">
-      <button
-        v-for="item in types"
-        :key="item.key"
-        class="filter-chip"
-        :class="{ active: searchType === item.key }"
-        @click="switchType(item.key)"
-      >
-        <n-icon size="16">
-          <component :is="item.icon" />
-        </n-icon>
-        {{ item.label }}
-      </button>
-    </section>
+      <nav class="search-hero-filter">
+        <button
+          v-for="item in types"
+          :key="item.key"
+          class="filter-chip"
+          :class="{ active: searchType === item.key }"
+          @click="switchType(item.key)"
+        >
+          <n-icon size="16">
+            <component :is="item.icon" />
+          </n-icon>
+          {{ item.label }}
+        </button>
+      </nav>
+    </div>
 
     <section class="result-head" v-if="searched && !loading">
       <strong>找到 {{ resultCount }} 条结果</strong>
@@ -221,24 +224,37 @@ watch(
 .search-page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
 }
 
-.search-head {
-  padding: 22px;
+.search-hero {
+  padding: 30px;
   display: flex;
-  gap: 16px;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.search-hero-header {
+  display: flex;
+  gap: 18px;
   align-items: flex-start;
 }
 
-.search-head-copy {
+.search-hero-copy {
   flex: 1;
+
+  .title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
 }
 
 .back-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
   border: 1px solid var(--cf-border);
   background: var(--cf-bg-elevated);
   display: inline-flex;
@@ -246,38 +262,63 @@ watch(
   justify-content: center;
   cursor: pointer;
   color: var(--cf-text-secondary);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: var(--cf-bg-soft);
+    border-color: var(--cf-primary);
+    color: var(--cf-primary);
+  }
 }
 
-.search-bar {
-  padding: 18px;
+.search-hero-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 1fr auto;
   gap: 12px;
+  padding: 4px;
+  background: var(--cf-bg-soft);
+  border-radius: 16px;
+  border: 1px solid var(--cf-border);
+
+  :deep(.n-input) {
+    --n-border: none !important;
+    --n-border-hover: none !important;
+    --n-border-focus: none !important;
+    --n-box-shadow-focus: none !important;
+    background: transparent !important;
+  }
 }
 
-.filter-bar {
+.search-hero-filter {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  padding: 12px;
+  gap: 8px;
 }
 
 .filter-chip {
-  border: none;
-  background: transparent;
+  border: 1px solid transparent;
+  background: var(--cf-bg-elevated);
   color: var(--cf-text-secondary);
   border-radius: 12px;
-  padding: 10px 14px;
+  padding: 8px 16px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
   font-weight: 600;
+  font-size: 14px;
+  transition: all 0.25s var(--cf-motion-ease);
+
+  &:hover {
+    background: var(--cf-bg-soft);
+    border-color: var(--cf-border);
+  }
 }
 
 .filter-chip.active {
   background: var(--cf-primary-soft);
   color: var(--cf-primary);
+  border-color: var(--cf-primary);
 }
 
 .result-head {
@@ -367,7 +408,12 @@ watch(
 }
 
 @media (max-width: 720px) {
-  .search-bar {
+  .search-hero {
+    padding: 20px;
+    gap: 18px;
+  }
+
+  .search-hero-bar {
     grid-template-columns: 1fr;
   }
 }

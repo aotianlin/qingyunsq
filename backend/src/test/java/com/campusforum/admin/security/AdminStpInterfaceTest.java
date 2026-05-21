@@ -45,6 +45,7 @@ class AdminStpInterfaceTest {
 
     @AfterEach
     void tearDown() {
+        try { StpUtil.logout(userId); } catch (Exception ignored) {}
         TenantContext.clear();
     }
 
@@ -62,9 +63,7 @@ class AdminStpInterfaceTest {
 
     @Test
     void shouldReturnTenantAdminPermissions() {
-        userService.changeRole(userId, "TENANT_ADMIN");
-        // 清除可能存在的旧 session 缓存，确保从 DB 读取最新角色
-        try { StpUtil.logout(userId); } catch (Exception ignored) {}
+        changeRoleAsSuperAdmin("TENANT_ADMIN");
         List<String> perms = stpInterface.getPermissionList(userId, "login");
         assertThat(perms).contains(
                 "tenant:dashboard",
@@ -95,10 +94,16 @@ class AdminStpInterfaceTest {
 
     @Test
     void shouldReturnTenantAdminRole() {
-        userService.changeRole(userId, "TENANT_ADMIN");
-        // 清除可能存在的旧 session 缓存，确保从 DB 读取最新角色
-        try { StpUtil.logout(userId); } catch (Exception ignored) {}
+        changeRoleAsSuperAdmin("TENANT_ADMIN");
         List<String> roles = stpInterface.getRoleList(userId, "login");
         assertThat(roles).containsExactly("TENANT_ADMIN");
+    }
+
+    private void changeRoleAsSuperAdmin(String role) {
+        StpUtil.login(userId);
+        StpUtil.getSession().set("role", "SUPER_ADMIN");
+        userService.changeRole(userId, role);
+        // 清除授权操作时写入的 session 缓存，确保权限接口从 DB 读取最新角色。
+        StpUtil.logout(userId);
     }
 }

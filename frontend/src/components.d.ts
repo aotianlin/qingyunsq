@@ -10,7 +10,6 @@ declare module 'vue' {
     AppNotify: typeof import('./components/AppNotify.vue')['default']
     MentionText: typeof import('./components/MentionText.vue')['default']
     NConfigProvider: typeof import('naive-ui')['NConfigProvider']
-    NEmpty: typeof import('naive-ui')['NEmpty']
     NIcon: typeof import('naive-ui')['NIcon']
     NMessageProvider: typeof import('naive-ui')['NMessageProvider']
     NNotificationProvider: typeof import('naive-ui')['NNotificationProvider']

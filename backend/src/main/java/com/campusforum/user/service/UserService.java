@@ -220,6 +220,7 @@ public class UserService {
         }
         if (req.getNickname() != null) user.setNickname(req.getNickname());
         if (req.getAvatarUrl() != null) user.setAvatarUrl(req.getAvatarUrl());
+        if (req.getProfileCoverUrl() != null) user.setProfileCoverUrl(req.getProfileCoverUrl());
         if (req.getBio() != null) user.setBio(req.getBio());
         if (req.getCollege() != null) user.setCollege(req.getCollege());
         if (req.getMajor() != null) user.setMajor(req.getMajor());
@@ -379,6 +380,7 @@ public class UserService {
                 .email(user.getEmail())
                 .nickname(user.getNickname())
                 .avatarUrl(user.getAvatarUrl())
+                .profileCoverUrl(user.getProfileCoverUrl())
                 .bio(user.getBio())
                 .college(user.getCollege())
                 .major(user.getMajor())

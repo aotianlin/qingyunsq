@@ -16,7 +16,7 @@ export async function aiRecommendTags(title: string, content: string): Promise<A
   return res.data;
 }
 
-export async function aiChat(messages: { role: string; content: string }[]): Promise<AiResponse> {
-  const res = await request<AiResponse>({ method: 'POST', url: '/ai/chat', data: { messages } });
+export async function aiChat(messages: { role: string; content: string }[], context?: string): Promise<AiResponse> {
+  const res = await request<AiResponse>({ method: 'POST', url: '/ai/chat', data: { messages, context } });
   return res.data;
 }

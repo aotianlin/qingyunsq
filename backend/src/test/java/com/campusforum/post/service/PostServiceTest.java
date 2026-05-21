@@ -1,5 +1,6 @@
 package com.campusforum.post.service;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.campusforum.common.BusinessException;
 import com.campusforum.post.dto.CreateCommentRequest;
 import com.campusforum.post.dto.CreatePostRequest;
@@ -47,6 +48,7 @@ class PostServiceTest {
 
     @AfterEach
     void tearDown() {
+        try { StpUtil.logout(authorId); } catch (Exception ignored) {}
         TenantContext.clear();
     }
 
@@ -86,7 +88,9 @@ class PostServiceTest {
         req.setContent("测试浏览量递增");
         PostVO created = postService.create(authorId, req);
 
-        PostVO detail = postService.getById(created.getId());
+        StpUtil.login(authorId);
+        StpUtil.getSession().set("role", "USER");
+        PostVO detail = postService.viewPost(created.getId());
 
         assertThat(detail.getId()).isEqualTo(created.getId());
         assertThat(detail.getViewCount()).isEqualTo(1); // 创建时 0，查一次 +1

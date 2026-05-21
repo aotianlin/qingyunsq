@@ -17,6 +17,7 @@ public class User extends BaseEntity {
     private String passwordHash;
     private String nickname;
     private String avatarUrl;
+    private String profileCoverUrl;
     private String bio;
     private String college;
     private String major;

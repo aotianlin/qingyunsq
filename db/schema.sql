@@ -38,6 +38,7 @@ CREATE TABLE users (
   password_hash   VARCHAR(128) NOT NULL,
   nickname        VARCHAR(64)  NOT NULL,
   avatar_url      VARCHAR(255) DEFAULT NULL,
+  profile_cover_url VARCHAR(255) DEFAULT NULL COMMENT '个人主页封面图',
   bio             VARCHAR(255) DEFAULT NULL,
   college         VARCHAR(64)  DEFAULT NULL COMMENT '学院',
   major           VARCHAR(64)  DEFAULT NULL COMMENT '专业',

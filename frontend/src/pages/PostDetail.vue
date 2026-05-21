@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NButton, NCard, NEmpty, NIcon, NInput, NModal, NSelect, NSpin, NTag, useMessage } from 'naive-ui';
 import { acceptAnswer, getQaInfo } from '@/api/qa';
+import { aiChat, aiModerate, aiRecommendTags, aiSummarize } from '@/api/ai';
 import { deleteComment, createComment, getComments, toggleCommentReaction } from '@/api/comments';
 import { deletePost, getPostById, toggleReaction } from '@/api/posts';
 import { createReport } from '@/api/report';
@@ -10,7 +11,7 @@ import { useAuthStore } from '@/stores/auth';
 import MentionText from '@/components/MentionText.vue';
 import type { CommentVO, PostVO } from '@/types/post';
 import type { QaQuestionVO } from '@/types/qa';
-import { ArrowBackOutline, ChatbubbleOutline, ChatbubblesOutline, HeartOutline, LinkOutline, MegaphoneOutline, PencilOutline, PricetagOutline, RibbonOutline, ShieldCheckmarkOutline, TrashOutline, PersonOutline } from '@vicons/ionicons5';
+import { ArrowBackOutline, ChatbubblesOutline, HeartOutline, LinkOutline, MegaphoneOutline, PricetagOutline, ShieldCheckmarkOutline, TrashOutline, PersonOutline, SendOutline, SparklesOutline } from '@vicons/ionicons5';
 
 const route = useRoute();
 const router = useRouter();
@@ -31,6 +32,11 @@ const reportTargetType = ref<'POST' | 'COMMENT'>('POST');
 const reportReason = ref('SPAM');
 const reportDesc = ref('');
 const reportSubmitting = ref(false);
+const aiModalShow = ref(false);
+const aiLoading = ref(false);
+const aiInput = ref('');
+const aiAnalyzedPostId = ref<number | null>(null);
+const aiMessages = ref<{ role: 'assistant' | 'user'; content: string }[]>([]);
 const reportReasons = [
   { label: '垃圾广告', value: 'SPAM' },
   { label: '违规内容', value: 'ILLEGAL' },
@@ -55,6 +61,77 @@ function openReport(targetType: 'POST' | 'COMMENT', targetId: number) {
   reportReason.value = 'SPAM';
   reportDesc.value = '';
   reportModalShow.value = true;
+}
+
+async function openAiAnalysis() {
+  if (!post.value) return;
+  aiModalShow.value = true;
+
+  if (aiAnalyzedPostId.value === post.value.id && aiMessages.value.length > 0) {
+    return;
+  }
+
+  aiAnalyzedPostId.value = post.value.id;
+  aiMessages.value = [];
+  aiInput.value = '';
+  aiLoading.value = true;
+
+  try {
+    const [summary, moderate, tags] = await Promise.all([
+      aiSummarize(buildPostAiMaterial()),
+      aiModerate(buildPostAiMaterial()),
+      aiRecommendTags(post.value.title || '无标题帖子', post.value.content),
+    ]);
+    aiMessages.value = [
+      {
+        role: 'assistant',
+        content: [
+          `我已阅读这篇帖子，先给出一版快速分析：`,
+          '',
+          `1. 核心摘要：${summary.summary || '暂未提取到明确摘要。'}`,
+          `2. 内容风险：${formatRiskText(moderate.riskLevel, moderate.riskReason)}`,
+          `3. 推荐标签：${(tags.tags || []).length ? tags.tags.join('、') : '暂无明显标签'}`,
+          `4. 互动建议：可以继续追问“这篇帖子适合怎么回复”“有哪些争议点”“帮我提炼成笔记”。`,
+        ].join('\n'),
+      },
+    ];
+  } catch {
+    aiMessages.value = [
+      {
+        role: 'assistant',
+        content: 'AI 分析暂时失败，可以稍后重试，或直接在下方输入你想追问的问题。',
+      },
+    ];
+    message.error('AI 分析失败');
+  } finally {
+    aiLoading.value = false;
+  }
+}
+
+async function sendAiQuestion() {
+  if (!post.value || !aiInput.value.trim() || aiLoading.value) return;
+
+  const question = aiInput.value.trim();
+  aiMessages.value.push({ role: 'user', content: question });
+  aiInput.value = '';
+  aiLoading.value = true;
+
+  try {
+    const history = aiMessages.value.map((item) => ({ role: item.role, content: item.content }));
+    const res = await aiChat(history, buildPostAiContext());
+    aiMessages.value.push({
+      role: 'assistant',
+      content: res.reply || 'AI 暂时没有返回内容，请换个问题再试。',
+    });
+  } catch {
+    message.error('AI 回复失败');
+    aiMessages.value.push({
+      role: 'assistant',
+      content: 'AI 回复失败，请稍后重试。',
+    });
+  } finally {
+    aiLoading.value = false;
+  }
 }
 
 async function submitReport() {
@@ -191,6 +268,32 @@ function formatAuthorName(comment: CommentVO) {
   return comment.author?.nickname || '匿名用户';
 }
 
+function buildPostAiMaterial() {
+  if (!post.value) return '';
+  return [
+    `标题：${post.value.title || '无标题帖子'}`,
+    `类型：${post.value.type === 'QA' ? '问答帖' : '普通帖子'}`,
+    `作者：${post.value.author?.nickname || '匿名用户'}`,
+    `话题：${post.value.topics?.length ? post.value.topics.join('、') : '无'}`,
+    `正文：${post.value.content}`,
+  ].join('\n');
+}
+
+function buildPostAiContext() {
+  return [
+    '你是 CampusForum 的帖子分析助手。请只围绕用户正在查看的帖子进行分析，回答要简洁、结构清晰、可执行。',
+    '如果用户要求回复建议，请给出适合校园社区语境的自然表达。',
+    '',
+    buildPostAiMaterial(),
+  ].join('\n');
+}
+
+function formatRiskText(level?: number, reason?: string) {
+  if (level === 2) return reason ? `高风险，${reason}` : '高风险，建议谨慎处理。';
+  if (level === 1) return reason ? `需留意，${reason}` : '需留意，建议进一步核对。';
+  return '未发现明显风险。';
+}
+
 onMounted(loadPost);
 </script>
 
@@ -302,6 +405,10 @@ onMounted(loadPost);
               <button class="action-btn" @click="openReport('POST', post.id)">
                 <n-icon size="16"><MegaphoneOutline /></n-icon>
                 举报
+              </button>
+              <button class="action-btn ai-action" @click="openAiAnalysis">
+                <n-icon size="16"><SparklesOutline /></n-icon>
+                AI 分析
               </button>
             </div>
           </article>
@@ -420,6 +527,71 @@ onMounted(loadPost);
           <button class="cf-primary-btn" :disabled="reportSubmitting" @click="submitReport">提交举报</button>
         </div>
       </template>
+    </n-modal>
+
+    <n-modal
+      v-model:show="aiModalShow"
+      preset="card"
+      title="AI 帖子分析"
+      class="ai-analysis-modal"
+      style="width: min(760px, calc(100vw - 32px));"
+    >
+      <div class="ai-dialog">
+        <div class="ai-dialog-head">
+          <div class="ai-icon">
+            AI
+          </div>
+          <div>
+            <strong>{{ post?.title || '无标题帖子' }}</strong>
+            <span>基于当前帖子正文、话题与基础互动数据进行分析</span>
+          </div>
+        </div>
+
+        <div class="ai-message-list">
+          <div
+            v-for="(item, index) in aiMessages"
+            :key="`${item.role}-${index}`"
+            class="ai-message"
+            :class="item.role"
+          >
+            <div class="ai-message-role">
+              {{ item.role === 'user' ? '我' : 'AI' }}
+            </div>
+            <pre>{{ item.content }}</pre>
+          </div>
+
+          <div
+            v-if="aiLoading"
+            class="ai-message assistant loading"
+          >
+            <div class="ai-message-role">AI</div>
+            <div class="ai-typing">
+              <span />
+              <span />
+              <span />
+            </div>
+          </div>
+        </div>
+
+        <div class="ai-input-row">
+          <n-input
+            v-model:value="aiInput"
+            type="textarea"
+            class="cf-textarea"
+            placeholder="继续追问：这篇帖子适合怎么回复？有哪些关键观点？"
+            :autosize="{ minRows: 2, maxRows: 5 }"
+            @keydown.enter.exact.prevent="sendAiQuestion"
+          />
+          <button
+            class="cf-primary-btn ai-send-btn"
+            :disabled="aiLoading || !aiInput.trim()"
+            @click="sendAiQuestion"
+          >
+            <n-icon size="16"><SendOutline /></n-icon>
+            发送
+          </button>
+        </div>
+      </div>
     </n-modal>
   </div>
 </template>
@@ -605,7 +777,8 @@ onMounted(loadPost);
   cursor: pointer;
 }
 
-.action-btn.active {
+.action-btn.active,
+.action-btn.ai-action {
   background: var(--cf-primary-soft);
   color: var(--cf-primary);
 }
@@ -776,9 +949,185 @@ onMounted(loadPost);
   justify-content: flex-end;
 }
 
+.ai-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ai-dialog-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--cf-bg-soft);
+  border: 1px solid var(--cf-border);
+
+  strong {
+    display: block;
+    color: var(--cf-text-primary);
+  }
+
+  span {
+    display: block;
+    margin-top: 4px;
+    color: var(--cf-text-muted);
+    font-size: 13px;
+  }
+}
+
+.ai-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--cf-text-primary);
+  background: color-mix(in srgb, var(--cf-bg-elevated) 82%, var(--cf-primary) 18%);
+  border: 1px solid color-mix(in srgb, var(--cf-primary) 28%, var(--cf-border));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 30%, transparent);
+  font-family: var(--cf-font-heading);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.ai-message-list {
+  max-height: min(52vh, 520px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.ai-message {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.ai-message-role {
+  height: 30px;
+  min-width: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--cf-bg-elevated) 88%, var(--cf-primary) 12%);
+  color: var(--cf-text-secondary);
+  border: 1px solid color-mix(in srgb, var(--cf-primary) 18%, var(--cf-border));
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ai-message pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 13px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--cf-border);
+  background: var(--cf-bg-elevated);
+  color: var(--cf-text-secondary);
+  line-height: 1.75;
+  font-family: var(--cf-font-body);
+}
+
+.ai-message.user {
+  grid-template-columns: minmax(0, 1fr) 42px;
+
+  .ai-message-role {
+    grid-column: 2;
+    grid-row: 1;
+    background: color-mix(in srgb, var(--cf-primary) 16%, var(--cf-bg-elevated));
+    color: var(--cf-primary);
+  }
+
+  pre {
+    grid-column: 1;
+    grid-row: 1;
+    background: color-mix(in srgb, var(--cf-primary) 10%, var(--cf-bg-elevated));
+  }
+}
+
+.ai-typing {
+  width: fit-content;
+  min-height: 42px;
+  padding: 13px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--cf-border);
+  background: var(--cf-bg-elevated);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--cf-primary);
+    animation: aiTyping 0.9s ease-in-out infinite;
+  }
+
+  span:nth-child(2) {
+    animation-delay: 0.12s;
+  }
+
+  span:nth-child(3) {
+    animation-delay: 0.24s;
+  }
+}
+
+.ai-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+  padding-top: 14px;
+  border-top: 1px solid var(--cf-border);
+}
+
+.ai-send-btn {
+  align-self: flex-end;
+  min-height: 42px;
+}
+
+@keyframes aiTyping {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
 @media (max-width: 1100px) {
   .content-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .post-actions {
+    flex-wrap: wrap;
+  }
+
+  .ai-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-send-btn {
+    width: 100%;
   }
 }
 </style>

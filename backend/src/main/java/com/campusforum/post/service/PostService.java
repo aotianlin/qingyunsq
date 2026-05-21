@@ -164,7 +164,9 @@ public class PostService {
         if (currentUserId != null) {
             String role = (String) StpUtil.getSession().get("role");
             if (!"TENANT_ADMIN".equals(role) && !"SUPER_ADMIN".equals(role)) {
-                postMapper.incrementViewCount(id);
+                if (postMapper.incrementViewCount(id) > 0) {
+                    post.setViewCount((post.getViewCount() == null ? 0 : post.getViewCount()) + 1);
+                }
             }
         }
         return toVO(post, currentUserId);
