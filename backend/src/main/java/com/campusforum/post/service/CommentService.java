@@ -57,14 +57,11 @@ public class CommentService {
         commentMapper.insert(comment);
         achievementService.onCommentCreated(userId);
 
-        // 更新帖子评论数
-        var post = postMapper.selectById(req.getPostId());
-        if (post != null) {
-            post.setCommentCount(post.getCommentCount() + 1);
-            postMapper.updateById(post);
-        }
+        // Bug fix 1.4: 原子更新帖子评论数
+        postMapper.incrementCommentCount(req.getPostId(), 1);
 
         // 通知
+        var post = postMapper.selectById(req.getPostId());
         User commenter = userMapper.selectById(userId);
         String commenterName = commenter != null ? commenter.getNickname() : "有人";
 
@@ -75,9 +72,12 @@ public class CommentService {
         }
 
         if (req.getParentId() != null) {
-            // 回复评论，通知父评论作者
+            // Bug fix 1.18: 显式空值检查
             Comment parentComment = commentMapper.selectById(req.getParentId());
-            if (parentComment != null && !parentComment.getAuthorId().equals(userId)) {
+            if (parentComment == null) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "父评论不存在");
+            }
+            if (!parentComment.getAuthorId().equals(userId)) {
                 notifyService.create(parentComment.getAuthorId(), userId, "REPLY",
                         "回复通知", commenterName + " 回复了你", "/posts/" + req.getPostId());
             }

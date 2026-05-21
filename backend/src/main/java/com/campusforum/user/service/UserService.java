@@ -286,6 +286,13 @@ public class UserService {
         if (!List.of("USER", "TENANT_ADMIN").contains(role)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "无效的角色");
         }
+        // Bug fix 1.12: 提升为 TENANT_ADMIN 需要 SUPER_ADMIN 权限
+        if ("TENANT_ADMIN".equals(role)) {
+            String callerRole = (String) StpUtil.getSession().get("role");
+            if (!"SUPER_ADMIN".equals(callerRole)) {
+                throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "仅超级管理员可提升用户为租户管理员");
+            }
+        }
         user.setRole(role);
         userMapper.updateById(user);
         log.info("User role changed: id={}, role={}", userId, role);
@@ -339,21 +346,24 @@ public class UserService {
 
     /**
      * 查找订阅了指定标签的所有用户 ID。
+     * Bug fix 1.15: 使用 SQL 层过滤替代全表加载
      */
     public Set<Long> findSubscribedUserIds(List<String> tags) {
         if (tags == null || tags.isEmpty()) return Set.of();
+        // SQL 层粗筛
+        List<Long> candidateIds = userMapper.selectUserIdsByTagSubscription(tags);
+        if (candidateIds.isEmpty()) return Set.of();
+        // Java 层精确匹配（SQL LIKE 可能有误匹配）
         Set<Long> result = new HashSet<>();
-        List<User> allUsers = userMapper.selectList(new LambdaQueryWrapper<User>()
-                .isNotNull(User::getTagSubscriptions)
-                .ne(User::getTagSubscriptions, "")
-                .ne(User::getTagSubscriptions, "[]"));
-        for (User user : allUsers) {
+        for (Long uid : candidateIds) {
+            User user = userMapper.selectById(uid);
+            if (user == null || user.getTagSubscriptions() == null) continue;
             try {
                 Set<String> subs = jsonMapper.readValue(user.getTagSubscriptions(),
                         new TypeReference<Set<String>>() {});
                 for (String tag : tags) {
                     if (subs.contains(tag)) {
-                        result.add(user.getId());
+                        result.add(uid);
                         break;
                     }
                 }

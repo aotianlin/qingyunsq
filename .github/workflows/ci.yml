@@ -43,7 +43,10 @@ jobs:
         run: docker exec -i ${{ job.services.mysql.id }} mysql -uroot -proot < db/schema.sql
       - name: Run tests
         working-directory: backend
-        run: mvn test
+        env:
+          SPRING_PROFILES_ACTIVE: ci
+          TESTCONTAINERS_RYUK_DISABLED: "true"
+        run: mvn test -Dspring.profiles.active=ci -Dtestcontainers.reuse.enable=false
 
   frontend-test:
     runs-on: ubuntu-latest

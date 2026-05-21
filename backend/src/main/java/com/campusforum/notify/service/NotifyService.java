@@ -17,7 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Slf4j
@@ -60,11 +62,13 @@ public class NotifyService {
         notificationMapper.insert(notif);
         log.debug("Notification created: type={}, receiver={}", type, receiverId);
 
-        // Push via WebSocket
+        // Bug fix 1.13: 使用 ObjectMapper 安全构造 JSON，防止注入
         try {
-            String typeStr = type != null ? type : "";
-            String titleStr = title != null ? title : "";
-            String payload = "{\"type\":\"" + typeStr + "\",\"title\":\"" + titleStr + "\",\"content\":\"" + (content != null ? content : "") + "\"}";
+            Map<String, Object> payloadMap = new java.util.LinkedHashMap<>();
+            payloadMap.put("type", type != null ? type : "");
+            payloadMap.put("title", title != null ? title : "");
+            payloadMap.put("content", content != null ? content : "");
+            String payload = jsonMapper.writeValueAsString(payloadMap);
             sessionRegistry.sendToUser(receiverId, payload);
         } catch (Exception ignored) {
             // WebSocket push is best-effort

@@ -64,14 +64,22 @@ public class QaService {
             throw new BusinessException(ErrorCode.QUESTION_ALREADY_SOLVED);
         }
 
+        // Bug fix 1.10: 校验评论归属帖子（在设置 acceptedCommentId 之前）
+        Comment acceptedComment = commentMapper.selectById(commentId);
+        if (acceptedComment == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "评论不存在");
+        }
+        if (!acceptedComment.getPostId().equals(postId)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "该评论不属于此帖子");
+        }
+
         qa.setIsSolved(1);
         qa.setAcceptedCommentId(commentId);
         qa.setSolvedAt(LocalDateTime.now());
         qaQuestionMapper.updateById(qa);
 
         // 通知被采纳的回答者 + 转移悬赏积分
-        Comment acceptedComment = commentMapper.selectById(commentId);
-        if (acceptedComment != null && !acceptedComment.getAuthorId().equals(userId)) {
+        if (!acceptedComment.getAuthorId().equals(userId)) {
             int bounty = qa.getBountyPoints() != null ? qa.getBountyPoints() : 0;
             if (bounty > 0) {
                 // 从提问者扣减悬赏积分，转给回答者

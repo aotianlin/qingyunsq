@@ -10,6 +10,7 @@ import com.campusforum.notify.websocket.SessionRegistry;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ public class MessageService {
     private final MessageMapper messageMapper;
     private final UserMapper userMapper;
     private final SessionRegistry sessionRegistry;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public MessageVO send(Long senderId, Long receiverId, String content, String imageUrl) {
@@ -44,13 +46,16 @@ public class MessageService {
         msg.setIsRead(0);
         messageMapper.insert(msg);
 
-        // WebSocket 实时推送
+        // Bug fix 1.9: 使用 ObjectMapper 安全构造 JSON，防止注入
         try {
             User sender = userMapper.selectById(senderId);
             String senderName = sender != null ? sender.getNickname() : "有人";
-            String payload = "{\"type\":\"MESSAGE\",\"senderId\":" + senderId +
-                    ",\"senderName\":\"" + senderName + "\",\"content\":\"" +
-                    (content != null ? content.substring(0, Math.min(content.length(), 50)) : "[图片]") + "\"}";
+            Map<String, Object> payloadMap = new LinkedHashMap<>();
+            payloadMap.put("type", "MESSAGE");
+            payloadMap.put("senderId", senderId);
+            payloadMap.put("senderName", senderName);
+            payloadMap.put("content", content != null ? content.substring(0, Math.min(content.length(), 50)) : "[图片]");
+            String payload = objectMapper.writeValueAsString(payloadMap);
             sessionRegistry.sendToUser(receiverId, payload);
         } catch (Exception ignored) {}
 
@@ -77,26 +82,15 @@ public class MessageService {
 
     /**
      * 获取所有对话列表，每条对话显示最后一条消息。
+     * Bug fix 1.16: 使用 SQL 分组分页替代全量加载
      */
     public List<MessageVO> listConversations(Long userId) {
-        // 查所有我发送或接收的消息，按 id 倒序
-        LambdaQueryWrapper<Message> qw = new LambdaQueryWrapper<>();
-        qw.and(w -> w.eq(Message::getSenderId, userId).or().eq(Message::getReceiverId, userId));
-        qw.orderByDesc(Message::getId);
-        List<Message> all = messageMapper.selectList(qw);
-
-        // 按对话对方去重，保留最新一条
-        Map<String, Message> latestMap = new LinkedHashMap<>();
-        Set<Long> seenPeers = new LinkedHashSet<>();
-        for (Message m : all) {
-            long peerId = m.getSenderId().equals(userId) ? m.getReceiverId() : m.getSenderId();
-            if (!seenPeers.contains(peerId)) {
-                seenPeers.add(peerId);
-                latestMap.put(String.valueOf(peerId), m);
-            }
-        }
-
-        return latestMap.values().stream().map(this::toVO).toList();
+        List<Long> latestIds = messageMapper.selectLatestMessageIdsPerConversation(userId, 50);
+        if (latestIds.isEmpty()) return List.of();
+        List<Message> messages = messageMapper.selectBatchIds(latestIds);
+        // 按 ID 倒序排列
+        messages.sort((a, b) -> Long.compare(b.getId(), a.getId()));
+        return messages.stream().map(this::toVO).toList();
     }
 
     @Transactional

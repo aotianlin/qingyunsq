@@ -165,10 +165,9 @@ public class SpaceService {
             memberMapper.insert(member);
         }
 
-        // 更新成员数
+        // Bug fix 1.5: 原子更新成员数
         if (memberStatus == 1) {
-            space.setMemberCount(space.getMemberCount() + 1);
-            spaceMapper.updateById(space);
+            spaceMapper.incrementMemberCount(spaceId, 1);
         } else {
             // REVIEW 模式，通知空间主审核
             User applicant = userMapper.selectById(userId);
@@ -205,8 +204,8 @@ public class SpaceService {
         member.setStatus(2); // 已退出
         memberMapper.updateById(member);
 
-        space.setMemberCount(Math.max(0, space.getMemberCount() - 1));
-        spaceMapper.updateById(space);
+        // Bug fix 1.5: 原子更新成员数
+        spaceMapper.incrementMemberCount(spaceId, -1);
 
         log.info("User {} left space {}", userId, spaceId);
     }
@@ -256,9 +255,8 @@ public class SpaceService {
         member.setJoinedAt(LocalDateTime.now());
         memberMapper.updateById(member);
 
-        Space space = spaceMapper.selectById(spaceId);
-        space.setMemberCount(space.getMemberCount() + 1);
-        spaceMapper.updateById(space);
+        // Bug fix 1.5: 原子更新成员数
+        spaceMapper.incrementMemberCount(spaceId, 1);
         log.info("Space {} member {} approved", spaceId, targetUserId);
     }
 
@@ -280,9 +278,8 @@ public class SpaceService {
         member.setStatus(3); // 已拒绝/踢出
         memberMapper.updateById(member);
 
-        Space space = spaceMapper.selectById(spaceId);
-        space.setMemberCount(Math.max(0, space.getMemberCount() - 1));
-        spaceMapper.updateById(space);
+        // Bug fix 1.5: 原子更新成员数
+        spaceMapper.incrementMemberCount(spaceId, -1);
     }
 
     @Transactional
@@ -347,8 +344,32 @@ public class SpaceService {
         }
     }
 
+    // Bug fix 1.6: 私有空间成员访问校验
+    public void checkMemberAccess(Long spaceId, Long userId) {
+        Space space = spaceMapper.selectById(spaceId);
+        if (space == null || space.getDeleted() == 1) {
+            throw new BusinessException(ErrorCode.SPACE_NOT_FOUND);
+        }
+        if ("PRIVATE".equals(space.getVisibility())) {
+            if (userId == null) {
+                throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "私有空间需登录访问");
+            }
+            SpaceMember member = memberMapper.selectOne(new LambdaQueryWrapper<SpaceMember>()
+                    .eq(SpaceMember::getSpaceId, spaceId)
+                    .eq(SpaceMember::getUserId, userId)
+                    .eq(SpaceMember::getStatus, 1));
+            if (member == null) {
+                throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "非空间成员，无法查看帖子");
+            }
+        }
+    }
+
     private void checkOwnership(Long spaceId, Long userId, Space space) {
         Space s = space != null ? space : spaceMapper.selectById(spaceId);
+        // Bug fix 1.18: 显式空值检查
+        if (s == null) {
+            throw new BusinessException(ErrorCode.SPACE_NOT_FOUND);
+        }
         SpaceMember member = memberMapper.selectOne(new LambdaQueryWrapper<SpaceMember>()
                 .eq(SpaceMember::getSpaceId, spaceId)
                 .eq(SpaceMember::getUserId, userId)
