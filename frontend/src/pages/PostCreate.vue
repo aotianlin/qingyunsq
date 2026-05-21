@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NAlert, NButton, NIcon, NInput, NInputNumber, NSelect, NTag, useMessage } from 'naive-ui';
 import { createPost, getPostById } from '@/api/posts';
@@ -86,6 +86,15 @@ watch([title, content, postType, topics, bountyPoints], () => {
   if (draftTimer) clearTimeout(draftTimer);
   draftTimer = setTimeout(saveDraft, 1000);
 }, { deep: true });
+
+// 组件卸载时清理定时器并保存草稿
+onUnmounted(() => {
+  if (draftTimer) {
+    clearTimeout(draftTimer);
+    draftTimer = null;
+  }
+  saveDraft();
+});
 
 const typeOptions = [
   { label: '普通帖子', value: 'NORMAL' },
