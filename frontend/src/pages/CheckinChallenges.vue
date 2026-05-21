@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { NSpin, NIcon } from 'naive-ui';
+import { NSpin, NIcon, NModal, NInput, NDatePicker, NButton, useMessage } from 'naive-ui';
 import { 
   CheckmarkCircleOutline,
   FlameOutline,
@@ -12,13 +12,19 @@ import {
   AddOutline,
   ChevronForwardOutline
 } from '@vicons/ionicons5';
-import { getChallenges } from '@/api/checkin';
+import { createChallenge, getChallenges } from '@/api/checkin';
 import type { CheckinChallengeVO } from '@/types/checkin';
 
 const router = useRouter();
+const message = useMessage();
 const challenges = ref<CheckinChallengeVO[]>([]);
 const loading = ref(false);
 const filter = ref<'all' | 'active' | 'ended'>('active');
+const createVisible = ref(false);
+const createName = ref('');
+const createDescription = ref('');
+const createRange = ref<[number, number] | null>(null);
+const createSubmitting = ref(false);
 
 const filters = [
   { key: 'all', label: '全部挑战', icon: TrophyOutline },
@@ -50,7 +56,56 @@ function goDetail(id: number) {
 }
 
 function goCreate() {
-  router.push('/checkin/new');
+  const today = new Date();
+  const end = new Date(today);
+  end.setDate(today.getDate() + 30);
+  createName.value = '';
+  createDescription.value = '';
+  createRange.value = [today.getTime(), end.getTime()];
+  createVisible.value = true;
+}
+
+function formatDate(ts: number) {
+  const date = new Date(ts);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function closeCreateModal() {
+  if (createSubmitting.value) return;
+  createVisible.value = false;
+}
+
+async function submitCreate() {
+  if (!createName.value.trim() || !createRange.value) {
+    message.warning('请填写挑战名称和日期范围');
+    return;
+  }
+
+  const [start, end] = createRange.value;
+  if (end < start) {
+    message.warning('结束日期不能早于开始日期');
+    return;
+  }
+
+  createSubmitting.value = true;
+  try {
+    const challenge = await createChallenge({
+      name: createName.value.trim(),
+      description: createDescription.value.trim() || undefined,
+      startDate: formatDate(start),
+      endDate: formatDate(end),
+    });
+    challenges.value = [challenge, ...challenges.value.filter((item) => item.id !== challenge.id)];
+    createVisible.value = false;
+    message.success('创建成功');
+  } catch {
+    message.error('创建失败');
+  } finally {
+    createSubmitting.value = false;
+  }
 }
 
 onMounted(load);
@@ -185,6 +240,61 @@ onMounted(load);
         </div>
       </div>
     </div>
+
+    <NModal
+      v-model:show="createVisible"
+      preset="card"
+      class="create-challenge-modal"
+      title="创建打卡挑战"
+      :bordered="false"
+      :mask-closable="!createSubmitting"
+      @close="closeCreateModal"
+    >
+      <div class="create-form">
+        <label>挑战名称</label>
+        <NInput
+          v-model:value="createName"
+          placeholder="例如：每日背单词"
+          maxlength="64"
+          show-count
+        />
+
+        <label>日期范围</label>
+        <NDatePicker
+          v-model:value="createRange"
+          type="daterange"
+          clearable
+          :is-date-disabled="(ts: number) => ts < Date.now() - 86400000"
+        />
+
+        <label>简介</label>
+        <NInput
+          v-model:value="createDescription"
+          type="textarea"
+          placeholder="简单描述一下挑战目标或规则"
+          maxlength="500"
+          show-count
+          :autosize="{ minRows: 4, maxRows: 6 }"
+        />
+
+        <div class="create-actions">
+          <NButton
+            :disabled="createSubmitting"
+            @click="closeCreateModal"
+          >
+            取消
+          </NButton>
+          <NButton
+            type="primary"
+            color="#fb923c"
+            :loading="createSubmitting"
+            @click="submitCreate"
+          >
+            创建挑战
+          </NButton>
+        </div>
+      </div>
+    </NModal>
   </div>
 </template>
 
@@ -459,5 +569,29 @@ onMounted(load);
     transform: translateY(100%);
     transition: all 0.3s ease;
   }
+}
+
+:global(.create-challenge-modal) {
+  width: min(520px, calc(100vw - 32px));
+  border-radius: 18px;
+}
+
+.create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  label {
+    color: var(--cf-text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+  }
+}
+
+.create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
 }
 </style>

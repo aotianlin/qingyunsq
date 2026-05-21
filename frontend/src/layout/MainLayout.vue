@@ -7,6 +7,7 @@ import {
   BookOutline,
   ChatbubblesOutline,
   CheckmarkCircleOutline,
+  DocumentTextOutline,
   CompassOutline,
   LogOutOutline,
   NotificationsOutline,
@@ -33,6 +34,7 @@ let quoteTimer: ReturnType<typeof setInterval> | undefined;
 const navLinks = [
   { name: '广场', path: '/square', icon: PlanetOutline },
   { name: '学习圈', path: '/spaces', icon: BonfireOutline },
+  { name: '资源', path: '/resources', icon: DocumentTextOutline },
   { name: '打卡', path: '/checkin', icon: CheckmarkCircleOutline },
   { name: '积分中心', path: '/points', icon: StarOutline },
   { name: 'AI 助手', path: '/ai', icon: SparklesOutline },

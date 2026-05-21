@@ -52,9 +52,7 @@ const uploadFileList = ref<UploadFileInfo[]>([]);
 const uploadFile = ref<File | null>(null);
 const uploadDescription = ref('');
 const uploadVisibility = ref('PUBLIC');
-const uploadCollege = ref('');
-const uploadMajor = ref('');
-const uploadCourse = ref('');
+const uploadTagText = ref('');
 const uploadLoading = ref(false);
 
 const visibilityOptions = [
@@ -190,9 +188,7 @@ function openUpload() {
   uploadFile.value = null;
   uploadDescription.value = '';
   uploadVisibility.value = 'PUBLIC';
-  uploadCollege.value = '';
-  uploadMajor.value = '';
-  uploadCourse.value = '';
+  uploadTagText.value = '';
   uploadVisible.value = true;
 }
 
@@ -207,13 +203,17 @@ async function submitUpload() {
     return;
   }
 
+  const tags = parseTags(uploadTagText.value);
+  if (tags.length === 0) {
+    message.warning('请至少填写一个资源标签');
+    return;
+  }
+
   uploadLoading.value = true;
   try {
     const resource = await uploadResource(uploadFile.value, {
       visibility: uploadVisibility.value,
-      college: uploadCollege.value.trim() || undefined,
-      major: uploadMajor.value.trim() || undefined,
-      course: uploadCourse.value.trim() || undefined,
+      tags,
       description: uploadDescription.value.trim() || undefined,
     });
     resources.value = [resource, ...resources.value.filter((item) => item.id !== resource.id)];
@@ -225,6 +225,15 @@ async function submitUpload() {
   } finally {
     uploadLoading.value = false;
   }
+}
+
+function parseTags(value: string) {
+  return [...new Set(
+    value
+      .split(/[\s,，、;；#]+/)
+      .map((tag) => tag.trim())
+      .filter(Boolean),
+  )].slice(0, 8);
 }
 
 function handleDownload(resource = selectedResource.value) {
@@ -420,31 +429,14 @@ onMounted(load);
             <span class="uploader-name">{{ resource.uploader?.nickname || '未知上传者' }}</span>
           </div>
           <div
-            v-if="resource.tags?.length || resource.college || resource.major || resource.course"
+            v-if="resource.tags?.length"
             class="file-tags"
           >
-            <NTag
-              v-if="resource.college"
-              size="tiny"
-            >
-              {{ resource.college }}
-            </NTag>
-            <NTag
-              v-if="resource.major"
-              size="tiny"
-            >
-              {{ resource.major }}
-            </NTag>
-            <NTag
-              v-if="resource.course"
-              size="tiny"
-            >
-              {{ resource.course }}
-            </NTag>
             <NTag
               v-for="tag in resource.tags"
               :key="tag"
               size="tiny"
+              type="info"
             >
               {{ tag }}
             </NTag>
@@ -551,34 +543,14 @@ onMounted(load);
         </div>
 
         <div
-          v-if="selectedResource.college || selectedResource.major || selectedResource.course || selectedResource.tags?.length"
+          v-if="selectedResource.tags?.length"
           class="info-tags"
         >
-          <NTag
-            v-if="selectedResource.college"
-            type="info"
-            size="small"
-          >
-            {{ selectedResource.college }}
-          </NTag>
-          <NTag
-            v-if="selectedResource.major"
-            type="info"
-            size="small"
-          >
-            {{ selectedResource.major }}
-          </NTag>
-          <NTag
-            v-if="selectedResource.course"
-            type="info"
-            size="small"
-          >
-            {{ selectedResource.course }}
-          </NTag>
           <NTag
             v-for="tag in selectedResource.tags"
             :key="tag"
             size="small"
+            type="info"
           >
             {{ tag }}
           </NTag>
@@ -686,31 +658,15 @@ onMounted(load);
           :options="visibilityOptions"
         />
 
-        <div class="form-grid">
-          <div>
-            <label>学院</label>
-            <NInput
-              v-model:value="uploadCollege"
-              placeholder="例如：计算机学院"
-              maxlength="64"
-            />
-          </div>
-          <div>
-            <label>专业</label>
-            <NInput
-              v-model:value="uploadMajor"
-              placeholder="例如：软件工程"
-              maxlength="64"
-            />
-          </div>
-        </div>
-
-        <label>课程</label>
+        <label>标签 / 主题</label>
         <NInput
-          v-model:value="uploadCourse"
-          placeholder="例如：Java程序设计"
-          maxlength="128"
+          v-model:value="uploadTagText"
+          placeholder="例如：Java 程序设计 期末复习 笔记"
+          maxlength="120"
         />
+        <div class="tag-hint">
+          可用空格、逗号或 # 分隔，最多展示 8 个标签。
+        </div>
 
         <label>描述</label>
         <NInput
