@@ -1,0 +1,76 @@
+{
+  "common": {
+    "confirm": "确认",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "search": "搜索",
+    "loading": "加载中...",
+    "noData": "暂无数据",
+    "submit": "提交",
+    "back": "返回",
+    "more": "更多",
+    "all": "全部"
+  },
+  "auth": {
+    "login": "登录",
+    "register": "注册",
+    "logout": "退出登录",
+    "email": "邮箱",
+    "password": "密码",
+    "forgotPassword": "忘记密码",
+    "resetPassword": "重置密码",
+    "nickname": "昵称",
+    "studentNo": "学号"
+  },
+  "nav": {
+    "home": "首页",
+    "square": "广场",
+    "spaces": "空间",
+    "resources": "资源",
+    "checkin": "打卡",
+    "ai": "AI 助手",
+    "messages": "私信",
+    "notifications": "通知",
+    "points": "积分",
+    "profile": "个人中心",
+    "admin": "管理后台"
+  },
+  "post": {
+    "create": "发帖",
+    "edit": "编辑帖子",
+    "delete": "删除帖子",
+    "title": "标题",
+    "content": "内容",
+    "publish": "发布",
+    "likes": "点赞",
+    "comments": "评论",
+    "collect": "收藏",
+    "collected": "已收藏",
+    "views": "浏览"
+  },
+  "notification": {
+    "title": "通知",
+    "markAllRead": "全部已读",
+    "noNotifications": "暂无通知"
+  },
+  "message": {
+    "title": "私信",
+    "markAllRead": "全部已读",
+    "send": "发送",
+    "placeholder": "输入消息..."
+  },
+  "favorites": {
+    "title": "我的收藏",
+    "empty": "暂无收藏内容",
+    "filterAll": "全部",
+    "filterPost": "帖子",
+    "filterResource": "资源"
+  },
+  "language": {
+    "switch": "切换语言",
+    "zhCN": "简体中文",
+    "enUS": "English"
+  }
+}

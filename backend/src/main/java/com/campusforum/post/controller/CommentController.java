@@ -5,6 +5,7 @@ import com.campusforum.common.R;
 import com.campusforum.post.dto.CommentVO;
 import com.campusforum.post.dto.CreateCommentRequest;
 import com.campusforum.post.dto.ReactionRequest;
+import com.campusforum.post.dto.UpdateCommentRequest;
 import com.campusforum.post.service.CommentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,12 @@ public class CommentController {
         long userId = StpUtil.getLoginIdAsLong();
         commentService.deleteComment(userId, id);
         return R.ok();
+    }
+
+    @PutMapping("/api/v1/comments/{id}")
+    public R<CommentVO> update(@PathVariable Long id, @Valid @RequestBody UpdateCommentRequest req) {
+        long userId = StpUtil.getLoginIdAsLong();
+        return R.ok(commentService.updateComment(userId, id, req));
     }
 
     @PostMapping("/api/v1/comments/{id}/reactions")

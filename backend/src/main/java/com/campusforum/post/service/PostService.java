@@ -10,11 +10,13 @@ import com.campusforum.notify.service.NotifyService;
 import com.campusforum.points.service.PointsService;
 import com.campusforum.post.domain.Post;
 import com.campusforum.search.service.MeiliSearchClient;
+import com.campusforum.sensitive.service.SensitiveWordService;
 import com.campusforum.post.domain.Reaction;
 import com.campusforum.post.dto.CreatePostRequest;
 import com.campusforum.post.dto.PostPageRequest;
 import com.campusforum.post.dto.PostVO;
 import com.campusforum.post.dto.ReactionRequest;
+import com.campusforum.post.dto.UpdatePostRequest;
 import com.campusforum.post.mapper.PostMapper;
 import com.campusforum.post.mapper.ReactionMapper;
 import com.campusforum.qa.domain.QaQuestion;
@@ -53,6 +55,7 @@ public class PostService {
     private final PointsService pointsService;
     private final AchievementService achievementService;
     private final MeiliSearchClient meiliSearchClient;
+    private final SensitiveWordService sensitiveWordService;
     private final FollowService followService;
     private final UserService userService;
     private final SpaceMemberMapper spaceMemberMapper;
@@ -140,6 +143,49 @@ public class PostService {
             }
         }
 
+        return toVO(post, userId);
+    }
+
+    @Transactional
+    public PostVO updatePost(Long userId, Long postId, UpdatePostRequest req) {
+        Post post = postMapper.selectById(postId);
+        if (post == null || post.getDeleted() == 1) {
+            throw new BusinessException(ErrorCode.POST_NOT_FOUND);
+        }
+        // 验证作者身份
+        if (!post.getAuthorId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "无权编辑此帖子");
+        }
+
+        // 更新字段
+        if (req.getTitle() != null) post.setTitle(req.getTitle());
+        post.setContent(req.getContent());
+
+        try {
+            if (req.getTopics() != null) post.setTopics(objectMapper.writeValueAsString(req.getTopics()));
+            if (req.getTags() != null) post.setTags(objectMapper.writeValueAsString(req.getTags()));
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR);
+        }
+
+        if (req.getAttachments() != null) post.setAttachments(req.getAttachments());
+
+        // 敏感词过滤
+        String fullContent = (req.getTitle() != null ? req.getTitle() + " " : "") + req.getContent();
+        int riskLevel = sensitiveWordService.getRiskLevel(fullContent);
+        post.setAiRiskLevel(riskLevel);
+
+        // 高风险自动隐藏
+        if (riskLevel >= 2) {
+            post.setStatus(2);
+        }
+
+        postMapper.updateById(post);
+
+        // 更新搜索索引
+        meiliSearchClient.indexDocument("posts", buildPostDoc(post));
+
+        log.info("Post updated: id={}, authorId={}, riskLevel={}", postId, userId, riskLevel);
         return toVO(post, userId);
     }
 

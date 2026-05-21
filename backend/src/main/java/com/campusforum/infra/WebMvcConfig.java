@@ -1,5 +1,6 @@
 package com.campusforum.infra;
 
+import com.campusforum.infra.ratelimit.RateLimitInterceptor;
 import com.campusforum.tenant.interceptor.TenantBindingCheckInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,15 +22,22 @@ import java.nio.file.Paths;
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final TenantBindingCheckInterceptor tenantBindingCheckInterceptor;
+    private final RateLimitInterceptor rateLimitInterceptor;
 
     @Value("${storage.local.path:./uploads}")
     private String localStoragePath;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // 限流拦截器（优先级最高）
+        registry.addInterceptor(rateLimitInterceptor)
+                .addPathPatterns("/api/v1/**")
+                .order(0);
+
         registry.addInterceptor(tenantBindingCheckInterceptor)
                 .addPathPatterns("/api/v1/**")
-                .excludePathPatterns("/api/v1/auth/**");
+                .excludePathPatterns("/api/v1/auth/**")
+                .order(1);
     }
 
     @Override

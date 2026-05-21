@@ -10,6 +10,7 @@ import com.campusforum.post.domain.Reaction;
 import com.campusforum.post.dto.CommentVO;
 import com.campusforum.post.dto.CreateCommentRequest;
 import com.campusforum.post.dto.ReactionRequest;
+import com.campusforum.post.dto.UpdateCommentRequest;
 import com.campusforum.post.mapper.CommentMapper;
 import com.campusforum.post.mapper.PostMapper;
 import com.campusforum.post.mapper.ReactionMapper;
@@ -18,12 +19,14 @@ import com.campusforum.qa.mapper.QaQuestionMapper;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
+import com.campusforum.sensitive.service.SensitiveWordService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +45,7 @@ public class CommentService {
     private final AchievementService achievementService;
     private final QaQuestionMapper qaQuestionMapper;
     private final ReactionMapper reactionMapper;
+    private final SensitiveWordService sensitiveWordService;
 
     @Transactional
     public CommentVO create(Long userId, CreateCommentRequest req) {
@@ -194,6 +198,30 @@ public class CommentService {
 
         commentMapper.deleteById(commentId);
         log.info("Comment deleted: id={}", commentId);
+    }
+
+    @Transactional
+    public CommentVO updateComment(Long userId, Long commentId, UpdateCommentRequest req) {
+        Comment comment = commentMapper.selectById(commentId);
+        if (comment == null || comment.getDeleted() == 1) {
+            throw new BusinessException(ErrorCode.COMMENT_NOT_FOUND);
+        }
+        if (!comment.getAuthorId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "无权编辑此评论");
+        }
+
+        // 敏感词过滤
+        int riskLevel = sensitiveWordService.getRiskLevel(req.getContent());
+        if (riskLevel > 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "评论包含敏感内容，请修改后重试");
+        }
+
+        comment.setContent(req.getContent());
+        comment.setUpdatedAt(LocalDateTime.now());
+        commentMapper.updateById(comment);
+
+        log.info("Comment updated: id={}, authorId={}", commentId, userId);
+        return toVO(comment);
     }
 
     @Transactional

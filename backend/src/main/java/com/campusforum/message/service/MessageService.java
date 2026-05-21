@@ -112,6 +112,19 @@ public class MessageService {
                 .eq(Message::getIsRead, 0));
     }
 
+    @Transactional
+    public int markAllRead(Long userId) {
+        LambdaQueryWrapper<Message> qw = new LambdaQueryWrapper<>();
+        qw.eq(Message::getReceiverId, userId)
+          .eq(Message::getIsRead, 0);
+        List<Message> unread = messageMapper.selectList(qw);
+        for (Message m : unread) {
+            m.setIsRead(1);
+            messageMapper.updateById(m);
+        }
+        return unread.size();
+    }
+
     private MessageVO toVO(Message m) {
         User sender = userMapper.selectById(m.getSenderId());
         UserVO senderVO = null;
