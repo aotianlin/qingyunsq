@@ -1,6 +1,6 @@
 package com.campusforum.message.dto;
 
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import lombok.Builder;
 import lombok.Data;
 
@@ -12,8 +12,8 @@ public class MessageVO {
     private Long id;
     private Long senderId;
     private Long receiverId;
-    private UserVO sender;
-    private UserVO receiver;
+    private PublicUserVO sender;
+    private PublicUserVO receiver;
     private String content;
     private String imageUrl;
     private boolean isRead;

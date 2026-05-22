@@ -10,7 +10,7 @@ import com.campusforum.search.dto.SearchResultVO;
 import com.campusforum.space.domain.Space;
 import com.campusforum.space.mapper.SpaceMapper;
 import com.campusforum.user.domain.User;
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,9 +32,16 @@ public class SearchService {
     private final SpaceMapper spaceMapper;
     private final MeiliSearchClient meiliSearchClient;
 
+    /** 搜索关键字长度硬上限，避免巨型输入触发 ReDoS / 索引 DoS。 */
+    private static final int MAX_KEYWORD_LENGTH = 64;
+
     public List<SearchResultVO> search(String keyword, String type, String sort, Long cursor, int limit) {
         int size = Math.min(limit, 50);
-        String safeKeyword = keyword.replaceAll("[^\\p{L}\\p{N}\\s]", "").strip();
+        if (keyword == null) return List.of();
+        // 长度截断：保护 FULLTEXT/MeiliSearch 与正则
+        String trimmed = keyword.length() > MAX_KEYWORD_LENGTH
+                ? keyword.substring(0, MAX_KEYWORD_LENGTH) : keyword;
+        String safeKeyword = trimmed.replaceAll("[^\\p{L}\\p{N}\\s]", "").strip();
         if (safeKeyword.isBlank()) return List.of();
 
         if (type != null && !type.isBlank()) {
@@ -143,7 +150,9 @@ public class SearchService {
     }
 
     private List<SearchResultVO> searchPostsViaMeiliSearch(String keyword, int limit) {
-        List<Map<String, Object>> hits = meiliSearchClient.search("posts", keyword, limit);
+        // 显式传入当前租户，避免 multi 模式下漏过 filter
+        Long tid = com.campusforum.tenant.TenantContext.getTenantId();
+        List<Map<String, Object>> hits = meiliSearchClient.search("posts", keyword, limit, tid);
         if (hits.isEmpty()) return List.of();
 
         return hits.stream().map(hit -> {
@@ -200,7 +209,7 @@ public class SearchService {
                 .id(u.getId())
                 .title(u.getNickname())
                 .description(u.getCollege() != null ? u.getCollege() + " " + (u.getMajor() != null ? u.getMajor() : "") : "")
-                .author(UserVO.builder().id(u.getId()).nickname(u.getNickname()).avatarUrl(u.getAvatarUrl()).build())
+                .author(PublicUserVO.builder().id(u.getId()).nickname(u.getNickname()).avatarUrl(u.getAvatarUrl()).build())
                 .build()).toList();
     }
 
@@ -264,12 +273,7 @@ public class SearchService {
         }).toList();
     }
 
-    private UserVO toUserVO(User user) {
-        if (user == null) return null;
-        return UserVO.builder()
-                .id(user.getId())
-                .nickname(user.getNickname())
-                .avatarUrl(user.getAvatarUrl())
-                .build();
+    private PublicUserVO toUserVO(User user) {
+        return PublicUserVO.from(user);
     }
 }

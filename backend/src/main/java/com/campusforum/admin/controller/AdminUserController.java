@@ -65,6 +65,11 @@ public class AdminUserController {
         @SuppressWarnings("unchecked")
         List<Long> ids = ((List<Number>) body.get("ids")).stream()
                 .map(Number::longValue).toList();
+        // 安全加固（缺陷 1.16）：批量操作硬上限，避免攻击者传入数万 ID 造成 N+1 长事务
+        if (ids.size() > 100) {
+            throw new com.campusforum.common.BusinessException(
+                    com.campusforum.common.ErrorCode.BATCH_SIZE_EXCEEDED);
+        }
         int status = Integer.parseInt(body.get("status").toString());
         Long operatorId = StpUtil.getLoginIdAsLong();
         for (Long id : ids) {

@@ -51,6 +51,36 @@ public class SignedUrlService {
      * 校验 token：成功返回 payload，失败返回 null。
      */
     public Verified verify(String token, String expectedType, long expectedResourceId, String expectedAction) {
+        Verified v = parseAndVerify(token);
+        if (v == null) return null;
+        if (!v.type().equals(expectedType) || v.resourceId() != expectedResourceId
+                || !v.action().equals(expectedAction)) {
+            return null;
+        }
+        return v;
+    }
+
+    /**
+     * 仅校验 type 与 action 的解析方法，主要供 WebSocket ticket 等场景使用：
+     * 票据中的 resourceId 字段语义重载为 tenantId，握手时尚不知道客户端属于哪个租户，
+     * 由调用方在拿到 Verified 后从中提取 tenantId 写入 WebSocket attributes。
+     *
+     * <p>校验内容：HMAC 签名、过期时间、type、action；resourceId 不校验，由调用方自行使用。</p>
+     */
+    public Verified verifyAny(String token, String expectedType, String expectedAction) {
+        Verified v = parseAndVerify(token);
+        if (v == null) return null;
+        if (!v.type().equals(expectedType) || !v.action().equals(expectedAction)) {
+            return null;
+        }
+        return v;
+    }
+
+    /**
+     * 公共解析逻辑：HMAC 校验 + 过期校验 + payload 字段拆分。
+     * 任一步失败返回 null。
+     */
+    private Verified parseAndVerify(String token) {
         if (token == null || token.isBlank() || !token.contains(".")) return null;
         String[] parts = token.split("\\.");
         if (parts.length != 2) return null;
@@ -76,9 +106,6 @@ public class SignedUrlService {
             long resourceId = Long.parseLong(fields[2]);
             String action = fields[3];
             long exp = Long.parseLong(fields[4]);
-            if (!type.equals(expectedType) || resourceId != expectedResourceId || !action.equals(expectedAction)) {
-                return null;
-            }
             if (System.currentTimeMillis() / 1000 > exp) return null;
             return new Verified(userId, type, resourceId, action, exp);
         } catch (NumberFormatException e) {

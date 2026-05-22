@@ -115,16 +115,26 @@ public class ResourceController {
         // 判断文件类型
         String contentType = getPreviewContentType(fileType);
         if (contentType == null) {
-            // Office 文档重定向到预览服务
+            // 安全加固（缺陷 1.11）：Office 文档不再由后端 302 跳转到 kkfileview，
+            // 而是返回 JSON 描述，由前端在浏览器内自行打开预览服务。
+            // 这样后端不再发起到第三方预览服务的可达请求，避免预览服务历史漏洞被 SSRF 利用。
             if (isOfficeFile(fileType)) {
+                long userId = StpUtil.getLoginIdAsLong();
+                SignedUrlService.SignedToken sig = signedUrlService.sign(userId, "RESOURCE", id, "download");
+                String downloadPath = "/api/v1/resources/" + id + "/download?sig="
+                        + URLEncoder.encode(sig.token(), StandardCharsets.UTF_8);
+                Map<String, Object> body = new java.util.LinkedHashMap<>();
+                body.put("kind", "office");
+                body.put("previewServiceUrl", previewProperties.getOfficeServiceUrl());
+                body.put("downloadPath", downloadPath);
+                body.put("expiresAt", sig.expiresAtSeconds());
+                response.setStatus(200);
+                response.setContentType("application/json;charset=UTF-8");
                 try {
-                    String downloadUrl = "/api/v1/resources/" + id + "/download";
-                    String previewUrl = previewProperties.getOfficeServiceUrl()
-                            + "?url=" + URLEncoder.encode(downloadUrl, StandardCharsets.UTF_8);
-                    response.sendRedirect(previewUrl);
+                    new com.fasterxml.jackson.databind.ObjectMapper()
+                            .writeValue(response.getWriter(), com.campusforum.common.R.ok(body));
                 } catch (Exception e) {
                     response.setStatus(502);
-                    writeJson(response, "{\"code\":502,\"message\":\"预览服务暂时不可用\"}");
                 }
                 return;
             }
@@ -162,12 +172,15 @@ public class ResourceController {
     /**
      * 兼容老前端：若提供了 sig 参数，则用签名校验放行（适合 &lt;a href&gt;/&lt;img src&gt; 直链场景，
      * 此时浏览器不会附带 Authorization 头）；否则要求登录态 + 资源访问权限。
+     *
+     * <p>安全加固：签名失败时统一抛 {@code RESOURCE_NOT_FOUND}（404），与无权访问场景一致，
+     * 避免攻击者通过响应区分"签名过期" vs "资源不存在"。</p>
      */
     private void verifySignatureOrLogin(long resourceId, String action, String signature) {
         if (signature != null && !signature.isBlank()) {
             SignedUrlService.Verified verified = signedUrlService.verify(signature, "RESOURCE", resourceId, action);
             if (verified == null) {
-                throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "下载链接已失效，请刷新页面重试");
+                throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
             }
             return;
         }

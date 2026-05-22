@@ -2,6 +2,8 @@ package com.campusforum.user.controller;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.campusforum.common.R;
+import com.campusforum.infra.security.WsTicketService;
+import com.campusforum.user.dto.ChangePasswordRequest;
 import com.campusforum.user.dto.LoginRequest;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
@@ -18,6 +20,7 @@ import java.util.Map;
 public class AuthController {
 
     private final UserService userService;
+    private final WsTicketService wsTicketService;
 
     @PostMapping("/register")
     public R<UserVO> register(@Valid @RequestBody RegisterRequest req) {
@@ -49,9 +52,9 @@ public class AuthController {
     }
 
     @PutMapping("/password")
-    public R<?> changePassword(@RequestBody Map<String, String> body) {
+    public R<?> changePassword(@Valid @RequestBody ChangePasswordRequest req) {
         long userId = StpUtil.getLoginIdAsLong();
-        userService.changePassword(userId, body.get("oldPassword"), body.get("newPassword"));
+        userService.changePassword(userId, req.getOldPassword(), req.getNewPassword());
         return R.ok();
     }
 
@@ -71,5 +74,28 @@ public class AuthController {
     public R<?> resetPassword(@RequestBody Map<String, String> body) {
         userService.resetPassword(body.get("email"), body.get("token"), body.get("newPassword"));
         return R.ok();
+    }
+
+    /**
+     * 颁发 WebSocket 一次性票据。
+     *
+     * <p>客户端在建立 WebSocket 连接前调用本接口拿到短期票据，
+     * 用 {@code ?ticket=xxx} 替代将 Sa-Token 主令牌写入 URL，
+     * 避免主令牌泄漏到 nginx access log / 浏览器历史 / Referer 头。</p>
+     */
+    @PostMapping("/ws-ticket")
+    public R<Map<String, Object>> wsTicket() {
+        long userId = StpUtil.getLoginIdAsLong();
+        Object tid = StpUtil.getSession().get("tenantId");
+        if (!(tid instanceof Number)) {
+            // session 中 tenantId 缺失视为异常，要求重新登录
+            throw new com.campusforum.common.BusinessException(
+                    com.campusforum.common.ErrorCode.UNAUTHORIZED);
+        }
+        WsTicketService.Ticket t = wsTicketService.issue(userId, ((Number) tid).longValue());
+        return R.ok(Map.of(
+                "ticket", t.token(),
+                "expiresAt", t.expiresAtSeconds()
+        ));
     }
 }

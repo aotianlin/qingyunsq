@@ -4,6 +4,16 @@ set -euo pipefail
 echo "========================================="
 echo "  CampusForum 一键部署脚本"
 echo "========================================="
+echo ""
+echo "🔥 2026-05-22 安全加固部署须知"
+echo "-----------------------------------------"
+echo "本次部署引入了 security-hardening 安全加固，"
+echo "启动前需要先应用 db/migrations/V20260522_*.sql 数据库迁移。"
+echo "本脚本会在 docker compose 启动前自动检测迁移是否已应用；"
+echo "如未应用会给出清晰的失败提示并中止。"
+echo "完整说明见: deploy/SECURITY.md §8"
+echo "-----------------------------------------"
+echo ""
 
 # 检查 Docker
 if ! command -v docker &>/dev/null; then
@@ -38,6 +48,9 @@ REQUIRED_VARS=(
   MEILI_MASTER_KEY
   SIGNED_URL_SECRET
   WS_ALLOWED_ORIGINS
+  # 2026-05-22 安全加固新增（缺一启动失败）
+  CRYPTO_MASTER_KEY
+  CORS_ALLOWED_ORIGINS
 )
 MISSING=()
 for v in "${REQUIRED_VARS[@]}"; do
@@ -51,9 +64,16 @@ if [ ${#MISSING[@]} -gt 0 ]; then
     exit 1
 fi
 
+# 长度校验：CRYPTO_MASTER_KEY 必须 ≥ 32 字节，否则启动会被 SecurityStartupValidator 拦截
+if [ "${#CRYPTO_MASTER_KEY}" -lt 32 ]; then
+    echo "[ERROR] CRYPTO_MASTER_KEY 长度 ${#CRYPTO_MASTER_KEY} 字节不足 32 字节"
+    echo "        建议生成方式：openssl rand -base64 48"
+    exit 1
+fi
+
 # 弱默认值检测：避免使用示例配置中的占位符上线
 WEAK_PATTERNS=("ChangeMe" "minioadmin" "masterKey" "please-generate" "please-override")
-for v in MYSQL_PASSWORD REDIS_PASSWORD MINIO_ACCESS_KEY MINIO_SECRET_KEY MEILI_MASTER_KEY SIGNED_URL_SECRET; do
+for v in MYSQL_PASSWORD REDIS_PASSWORD MINIO_ACCESS_KEY MINIO_SECRET_KEY MEILI_MASTER_KEY SIGNED_URL_SECRET CRYPTO_MASTER_KEY; do
     val="${!v:-}"
     for pat in "${WEAK_PATTERNS[@]}"; do
         if [[ "$val" == *"$pat"* ]]; then
@@ -62,6 +82,26 @@ for v in MYSQL_PASSWORD REDIS_PASSWORD MINIO_ACCESS_KEY MINIO_SECRET_KEY MEILI_M
         fi
     done
 done
+
+# 数据库迁移检查：V20260522_02 加入了 file_sha256 列，未应用则后端启动后上传会出错
+echo "[INFO] 检查数据库迁移是否已应用..."
+SQL_CHECK="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND table_name='resources' AND column_name='file_sha256';"
+HAS_SHA256=$(docker compose exec -T mysql mysql -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}" -sse "${SQL_CHECK}" 2>/dev/null || echo "0")
+if [ "${HAS_SHA256}" != "1" ]; then
+    echo "[ERROR] 数据库迁移未应用：resources.file_sha256 列不存在"
+    echo "        请先执行以下命令再重新运行本脚本（详见 db/migrations/README.md）："
+    echo "        docker compose exec -T mysql mysql -u\$MYSQL_USER -p\$MYSQL_PASSWORD \$MYSQL_DATABASE \\"
+    echo "          < db/migrations/V20260522_01__reset_token_hash.sql"
+    echo "        docker compose exec -T mysql mysql -u\$MYSQL_USER -p\$MYSQL_PASSWORD \$MYSQL_DATABASE \\"
+    echo "          < db/migrations/V20260522_02__resource_sha256.sql"
+    echo ""
+    echo "        如果 mysql 容器尚未启动（首次部署），可临时跳过本检查："
+    echo "        SKIP_MIGRATION_CHECK=1 ./install.sh"
+    if [ "${SKIP_MIGRATION_CHECK:-0}" != "1" ]; then
+        exit 1
+    fi
+    echo "[WARN] 跳过迁移检查（SKIP_MIGRATION_CHECK=1），请在容器启动后立即手动应用迁移"
+fi
 
 echo "[INFO] 拉取 Docker 镜像..."
 docker compose pull

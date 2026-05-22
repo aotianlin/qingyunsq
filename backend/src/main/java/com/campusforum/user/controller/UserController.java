@@ -31,6 +31,7 @@ public class UserController {
     private final UserService userService;
     private final StorageService storageService;
     private final FavoriteService favoriteService;
+    private final com.campusforum.infra.security.MimeTypeValidator mimeTypeValidator;
 
     @Value("${storage.type:local}")
     private String storageType;
@@ -112,12 +113,15 @@ public class UserController {
         }
         String originalName = file.getOriginalFilename();
         String lowerName = originalName == null ? "" : originalName.toLowerCase(Locale.ROOT);
-        if (!(lowerName.endsWith(".jpg")
-                || lowerName.endsWith(".jpeg")
-                || lowerName.endsWith(".png")
-                || lowerName.endsWith(".gif")
-                || lowerName.endsWith(".webp"))) {
+        String ext = null;
+        if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")) ext = lowerName.endsWith(".jpeg") ? "jpeg" : "jpg";
+        else if (lowerName.endsWith(".png")) ext = "png";
+        else if (lowerName.endsWith(".gif")) ext = "gif";
+        else if (lowerName.endsWith(".webp")) ext = "webp";
+        if (ext == null) {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "仅支持 JPG、PNG、GIF、WEBP 图片");
         }
+        // 安全加固（缺陷 1.22）：用 Tika 检测真实 MIME，防止扩展名伪造
+        mimeTypeValidator.validate(file, ext);
     }
 }

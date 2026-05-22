@@ -18,6 +18,26 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private final RateLimitProperties properties;
     private final TrustedProxyResolver trustedProxyResolver;
 
+    /**
+     * 敏感路径前缀列表：命中后限流走 fail-closed 分支，
+     * Redis 不可用时拒绝请求而不是放行（缺陷 1.14）。
+     */
+    private static final String[] SENSITIVE_PREFIXES = {
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+            "/api/v1/auth/forgot-password",
+            "/api/v1/auth/reset-password",
+            "/api/v1/auth/ws-ticket",
+            "/api/v1/ai/"
+    };
+
+    private static boolean isSensitivePath(String path) {
+        for (String p : SENSITIVE_PREFIXES) {
+            if (path.startsWith(p)) return true;
+        }
+        return false;
+    }
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         if (!properties.isEnabled()) return true;
@@ -46,7 +66,10 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             if (config == null) config = properties.getAnonymous();
         }
 
-        long retryAfter = rateLimiter.tryAcquire(rateLimitKey, config.getMaxRequests(), config.getWindowSeconds());
+        // 敏感路径走 fail-closed 限流，避免 Redis 抖动绕过
+        long retryAfter = isSensitivePath(path)
+                ? rateLimiter.tryAcquireFailClosed(rateLimitKey, config.getMaxRequests(), config.getWindowSeconds())
+                : rateLimiter.tryAcquire(rateLimitKey, config.getMaxRequests(), config.getWindowSeconds());
 
         if (retryAfter > 0) {
             response.setStatus(429);

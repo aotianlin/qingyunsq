@@ -1,6 +1,6 @@
 package com.campusforum.space.dto;
 
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import lombok.Builder;
 import lombok.Data;
 
@@ -13,7 +13,7 @@ public class SpaceMemberVO {
     private Long id;
     private Long spaceId;
     private Long userId;
-    private UserVO user;
+    private PublicUserVO user;
     private String role;
     private Integer status;
     private LocalDateTime joinedAt;

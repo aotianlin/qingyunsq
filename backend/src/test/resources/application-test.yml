@@ -95,6 +95,18 @@ security:
   signed-url-secret: test-signed-url-secret
   login-lockout:
     enabled: false
+  crypto:
+    master-key: test-only-master-key-32-bytes-minimum-aes-gcm-12345
+    legacy-mode: false
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+  upload:
+    real-mime-check: false
+    allowed-asset-hosts: []
+  ws-ticket:
+    ttl-seconds: 30
+    enforced: false
 
 # ---------- WebSocket 来源（测试环境允许任何来源） ----------
 ws:

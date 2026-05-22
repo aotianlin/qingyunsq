@@ -1,6 +1,6 @@
 package com.campusforum.notify.dto;
 
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import lombok.Builder;
 import lombok.Data;
 
@@ -12,7 +12,7 @@ public class NotificationVO {
     private Long id;
     private Long receiverId;
     private Long senderId;
-    private UserVO sender;
+    private PublicUserVO sender;
     private String type;
     private String title;
     private String content;

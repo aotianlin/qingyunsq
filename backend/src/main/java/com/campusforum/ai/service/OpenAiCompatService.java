@@ -1,5 +1,6 @@
 package com.campusforum.ai.service;
 
+import com.campusforum.infra.security.SafeHttpClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -7,7 +8,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
@@ -101,7 +101,8 @@ public class OpenAiCompatService implements AiService {
 
     private String chatCompletion(List<Map<String, String>> messages) {
         if (apiKey == null || apiKey.isBlank()) {
-            return "AI 服务未配置 API Key";
+            // 不向用户暴露"未配置 API Key"细节，统一脱敏错误
+            return AI_UPSTREAM_ERROR_MESSAGE;
         }
         try {
             Map<String, Object> body = Map.of(
@@ -131,25 +132,26 @@ public class OpenAiCompatService implements AiService {
                 }
             }
         } catch (RestClientResponseException e) {
-            // 仅记录上游 HTTP 状态码，不再回写响应体（可能含 prompt 片段）
+            // 安全加固（缺陷 1.18）：不再向客户端回传上游 HTTP 状态码，
+            // 避免攻击者借响应区分"401 API Key 无效"、"402 余额不足"、"429 限流"等。
             log.warn("OpenAI API call rejected: status={}", e.getStatusCode().value());
-            return "AI 服务调用失败：模型服务返回 " + e.getStatusCode().value() + "，请检查 API Key、模型名称或服务额度。";
+            return AI_UPSTREAM_ERROR_MESSAGE;
         } catch (ResourceAccessException e) {
             log.warn("OpenAI API connection failed: {}", e.getClass().getSimpleName());
-            return "AI 服务调用失败：无法连接到模型服务，请检查服务器网络或 API Base URL。";
+            return AI_UPSTREAM_ERROR_MESSAGE;
         } catch (Exception e) {
             log.warn("OpenAI API call failed: {}", e.getClass().getSimpleName());
-            return "AI 服务调用失败：后端解析模型响应异常，请稍后重试。";
+            return AI_UPSTREAM_ERROR_MESSAGE;
         }
-        return "AI 服务调用失败：模型服务没有返回有效内容。";
+        return AI_UPSTREAM_ERROR_MESSAGE;
     }
 
+    /** 统一的脱敏错误文案，避免泄漏上游具体错误信息。 */
+    private static final String AI_UPSTREAM_ERROR_MESSAGE = "AI 服务暂时不可用，请稍后重试";
+
     private static RestTemplate createRestTemplate() {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        // 外部大模型接口不可达时不应让用户一直等待；失败信息会返回给前端用于明确提示。
-        factory.setConnectTimeout(CONNECT_TIMEOUT_MS);
-        factory.setReadTimeout(READ_TIMEOUT_MS);
-        return new RestTemplate(factory);
+        // 使用 SafeHttpClient 防 SSRF / DNS 重绑定：连接阶段二次校验目标 IP，命中私网即终止
+        return SafeHttpClient.build(CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS);
     }
 
     private static String normalizeBaseUrl(String value) {

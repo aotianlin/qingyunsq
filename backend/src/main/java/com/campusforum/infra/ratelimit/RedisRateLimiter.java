@@ -63,12 +63,27 @@ public class RedisRateLimiter {
     }
 
     /**
+     * 默认 fail-open 限流（普通读路径）。
+     *
      * @param key           限流键（如 rate_limit:user:123:/api/v1/posts）
      * @param maxRequests   窗口内最大请求数
      * @param windowSeconds 窗口时间（秒）
      * @return 0 = 允许；&gt;0 = 需等待的秒数
      */
     public long tryAcquire(String key, int maxRequests, int windowSeconds) {
+        return tryAcquireInternal(key, maxRequests, windowSeconds, false);
+    }
+
+    /**
+     * fail-closed 限流（敏感写路径，如登录、注册、忘记密码、AI 接口）。
+     *
+     * <p>Redis 不可用时返回非零（拒绝），避免攻击者借 Redis 抖动绕过限流。</p>
+     */
+    public long tryAcquireFailClosed(String key, int maxRequests, int windowSeconds) {
+        return tryAcquireInternal(key, maxRequests, windowSeconds, true);
+    }
+
+    private long tryAcquireInternal(String key, int maxRequests, int windowSeconds, boolean failClosed) {
         try {
             Long retry = redisTemplate.execute(script, List.of(key),
                     String.valueOf(System.currentTimeMillis()),
@@ -77,7 +92,12 @@ public class RedisRateLimiter {
                     UUID.randomUUID().toString());
             return retry == null ? 0 : retry;
         } catch (Exception e) {
-            // Redis 不可用时 fail-open，避免限流器把整个站点拖垮
+            if (failClosed) {
+                log.error("Rate limiter Redis unavailable on sensitive path, denying request: {}", e.getMessage());
+                // 拒绝并提示 30 秒后重试
+                return 30L;
+            }
+            // 普通读路径：fail-open，避免限流器把整个站点拖垮
             log.warn("Rate limiter Redis unavailable, allowing request: {}", e.getMessage());
             return 0;
         }

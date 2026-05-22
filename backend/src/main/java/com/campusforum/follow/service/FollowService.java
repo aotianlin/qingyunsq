@@ -5,7 +5,7 @@ import com.campusforum.common.BusinessException;
 import com.campusforum.follow.domain.Follow;
 import com.campusforum.follow.mapper.FollowMapper;
 import com.campusforum.user.domain.User;
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,15 +54,15 @@ public class FollowService {
         return followMapper.selectCount(qw) > 0;
     }
 
-    public List<UserVO> getFollowers(Long userId, Long cursor, int limit) {
+    public List<PublicUserVO> getFollowers(Long userId, Long cursor, int limit) {
         return getFollowUsers(userId, "followee", cursor, limit);
     }
 
-    public List<UserVO> getFollowing(Long userId, Long cursor, int limit) {
+    public List<PublicUserVO> getFollowing(Long userId, Long cursor, int limit) {
         return getFollowUsers(userId, "follower", cursor, limit);
     }
 
-    private List<UserVO> getFollowUsers(Long userId, String queryBy, Long cursor, int limit) {
+    private List<PublicUserVO> getFollowUsers(Long userId, String queryBy, Long cursor, int limit) {
         int size = Math.min(limit, 50);
         LambdaQueryWrapper<Follow> qw = new LambdaQueryWrapper<>();
         if ("followee".equals(queryBy)) {
@@ -79,12 +79,7 @@ public class FollowService {
         return followMapper.selectList(qw).stream().map(f -> {
             Long uid = "followee".equals(queryBy) ? f.getFollowerId() : f.getFolloweeId();
             User u = userMapper.selectById(uid);
-            return u != null ? UserVO.builder()
-                    .id(u.getId())
-                    .nickname(u.getNickname())
-                    .avatarUrl(u.getAvatarUrl())
-                    .bio(u.getBio())
-                    .build() : null;
+            return PublicUserVO.from(u);
         }).filter(v -> v != null).toList();
     }
 

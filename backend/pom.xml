@@ -138,6 +138,13 @@
             <version>5.2.5</version>
         </dependency>
 
+        <!-- Apache Tika：用于检测上传文件的真实 MIME 类型，与扩展名做交叉验证 -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>2.9.2</version>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>

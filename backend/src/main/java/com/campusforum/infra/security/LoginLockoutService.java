@@ -27,12 +27,17 @@ public class LoginLockoutService {
 
     private static final String FAIL_KEY_PREFIX = "login_fail:";
     private static final String LOCK_KEY_PREFIX = "login_lock:";
+    private static final String IP_FAIL_KEY_PREFIX = "login_fail_ip:";
+    private static final String IP_LOCK_KEY_PREFIX = "login_lock_ip:";
 
     private final SecurityProperties properties;
     private final StringRedisTemplate redisTemplate;
 
     /**
      * 登录前调用：若已被锁定，抛出业务异常，外层不再继续校验密码。
+     *
+     * <p>安全加固（缺陷 1.14）：Redis 不可用时 fail-closed，抛出 503。
+     * 原本的 fail-open（直接放行）会被攻击者利用 Redis 抖动绕过登录锁定实施暴力破解。</p>
      */
     public void ensureNotLocked(long tenantId, String email) {
         if (!properties.getLoginLockout().isEnabled() || email == null) return;
@@ -45,7 +50,8 @@ public class LoginLockoutService {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.warn("Login lockout check failed (fail-open): {}", e.getMessage());
+            log.error("Login lockout check failed (fail-closed): {}", e.getMessage());
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }
 
@@ -67,6 +73,7 @@ public class LoginLockoutService {
                 log.warn("Login locked: tenantId={}, email={}, failures={}", tenantId, email, count);
             }
         } catch (Exception e) {
+            // recordFailure 路径保留 fail-open（仅日志告警），避免 Redis 抖动让正常用户登录失败
             log.warn("Login lockout record failed: {}", e.getMessage());
         }
     }
@@ -81,6 +88,50 @@ public class LoginLockoutService {
             redisTemplate.delete(lockKey(tenantId, email));
         } catch (Exception e) {
             log.warn("Login lockout reset failed: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * IP 维度的锁定校验（缺陷 1.15 加固）。
+     *
+     * <p>同邮箱锁定可被恶意输入主动锁住合法用户实施 DoS；引入 IP 维度后，
+     * 攻击者从同一 IP 高频试错时按 IP 锁定，对账号维度阈值放宽。</p>
+     */
+    public void ensureIpNotLocked(String ip) {
+        if (!properties.getLoginLockout().isEnabled() || ip == null || ip.isBlank()) return;
+        String key = IP_LOCK_KEY_PREFIX + ip;
+        try {
+            if (redisTemplate.opsForValue().get(key) != null) {
+                throw new BusinessException(ErrorCode.RATE_LIMITED.getCode(),
+                        "来自该 IP 的登录失败过多，请稍后再试");
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("IP lockout check failed (fail-closed): {}", e.getMessage());
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+        }
+    }
+
+    /**
+     * 记录 IP 维度的失败次数；超过阈值写入 IP 锁定键。
+     */
+    public void recordIpFailure(String ip) {
+        if (!properties.getLoginLockout().isEnabled() || ip == null || ip.isBlank()) return;
+        SecurityProperties.LoginLockout cfg = properties.getLoginLockout();
+        String failKey = IP_FAIL_KEY_PREFIX + ip;
+        try {
+            Long count = redisTemplate.opsForValue().increment(failKey);
+            if (count != null && count == 1) {
+                redisTemplate.expire(failKey, cfg.getWindowSeconds(), TimeUnit.SECONDS);
+            }
+            if (count != null && count >= cfg.getIpMaxFailures()) {
+                redisTemplate.opsForValue().set(IP_LOCK_KEY_PREFIX + ip, "1",
+                        cfg.getIpLockoutSeconds(), TimeUnit.SECONDS);
+                log.warn("Login locked by IP: ip={}, failures={}", ip, count);
+            }
+        } catch (Exception e) {
+            log.warn("IP lockout record failed: {}", e.getMessage());
         }
     }
 

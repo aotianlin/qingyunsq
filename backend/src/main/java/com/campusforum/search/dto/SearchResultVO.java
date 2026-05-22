@@ -1,6 +1,6 @@
 package com.campusforum.search.dto;
 
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import lombok.Builder;
 import lombok.Data;
 
@@ -13,7 +13,7 @@ public class SearchResultVO {
     private Long id;
     private String title;
     private String description;
-    private UserVO author;
+    private PublicUserVO author;
     private LocalDateTime createdAt;
     private Integer likeCount;
     private Integer commentCount;

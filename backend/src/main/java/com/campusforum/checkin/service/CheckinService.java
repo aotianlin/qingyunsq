@@ -15,7 +15,7 @@ import com.campusforum.points.service.PointsService;
 import com.campusforum.post.domain.Post;
 import com.campusforum.post.mapper.PostMapper;
 import com.campusforum.user.domain.User;
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.mapper.UserMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -339,14 +339,7 @@ public class CheckinService {
 
     private CheckinChallengeVO toVO(CheckinChallenge c, Long currentUserId, boolean isMember, int totalDays, int streak) {
         User creator = userMapper.selectById(c.getCreatorId());
-        UserVO creatorVO = null;
-        if (creator != null) {
-            creatorVO = UserVO.builder()
-                    .id(creator.getId())
-                    .nickname(creator.getNickname())
-                    .avatarUrl(creator.getAvatarUrl())
-                    .build();
-        }
+        PublicUserVO creatorVO = PublicUserVO.from(creator);
 
         return CheckinChallengeVO.builder()
                 .id(c.getId())
@@ -369,14 +362,7 @@ public class CheckinService {
 
     private CheckinRecordVO toRecordVO(CheckinRecord r, Long userId) {
         User user = userMapper.selectById(userId);
-        UserVO userVO = null;
-        if (user != null) {
-            userVO = UserVO.builder()
-                    .id(user.getId())
-                    .nickname(user.getNickname())
-                    .avatarUrl(user.getAvatarUrl())
-                    .build();
-        }
+        PublicUserVO userVO = PublicUserVO.from(user);
 
         List<String> urls = Collections.emptyList();
         if (r.getImageUrls() != null && !r.getImageUrls().isEmpty() && !"[]".equals(r.getImageUrls())) {

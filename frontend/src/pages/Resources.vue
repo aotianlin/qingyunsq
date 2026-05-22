@@ -673,6 +673,7 @@ onMounted(load);
             class="preview-frame"
             :src="previewUrl"
             title="PDF 预览"
+            sandbox="allow-scripts"
           />
           <img
             v-else-if="getPreviewKind(selectedResource) === 'image'"
@@ -689,6 +690,7 @@ onMounted(load);
               class="markdown-frame"
               :srcdoc="markdownSrcdoc"
               title="Markdown 预览"
+              sandbox="allow-popups allow-popups-to-escape-sandbox"
             />
             <pre
               v-else

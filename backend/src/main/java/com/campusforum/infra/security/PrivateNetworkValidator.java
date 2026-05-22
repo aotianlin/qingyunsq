@@ -73,6 +73,17 @@ public final class PrivateNetworkValidator {
     }
 
     private static boolean isBlocked(InetAddress addr) {
+        return isBlockedAddress(addr);
+    }
+
+    /**
+     * 公开 API：判断给定 InetAddress 是否属于"禁止外联"范畴。
+     *
+     * <p>由 {@link com.campusforum.infra.security.SafeHttpClient} 在 Socket 连接阶段二次调用，
+     * 防御 DNS 重绑定（校验阶段返回公网 IP，连接阶段返回内网 IP）攻击。</p>
+     */
+    public static boolean isBlockedAddress(InetAddress addr) {
+        if (addr == null) return true;
         return addr.isLoopbackAddress()
                 || addr.isAnyLocalAddress()
                 || addr.isLinkLocalAddress()

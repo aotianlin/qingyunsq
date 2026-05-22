@@ -8,7 +8,7 @@ import com.campusforum.message.dto.MessageVO;
 import com.campusforum.message.mapper.MessageMapper;
 import com.campusforum.notify.websocket.SessionRegistry;
 import com.campusforum.user.domain.User;
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.mapper.UserMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -127,24 +127,10 @@ public class MessageService {
 
     private MessageVO toVO(Message m) {
         User sender = userMapper.selectById(m.getSenderId());
-        UserVO senderVO = null;
-        if (sender != null) {
-            senderVO = UserVO.builder()
-                    .id(sender.getId())
-                    .nickname(sender.getNickname())
-                    .avatarUrl(sender.getAvatarUrl())
-                    .build();
-        }
+        PublicUserVO senderVO = PublicUserVO.from(sender);
         // 同时返回接收者信息，用于对话列表正确显示对方头像和昵称
         User receiver = userMapper.selectById(m.getReceiverId());
-        UserVO receiverVO = null;
-        if (receiver != null) {
-            receiverVO = UserVO.builder()
-                    .id(receiver.getId())
-                    .nickname(receiver.getNickname())
-                    .avatarUrl(receiver.getAvatarUrl())
-                    .build();
-        }
+        PublicUserVO receiverVO = PublicUserVO.from(receiver);
         return MessageVO.builder()
                 .id(m.getId())
                 .senderId(m.getSenderId())

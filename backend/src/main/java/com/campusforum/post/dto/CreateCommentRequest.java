@@ -15,6 +15,6 @@ public class CreateCommentRequest {
     private Long replyToId;
 
     @NotBlank(message = "评论内容不能为空")
-    @Size(min = 1, max = 2000, message = "评论内容不能超过 2000 字")
+    @Size(min = 1, max = 5000, message = "评论内容不能超过 5000 字")
     private String content;
 }

@@ -1,6 +1,6 @@
 package com.campusforum.post.dto;
 
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import lombok.Builder;
 import lombok.Data;
 
@@ -13,7 +13,7 @@ public class PostVO {
 
     private Long id;
     private Long authorId;
-    private UserVO author;
+    private PublicUserVO author;
     private String scope;
     private Long spaceId;
     private String type;
