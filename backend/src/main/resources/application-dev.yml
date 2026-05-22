@@ -2,6 +2,8 @@
 # 说明：开发态必须复用已经存在并挂好历史数据卷的 Docker 容器，禁止为了启动后端新建或重建数据库/缓存容器。
 # 当前有历史测试数据的是 my-mysql/my-redis，它们通过宿主机端口映射暴露为 localhost:3306/6379。
 # 这里的 localhost 是 Docker 端口映射入口，不代表在宿主机裸跑 MySQL/Redis；不要擅自改到 deploy-mysql-1 这类空库容器。
+# MinIO/MeiliSearch 也复用已有容器，当前没有宿主机端口映射，宿主机 JVM 通过 Docker bridge IP 访问。
+# 如果这两个容器重启后 IP 变化，先用 docker inspect 确认现有容器地址，再改环境变量或本文件默认值；不要新建容器。
 server:
   port: 8080
 
@@ -25,18 +27,18 @@ logging:
 ai:
   provider: mock
 
-# 开发环境复用已有的 MeiliSearch 容器
+# 开发环境复用已有的 MeiliSearch 容器：af601f217946_deploy-meilisearch-1
 search:
   type: meilisearch
   meilisearch:
-    host: ${SEARCH_MEILISEARCH_HOST:http://172.18.0.5:7700}
+    host: ${SEARCH_MEILISEARCH_HOST:http://172.18.0.2:7700}
     api-key: ${MEILI_MASTER_KEY:ChangeMe123}
 
-# 开发环境复用已有的 MinIO 容器
+# 开发环境复用已有的 MinIO 容器：b7cce17dbd43_deploy-minio-1
 storage:
   type: minio
   minio:
-    endpoint: ${STORAGE_MINIO_ENDPOINT:http://172.18.0.2:9000}
+    endpoint: ${STORAGE_MINIO_ENDPOINT:http://172.18.0.3:9000}
     access-key: ${MINIO_ACCESS_KEY:minioadmin}
     secret-key: ${MINIO_SECRET_KEY:ChangeMe123}
     bucket: ${MINIO_BUCKET:campusforum}
