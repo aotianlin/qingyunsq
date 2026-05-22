@@ -83,6 +83,16 @@ email:
 rate-limit:
   enabled: false
 
+# CI 测试关闭登录失败锁定，避免 LoginTimingTest 反复触发 wrong-password 导致锁定后跳过 BCrypt
+# （锁定保护本身由 LoginLockoutServiceTest 等单独覆盖，与时序攻击测试解耦）
+security:
+  signed-url-secret: ci-test-signed-url-secret
+  login-lockout:
+    enabled: false
+
+ws:
+  allowed-origins: "*"
+
 preview:
   office-service-url: http://localhost:8012/onlinePreview
   max-preview-size: 52428800

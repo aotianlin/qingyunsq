@@ -90,6 +90,16 @@ email:
 rate-limit:
   enabled: false
 
+# ---------- 安全配置（测试环境提供占位密钥；登录锁定禁用以保留时序测试可用） ----------
+security:
+  signed-url-secret: test-signed-url-secret
+  login-lockout:
+    enabled: false
+
+# ---------- WebSocket 来源（测试环境允许任何来源） ----------
+ws:
+  allowed-origins: "*"
+
 # ---------- 文件预览配置 ----------
 preview:
   office-service-url: http://localhost:8012/onlinePreview

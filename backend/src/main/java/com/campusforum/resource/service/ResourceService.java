@@ -332,7 +332,8 @@ public class ResourceService {
         }
         String visibility = resource.getVisibility() == null ? "PUBLIC" : resource.getVisibility().toUpperCase();
         return switch (visibility) {
-            case "PUBLIC" -> currentUserId != null;
+            // PUBLIC 资源对站内所有人可见，包含未登录访问的预览/封面场景
+            case "PUBLIC" -> true;
             case "SPACE" -> currentUserId != null && resource.getSpaceId() != null
                     && isSpaceMember(resource.getSpaceId(), currentUserId);
             // PRIVATE 或未知值：默认仅上传者本人，已在前面 return 过
