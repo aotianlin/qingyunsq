@@ -24,8 +24,11 @@ const qa = ref<QaQuestionVO | null>(null);
 const comments = ref<CommentVO[]>([]);
 const loading = ref(true);
 const commentText = ref('');
-const replyTo = ref<{ id: number; nickname: string } | null>(null);
 const submitting = ref(false);
+const replyModalShow = ref(false);
+const replyText = ref('');
+const replyTarget = ref<{ rootId: number; targetId: number; nickname: string } | null>(null);
+const replySubmitting = ref(false);
 const acceptingId = ref<number | null>(null);
 const reportModalShow = ref(false);
 const reportTargetId = ref<number>(0);
@@ -213,13 +216,25 @@ async function handleDeletePost() {
   }
 }
 
-function handleReply(comment: CommentVO) {
-  replyTo.value = { id: comment.id, nickname: comment.author?.nickname || '匿名' };
-  commentText.value = '';
+function handleReply(comment: CommentVO, rootComment: CommentVO) {
+  const nickname = formatAuthorName(comment);
+  replyTarget.value = {
+    rootId: rootComment.id,
+    targetId: comment.id,
+    nickname,
+  };
+  replyText.value = `@${nickname} `;
+  replyModalShow.value = true;
 }
 
 function cancelReply() {
-  replyTo.value = null;
+  if (replySubmitting.value) return;
+  replyModalShow.value = false;
+  replyTarget.value = null;
+  replyText.value = '';
+}
+
+function clearCommentEditor() {
   commentText.value = '';
 }
 
@@ -239,19 +254,45 @@ async function submitComment() {
   try {
     await createComment({
       postId: post.value.id,
-      parentId: replyTo.value?.id,
-      replyToId: replyTo.value?.id,
-      content: commentText.value,
+      content: commentText.value.trim(),
     });
     message.success('评论成功');
     commentText.value = '';
-    replyTo.value = null;
     comments.value = await getComments(post.value.id, undefined, 20, post.value?.type === 'QA');
     if (post.value) post.value.commentCount += 1;
   } catch (e) {
     message.error(e instanceof Error ? e.message : '评论失败');
   } finally {
     submitting.value = false;
+  }
+}
+
+function normalizeReplyContent(value: string, nickname: string) {
+  const content = value.trim();
+  const mention = `@${nickname}`;
+  return content.startsWith(mention) ? content : `${mention} ${content}`;
+}
+
+async function submitReply() {
+  if (!post.value || !replyTarget.value || !replyText.value.trim()) return;
+  replySubmitting.value = true;
+  try {
+    await createComment({
+      postId: post.value.id,
+      parentId: replyTarget.value.rootId,
+      replyToId: replyTarget.value.targetId,
+      content: normalizeReplyContent(replyText.value, replyTarget.value.nickname),
+    });
+    message.success('回复成功');
+    replyModalShow.value = false;
+    replyTarget.value = null;
+    replyText.value = '';
+    comments.value = await getComments(post.value.id, undefined, 20, post.value?.type === 'QA');
+    if (post.value) post.value.commentCount += 1;
+  } catch {
+    message.error('回复失败');
+  } finally {
+    replySubmitting.value = false;
   }
 }
 
@@ -486,10 +527,6 @@ onMounted(loadPost);
             </div>
 
             <div class="comment-editor">
-              <div v-if="replyTo" class="reply-banner">
-                正在回复 @{{ replyTo.nickname }}
-                <button class="text-link" @click="cancelReply">取消</button>
-              </div>
               <n-input
                 v-model:value="commentText"
                 type="textarea"
@@ -502,7 +539,7 @@ onMounted(loadPost);
                 <span class="comment-char-count" :class="{ over: commentText.length > 2000 }">
                   {{ commentText.length }}/2000
                 </span>
-                <button class="cf-secondary-btn" @click="cancelReply">清空</button>
+                <button class="cf-secondary-btn" @click="clearCommentEditor">清空</button>
                 <button class="cf-primary-btn" :disabled="submitting || commentText.length > 2000" @click="submitComment">
                   发布评论
                 </button>
@@ -527,7 +564,7 @@ onMounted(loadPost);
                       </div>
                     </button>
                     <div class="comment-actions">
-                      <button class="text-link" @click="handleReply(comment)">回复</button>
+                      <button class="text-link" @click="handleReply(comment, comment)">回复</button>
                       <button class="text-link" @click="handleCommentLike(comment)">
                         点赞 {{ comment.likeCount || 0 }}
                       </button>
@@ -564,6 +601,43 @@ onMounted(loadPost);
                     </template>
                     <MentionText v-else :text="comment.content" />
                   </div>
+
+                  <section
+                    v-if="comment.replies?.length"
+                    class="reply-thread"
+                  >
+                    <div class="reply-thread-head">
+                      <span>{{ comment.replies.length }} 条回复</span>
+                    </div>
+                    <article
+                      v-for="reply in comment.replies"
+                      :key="reply.id"
+                      class="reply-item"
+                    >
+                      <button class="author-link small" @click="goUser(reply.authorId)">
+                        <div class="comment-avatar reply-avatar">{{ formatAuthorName(reply).charAt(0) }}</div>
+                        <div>
+                          <strong>{{ formatAuthorName(reply) }}</strong>
+                          <span>{{ formatTime(reply.createdAt) }}</span>
+                        </div>
+                      </button>
+                      <div class="reply-content">
+                        <MentionText :text="reply.content" />
+                      </div>
+                      <div class="reply-actions">
+                        <button class="text-link" @click="handleReply(reply, comment)">回复</button>
+                        <button class="text-link" @click="handleCommentLike(reply)">
+                          点赞 {{ reply.likeCount || 0 }}
+                        </button>
+                        <button class="text-link danger" @click="openReport('COMMENT', reply.id)">举报</button>
+                        <button
+                          v-if="currentUserId === reply.authorId"
+                          class="text-link danger"
+                          @click="handleDeleteComment(reply.id)"
+                        >删除</button>
+                      </div>
+                    </article>
+                  </section>
                 </div>
               </article>
             </div>
@@ -592,6 +666,36 @@ onMounted(loadPost);
     <div v-else class="loading-wrap">
       <n-empty description="帖子不存在或已被删除" />
     </div>
+
+    <n-modal
+      v-model:show="replyModalShow"
+      preset="card"
+      class="reply-modal"
+      :title="replyTarget ? `回复 @${replyTarget.nickname}` : '回复评论'"
+      style="width: min(560px, calc(100vw - 32px));"
+    >
+      <div class="reply-form">
+        <n-input
+          v-model:value="replyText"
+          type="textarea"
+          class="cf-textarea"
+          placeholder="写下你的回复"
+          :autosize="{ minRows: 4, maxRows: 8 }"
+        />
+      </div>
+      <template #action>
+        <div class="modal-actions">
+          <button class="cf-secondary-btn" :disabled="replySubmitting" @click="cancelReply">取消</button>
+          <button
+            class="cf-primary-btn"
+            :disabled="replySubmitting || !replyText.trim()"
+            @click="submitReply"
+          >
+            发布回复
+          </button>
+        </div>
+      </template>
+    </n-modal>
 
     <n-modal v-model:show="reportModalShow" preset="card" title="举报内容" style="width: 520px;">
       <div class="report-form">
@@ -974,6 +1078,62 @@ onMounted(loadPost);
   line-height: 1.85;
 }
 
+.reply-thread {
+  margin-top: 16px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--cf-bg-soft) 72%, transparent);
+  border: 1px solid var(--cf-border);
+  border-radius: 16px;
+}
+
+.reply-thread-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  color: var(--cf-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.reply-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--cf-border);
+}
+
+.reply-item:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.reply-item:last-child {
+  padding-bottom: 0;
+}
+
+.reply-avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 12px;
+}
+
+.reply-content {
+  grid-column: 1 / -1;
+  color: var(--cf-text-secondary);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.reply-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .text-link {
   border: none;
   background: transparent;
@@ -1034,6 +1194,12 @@ onMounted(loadPost);
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+}
+
+.reply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .ai-dialog {

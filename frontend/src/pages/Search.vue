@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { NEmpty, NIcon, NInput, NSpin } from 'naive-ui';
 import { search } from '@/api/search';
 import type { SearchResult } from '@/types/search';
-import { ArrowBackOutline, ChatbubblesOutline, CloudDownloadOutline, DocumentTextOutline, EyeOutline, GridOutline, HeartOutline, PersonOutline, PlanetOutline, SearchOutline } from '@vicons/ionicons5';
+import { ArrowBackOutline, ChatbubblesOutline, CloudDownloadOutline, DocumentTextOutline, EyeOutline, GridOutline, HeartOutline, PersonOutline, PlanetOutline, SearchOutline, SparklesOutline } from '@vicons/ionicons5';
 
 const route = useRoute();
 const router = useRouter();
@@ -45,6 +45,12 @@ async function doSearch() {
   } finally {
     loading.value = false;
   }
+}
+
+function askRag() {
+  const query = keyword.value.trim();
+  if (!query) return;
+  router.push({ path: '/ai', query: { mode: 'qa', q: query } });
 }
 
 function switchType(type: string) {
@@ -140,6 +146,14 @@ watch(
         <button class="cf-primary-btn" @click="doSearch">
           <n-icon size="20"><SearchOutline /></n-icon>
           搜索
+        </button>
+        <button
+          class="rag-btn"
+          :disabled="!keyword.trim()"
+          @click="askRag"
+        >
+          <n-icon size="20"><SparklesOutline /></n-icon>
+          RAG 问答
         </button>
       </section>
 
@@ -273,7 +287,7 @@ watch(
 
 .search-hero-bar {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 12px;
   padding: 4px;
   background: var(--cf-bg-soft);
@@ -287,6 +301,33 @@ watch(
     --n-box-shadow-focus: none !important;
     background: transparent !important;
   }
+}
+
+.rag-btn {
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--cf-primary) 30%, var(--cf-border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--cf-primary) 18%, transparent), color-mix(in srgb, var(--cf-secondary) 12%, transparent)),
+    var(--cf-bg-elevated);
+  color: var(--cf-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 800;
+  transition: transform 0.24s var(--cf-motion-ease), box-shadow 0.24s var(--cf-motion-ease), opacity 0.2s ease;
+}
+
+.rag-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--cf-primary) 18%, transparent);
+}
+
+.rag-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .search-hero-filter {
@@ -415,6 +456,10 @@ watch(
 
   .search-hero-bar {
     grid-template-columns: 1fr;
+  }
+
+  .rag-btn {
+    justify-content: center;
   }
 }
 </style>

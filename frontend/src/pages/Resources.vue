@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import {
   NAlert,
   NButton,
+  NDynamicTags,
   NEmpty,
   NInput,
   NModal,
@@ -32,6 +33,12 @@ import {
 } from '@/api/resources';
 import { useAuthStore } from '@/stores/auth';
 import type { ResourcePreviewVO, ResourceVO } from '@/types/resource';
+import {
+  ALL_RESOURCE_TOPIC,
+  buildResourceTopicGroups,
+  buildResourceTopicOptions,
+  getResourceTopics,
+} from '@/utils/resource-topic';
 
 const message = useMessage();
 const authStore = useAuthStore();
@@ -39,6 +46,7 @@ const authStore = useAuthStore();
 const resources = ref<ResourceVO[]>([]);
 const loading = ref(false);
 const collegeFilter = ref<string | undefined>(undefined);
+const activeTopic = ref(ALL_RESOURCE_TOPIC);
 
 const detailVisible = ref(false);
 const detailLoading = ref(false);
@@ -52,7 +60,7 @@ const uploadFileList = ref<UploadFileInfo[]>([]);
 const uploadFile = ref<File | null>(null);
 const uploadDescription = ref('');
 const uploadVisibility = ref('PUBLIC');
-const uploadTagText = ref('');
+const uploadTags = ref<string[]>([]);
 const uploadLoading = ref(false);
 
 const visibilityOptions = [
@@ -131,6 +139,9 @@ const markdownSrcdoc = computed(() => {
 
 const currentUserId = computed(() => authStore.user?.id);
 const isUploader = computed(() => selectedResource.value?.uploaderId === currentUserId.value);
+const topicOptions = computed(() => buildResourceTopicOptions(resources.value));
+const topicGroups = computed(() => buildResourceTopicGroups(resources.value, activeTopic.value));
+const visibleResourceCount = computed(() => topicGroups.value.reduce((sum, group) => sum + group.count, 0));
 
 async function load() {
   loading.value = true;
@@ -188,7 +199,7 @@ function openUpload() {
   uploadFile.value = null;
   uploadDescription.value = '';
   uploadVisibility.value = 'PUBLIC';
-  uploadTagText.value = '';
+  uploadTags.value = [];
   uploadVisible.value = true;
 }
 
@@ -203,7 +214,7 @@ async function submitUpload() {
     return;
   }
 
-  const tags = parseTags(uploadTagText.value);
+  const tags = normalizeTags(uploadTags.value);
   if (tags.length === 0) {
     message.warning('请至少填写一个资源标签');
     return;
@@ -227,13 +238,21 @@ async function submitUpload() {
   }
 }
 
-function parseTags(value: string) {
+function normalizeTags(values: string[]) {
   return [...new Set(
-    value
-      .split(/[\s,，、;；#]+/)
+    values
+      .flatMap((value) => value.split(/[\s,，、;；#]+/))
       .map((tag) => tag.trim())
       .filter(Boolean),
   )].slice(0, 8);
+}
+
+function handleUploadTagsUpdate(value: string[]) {
+  uploadTags.value = normalizeTags(value);
+}
+
+function selectTopic(topic: string) {
+  activeTopic.value = topic;
 }
 
 function handleDownload(resource = selectedResource.value) {
@@ -388,7 +407,10 @@ onMounted(load);
 <template>
   <div class="resources-page">
     <div class="page-header">
-      <h2>资源分享</h2>
+      <div>
+        <h2>资源分享</h2>
+        <p>按标签与课程主题归档资料</p>
+      </div>
       <NButton
         type="primary"
         @click="openUpload"
@@ -400,6 +422,32 @@ onMounted(load);
       </NButton>
     </div>
 
+    <section
+      v-if="resources.length > 0"
+      class="topic-panel"
+    >
+      <button
+        class="topic-chip"
+        :class="{ active: activeTopic === ALL_RESOURCE_TOPIC }"
+        type="button"
+        @click="selectTopic(ALL_RESOURCE_TOPIC)"
+      >
+        <span>全部主题</span>
+        <strong>{{ resources.length }}</strong>
+      </button>
+      <button
+        v-for="topic in topicOptions"
+        :key="topic.label"
+        class="topic-chip"
+        :class="{ active: activeTopic === topic.label }"
+        type="button"
+        @click="selectTopic(topic.label)"
+      >
+        <span>{{ topic.label }}</span>
+        <strong>{{ topic.count }}</strong>
+      </button>
+    </section>
+
     <div
       v-if="resources.length === 0 && !loading"
       class="empty"
@@ -407,43 +455,58 @@ onMounted(load);
       <NEmpty description="暂无资源" />
     </div>
 
-    <button
-      v-for="resource in resources"
-      :key="resource.id"
-      class="resource-card"
-      type="button"
-      @click="openDetail(resource)"
+    <div
+      v-else-if="visibleResourceCount === 0 && !loading"
+      class="empty"
     >
-      <div class="card-row">
-        <div class="file-icon">
-          {{ typeIcons[normalizeType(resource.fileType)] || '📁' }}
-        </div>
-        <div class="card-body">
-          <div class="file-name">
-            {{ resource.fileName }}
-          </div>
-          <div class="file-meta">
-            <span>{{ formatSize(resource.fileSize) }}</span>
-            <span>{{ resource.fileType.toUpperCase() }}</span>
-            <span>{{ resource.downloadCount }} 次下载</span>
-            <span class="uploader-name">{{ resource.uploader?.nickname || '未知上传者' }}</span>
-          </div>
-          <div
-            v-if="resource.tags?.length"
-            class="file-tags"
-          >
-            <NTag
-              v-for="tag in resource.tags"
-              :key="tag"
-              size="tiny"
-              type="info"
-            >
-              {{ tag }}
-            </NTag>
-          </div>
-        </div>
+      <NEmpty description="当前主题下暂无资源" />
+    </div>
+
+    <section
+      v-for="group in topicGroups"
+      :key="group.key"
+      class="topic-section"
+    >
+      <div class="topic-section-header">
+        <h3>{{ group.label }}</h3>
+        <span>{{ group.count }} 份资源</span>
       </div>
-    </button>
+
+      <button
+        v-for="resource in group.items"
+        :key="resource.id"
+        class="resource-card"
+        type="button"
+        @click="openDetail(resource)"
+      >
+        <div class="card-row">
+          <div class="file-icon">
+            {{ typeIcons[normalizeType(resource.fileType)] || '📁' }}
+          </div>
+          <div class="card-body">
+            <div class="file-name">
+              {{ resource.fileName }}
+            </div>
+            <div class="file-meta">
+              <span>{{ formatSize(resource.fileSize) }}</span>
+              <span>{{ resource.fileType.toUpperCase() }}</span>
+              <span>{{ resource.downloadCount }} 次下载</span>
+              <span class="uploader-name">{{ resource.uploader?.nickname || '未知上传者' }}</span>
+            </div>
+            <div class="file-tags">
+              <NTag
+                v-for="tag in getResourceTopics(resource)"
+                :key="`${resource.id}-${tag}`"
+                size="tiny"
+                type="info"
+              >
+                {{ tag }}
+              </NTag>
+            </div>
+          </div>
+        </div>
+      </button>
+    </section>
 
     <div
       v-if="loading"
@@ -659,13 +722,17 @@ onMounted(load);
         />
 
         <label>标签 / 主题</label>
-        <NInput
-          v-model:value="uploadTagText"
-          placeholder="例如：Java 程序设计 期末复习 笔记"
-          maxlength="120"
+        <NDynamicTags
+          :value="uploadTags"
+          :max="8"
+          type="info"
+          round
+          class="upload-tags"
+          :input-props="{ placeholder: '输入标签后回车' }"
+          @update:value="handleUploadTagsUpdate"
         />
         <div class="tag-hint">
-          可用空格、逗号或 # 分隔，最多展示 8 个标签。
+          最多 8 个标签；粘贴空格、逗号或 # 分隔的文本会自动拆分。
         </div>
 
         <label>描述</label>
@@ -705,15 +772,108 @@ onMounted(load);
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .page-header h2 {
   margin: 0;
 }
 
+.page-header p {
+  margin: 4px 0 0;
+  color: var(--cf-text-muted);
+  font-size: 13px;
+}
+
+.topic-panel {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 22px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.topic-chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  color: var(--cf-text-secondary);
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.topic-chip:hover,
+.topic-chip.active {
+  color: var(--cf-primary-hover);
+  background: color-mix(in srgb, var(--cf-primary) 12%, transparent);
+  border-color: color-mix(in srgb, var(--cf-primary) 46%, transparent);
+}
+
+.topic-chip span {
+  max-width: 140px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topic-chip strong {
+  min-width: 20px;
+  padding: 1px 6px;
+  color: var(--cf-text-primary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.36);
+  border-radius: 999px;
+}
+
+:global(html[data-theme='dark']) .topic-chip {
+  background: rgba(12, 12, 13, 0.26);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+:global(html[data-theme='dark']) .topic-chip strong {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .empty {
   margin: 80px 0;
+}
+
+.topic-section {
+  margin-bottom: 24px;
+}
+
+.topic-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.topic-section-header h3 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topic-section-header span {
+  flex: 0 0 auto;
+  color: var(--cf-text-muted);
+  font-size: 13px;
 }
 
 .resource-card {
@@ -938,6 +1098,24 @@ onMounted(load);
   font-size: 13px;
 }
 
+.upload-tags {
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+}
+
+:global(html[data-theme='dark']) .upload-tags {
+  background: rgba(12, 12, 13, 0.26);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.tag-hint {
+  margin-top: -6px;
+  color: var(--cf-text-muted);
+  font-size: 12px;
+}
+
 .actions {
   display: flex;
   gap: 12px;
@@ -968,6 +1146,26 @@ onMounted(load);
 @media (max-width: 720px) {
   .resources-page {
     padding: 16px 12px;
+  }
+
+  .topic-panel {
+    margin-right: -12px;
+    margin-left: -12px;
+    padding: 0 12px 4px;
+  }
+
+  .topic-chip span {
+    max-width: 112px;
+  }
+
+  .topic-section-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .topic-section-header h3 {
+    white-space: normal;
   }
 
   .resource-card {

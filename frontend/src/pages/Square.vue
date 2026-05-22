@@ -1,23 +1,25 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NEmpty, NIcon, NSpin, NTag } from 'naive-ui';
 import {
-  AddOutline,
   ArrowUpOutline,
   BookmarkOutline,
   ChatbubblesOutline,
   EyeOutline,
   FlameOutline,
   RibbonOutline,
-  SettingsOutline,
+  CopyOutline,
+  SparklesOutline,
   TimeOutline,
 } from '@vicons/ionicons5';
 import { getPosts } from '@/api/posts';
 import MentionText from '@/components/MentionText.vue';
 import type { PostVO } from '@/types/post';
+import { useMessage } from 'naive-ui';
 
 const router = useRouter();
+const message = useMessage();
 const posts = ref<PostVO[]>([]);
 const loading = ref(false);
 const hasMore = ref(true);
@@ -31,11 +33,6 @@ const sortOptions = [
   { key: 'essence', label: '精华推荐', icon: RibbonOutline },
   { key: 'follow', label: '我的关注', icon: BookmarkOutline },
 ] as const;
-
-const isAdmin = computed(() => {
-  const role = localStorage.getItem('role');
-  return role === 'TENANT_ADMIN' || role === 'SUPER_ADMIN';
-});
 
 async function loadPosts(reset = false) {
   if (loading.value) return;
@@ -82,8 +79,27 @@ function goCreate() {
   router.push('/posts/new');
 }
 
-function goAdmin() {
-  router.push('/admin');
+function postLink(id: number) {
+  if (typeof window === 'undefined') return `/posts/${id}`;
+  return `${window.location.origin}/posts/${id}`;
+}
+
+async function copyPostLink(id: number) {
+  const url = postLink(id);
+  try {
+    await navigator.clipboard.writeText(url);
+    message.success('帖子链接已复制');
+  } catch {
+    message.info(url);
+  }
+}
+
+function openAiAnalysis(id: number) {
+  router.push({ path: '/ai', query: { mode: 'content', postId: String(id) } });
+}
+
+function stopCardClick(event: MouseEvent) {
+  event.stopPropagation();
 }
 
 function postPreview(content: string) {
@@ -119,39 +135,6 @@ onMounted(() => loadPosts(true));
     class="square-page"
     @scroll="scrollToListEnd"
   >
-    <section class="hero-card cf-surface">
-      <div>
-        <span class="cf-pill">Campus Square</span>
-        <h2 class="cf-section-title">
-          探索真实校园热度
-        </h2>
-        <p class="cf-section-subtitle">
-          参考 Stitch 广场页的清爽信息流布局，保留当前接口与滚动加载逻辑，用更轻的卡片层次重塑浏览体验。
-        </p>
-      </div>
-      <div class="hero-actions">
-        <button
-          class="cf-primary-btn"
-          @click="goCreate"
-        >
-          <n-icon size="18">
-            <AddOutline />
-          </n-icon>
-          发布帖子
-        </button>
-        <button
-          v-if="isAdmin"
-          class="cf-secondary-btn"
-          @click="goAdmin"
-        >
-          <n-icon size="18">
-            <SettingsOutline />
-          </n-icon>
-          管理后台
-        </button>
-      </div>
-    </section>
-
     <section class="toolbar-row">
       <div class="sort-bar cf-surface">
         <button
@@ -220,6 +203,27 @@ onMounted(() => loadPosts(true));
             >
               精华
             </n-tag>
+          </div>
+
+          <div class="card-actions">
+            <button
+              class="card-action-btn"
+              title="复制链接"
+              @click.stop="copyPostLink(post.id)"
+            >
+              <n-icon size="16">
+                <CopyOutline />
+              </n-icon>
+            </button>
+            <button
+              class="card-action-btn ai"
+              title="AI 分析"
+              @click.stop="openAiAnalysis(post.id)"
+            >
+              <n-icon size="16">
+                <SparklesOutline />
+              </n-icon>
+            </button>
           </div>
 
           <h3
@@ -362,20 +366,6 @@ onMounted(() => loadPosts(true));
   opacity: 0;
 }
 
-.hero-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 18px;
-  padding: 24px;
-}
-
-.hero-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
 .toolbar-row {
   display: flex;
 }
@@ -432,6 +422,7 @@ onMounted(() => loadPosts(true));
   cursor: pointer;
   box-shadow: var(--cf-shadow-float);
   transform-style: preserve-3d;
+  position: relative;
 }
 
 .post-card:hover {
@@ -443,6 +434,39 @@ onMounted(() => loadPosts(true));
   justify-content: space-between;
   gap: 14px;
   align-items: flex-start;
+}
+
+.card-actions {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  gap: 8px;
+}
+
+.card-action-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--cf-border);
+  background: var(--cf-bg-glass-soft);
+  color: var(--cf-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.card-action-btn:hover {
+  transform: translateY(-1px);
+  background: var(--cf-bg-glass);
+  color: var(--cf-primary);
+}
+
+.card-action-btn.ai {
+  color: var(--cf-primary);
 }
 
 .author-row {
@@ -475,7 +499,7 @@ onMounted(() => loadPosts(true));
 }
 
 .post-title {
-  margin: 18px 0 10px;
+  margin: 18px 80px 10px 0;
   font-family: var(--cf-font-heading);
   font-size: 24px;
   line-height: 1.3;
@@ -598,11 +622,6 @@ onMounted(() => loadPosts(true));
 @media (max-width: 768px) {
   .square-page {
     height: auto;
-  }
-
-  .hero-card {
-    flex-direction: column;
-    align-items: flex-start;
   }
 
   .side-column {

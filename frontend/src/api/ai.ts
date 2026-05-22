@@ -20,3 +20,8 @@ export async function aiChat(messages: { role: string; content: string }[], cont
   const res = await request<AiResponse>({ method: 'POST', url: '/ai/chat', data: { messages, context } });
   return res.data;
 }
+
+export async function aiRagChat(messages: { role: string; content: string }[], context?: string): Promise<AiResponse> {
+  const res = await request<AiResponse>({ method: 'POST', url: '/ai/rag-chat', data: { messages, context } });
+  return res.data;
+}

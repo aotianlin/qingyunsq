@@ -1,28 +1,5 @@
 <script setup lang="ts">
-import { 
-  DesktopOutline,
-  PeopleOutline,
-  LibraryOutline,
-  DocumentTextOutline,
-  CheckmarkCircleOutline,
-  TrophyOutline,
-  SettingsOutline,
-  HardwareChipOutline,
-  ListOutline,
-  NotificationsOutline
-} from '@vicons/ionicons5';
-
-const menus = [
-  { label: '工作台', icon: DesktopOutline, active: true },
-  { label: '用户管理', icon: PeopleOutline, active: false },
-  { label: '空间管理', icon: LibraryOutline, active: false },
-  { label: '内容管理', icon: DocumentTextOutline, active: false },
-  { label: '打卡管理', icon: CheckmarkCircleOutline, active: false },
-  { label: '积分管理', icon: TrophyOutline, active: false },
-  { label: 'AI 配置', icon: HardwareChipOutline, active: false },
-  { label: '系统设置', icon: SettingsOutline, active: false },
-  { label: '日志管理', icon: ListOutline, active: false },
-];
+import { HardwareChipOutline, NotificationsOutline } from '@vicons/ionicons5';
 
 const stats = [
   { label: '总用户', value: '56,231', trend: '+12.5%', isUp: true },
@@ -44,297 +21,212 @@ const logs = [
 </script>
 
 <template>
-  <div class="admin-layout">
-    <aside class="admin-sidebar">
-      <div class="logo">
-        <n-icon
-          size="20"
-          color="#6366f1"
-        >
-          <LibraryOutline />
-        </n-icon>
-        CampusForum <span class="badge">后台管理</span>
+  <div class="admin-dashboard-page">
+    <header class="top-bar">
+      <div class="title">
+        工作台
       </div>
-      <nav class="menu">
+      <div class="actions">
+        <n-icon size="20">
+          <NotificationsOutline />
+        </n-icon>
+        <div class="admin-profile">
+          <div class="avatar" />
+          <span>管理员</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="dashboard-grid">
+      <!-- Stats Row -->
+      <div class="stats-row">
         <div
-          v-for="m in menus"
-          :key="m.label" 
-          class="menu-item"
-          :class="{ active: m.active }"
+          v-for="stat in stats"
+          :key="stat.label"
+          class="glass-card stat-box"
         >
-          <n-icon size="18">
-            <component :is="m.icon" />
-          </n-icon>
-          {{ m.label }}
-        </div>
-      </nav>
-    </aside>
-
-    <main class="admin-content">
-      <header class="top-bar">
-        <div class="title">
-          工作台
-        </div>
-        <div class="actions">
-          <n-icon size="20">
-            <NotificationsOutline />
-          </n-icon>
-          <div class="admin-profile">
-            <div class="avatar" />
-            <span>管理员</span>
+          <div class="label">
+            {{ stat.label }}
+          </div>
+          <div class="value-row">
+            <span class="value">{{ stat.value }}</span>
+            <span
+              class="trend"
+              :class="{ up: stat.isUp }"
+            >{{ stat.trend }}</span>
+          </div>
+          <!-- decorative sparkline -->
+          <div class="sparkline">
+            <svg
+              viewBox="0 0 100 20"
+              class="chart-svg"
+            >
+              <path
+                d="M0,15 L20,5 L40,10 L60,2 L80,8 L100,0"
+                fill="none"
+                :stroke="stat.isUp ? '#10b981' : '#ef4444'"
+                stroke-width="2"
+              />
+            </svg>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div class="dashboard-grid">
-        <!-- Stats Row -->
-        <div class="stats-row">
-          <div
-            v-for="stat in stats"
-            :key="stat.label"
-            class="glass-card stat-box"
-          >
-            <div class="label">
-              {{ stat.label }}
+      <!-- Charts Row -->
+      <div class="charts-row">
+        <div class="glass-card chart-card flex-2">
+          <div class="card-header">
+            <h3>数据趋势</h3>
+            <div class="legend">
+              <span><span
+                class="dot"
+                style="background:#38bdf8"
+              />用户数</span>
+              <span><span
+                class="dot"
+                style="background:#c084fc"
+              />帖子数</span>
+              <span><span
+                class="dot"
+                style="background:#10b981"
+              />活跃数</span>
             </div>
-            <div class="value-row">
-              <span class="value">{{ stat.value }}</span>
-              <span
-                class="trend"
-                :class="{ up: stat.isUp }"
-              >{{ stat.trend }}</span>
-            </div>
-            <!-- decorative sparkline -->
-            <div class="sparkline">
-              <svg
-                viewBox="0 0 100 20"
-                class="chart-svg"
-              >
-                <path
-                  d="M0,15 L20,5 L40,10 L60,2 L80,8 L100,0"
-                  fill="none"
-                  :stroke="stat.isUp ? '#10b981' : '#ef4444'"
-                  stroke-width="2"
-                />
-              </svg>
+          </div>
+          <div class="chart-area mock-line-chart">
+            <!-- Mock Line Chart -->
+            <svg
+              viewBox="0 0 100 40"
+              class="full-svg"
+            >
+              <path
+                d="M0,35 L20,25 L40,30 L60,10 L80,15 L100,5"
+                fill="none"
+                stroke="#38bdf8"
+                stroke-width="1"
+              />
+              <path
+                d="M0,38 L20,35 L40,20 L60,25 L80,10 L100,15"
+                fill="none"
+                stroke="#c084fc"
+                stroke-width="1"
+              />
+              <path
+                d="M0,39 L20,30 L40,35 L60,20 L80,5 L100,8"
+                fill="none"
+                stroke="#10b981"
+                stroke-width="1"
+              />
+            </svg>
+            <div class="x-axis">
+              <span>05-16</span><span>05-17</span><span>05-18</span><span>05-19</span><span>05-20</span><span>05-21</span>
             </div>
           </div>
         </div>
 
-        <!-- Charts Row -->
-        <div class="charts-row">
-          <div class="glass-card chart-card flex-2">
-            <div class="card-header">
-              <h3>数据趋势</h3>
-              <div class="legend">
-                <span><span
+        <div class="glass-card chart-card flex-1">
+          <div class="card-header">
+            <h3>用户来源</h3>
+          </div>
+          <div class="chart-area mock-pie-chart">
+            <div class="donut">
+              <div class="inner-circle">
+                <span class="total">56,231</span>
+                <span class="sub">总用户</span>
+              </div>
+            </div>
+            <div class="pie-legend">
+              <div class="l-item">
+                <span
                   class="dot"
-                  style="background:#38bdf8"
-                />用户数</span>
-                <span><span
-                  class="dot"
-                  style="background:#c084fc"
-                />帖子数</span>
-                <span><span
+                  style="background:#3b82f6"
+                /> Web <span class="pct">56.2%</span>
+              </div>
+              <div class="l-item">
+                <span
                   class="dot"
                   style="background:#10b981"
-                />活跃数</span>
+                /> Android <span class="pct">24.1%</span>
               </div>
-            </div>
-            <div class="chart-area mock-line-chart">
-              <!-- Mock Line Chart -->
-              <svg
-                viewBox="0 0 100 40"
-                class="full-svg"
-              >
-                <path
-                  d="M0,35 L20,25 L40,30 L60,10 L80,15 L100,5"
-                  fill="none"
-                  stroke="#38bdf8"
-                  stroke-width="1"
-                />
-                <path
-                  d="M0,38 L20,35 L40,20 L60,25 L80,10 L100,15"
-                  fill="none"
-                  stroke="#c084fc"
-                  stroke-width="1"
-                />
-                <path
-                  d="M0,39 L20,30 L40,35 L60,20 L80,5 L100,8"
-                  fill="none"
-                  stroke="#10b981"
-                  stroke-width="1"
-                />
-              </svg>
-              <div class="x-axis">
-                <span>05-16</span><span>05-17</span><span>05-18</span><span>05-19</span><span>05-20</span><span>05-21</span>
+              <div class="l-item">
+                <span
+                  class="dot"
+                  style="background:#8b5cf6"
+                /> iOS <span class="pct">12.4%</span>
               </div>
-            </div>
-          </div>
-          
-          <div class="glass-card chart-card flex-1">
-            <div class="card-header">
-              <h3>用户来源</h3>
-            </div>
-            <div class="chart-area mock-pie-chart">
-              <div class="donut">
-                <div class="inner-circle">
-                  <span class="total">56,231</span>
-                  <span class="sub">总用户</span>
-                </div>
-              </div>
-              <div class="pie-legend">
-                <div class="l-item">
-                  <span
-                    class="dot"
-                    style="background:#3b82f6"
-                  /> Web <span class="pct">56.2%</span>
-                </div>
-                <div class="l-item">
-                  <span
-                    class="dot"
-                    style="background:#10b981"
-                  /> Android <span class="pct">24.1%</span>
-                </div>
-                <div class="l-item">
-                  <span
-                    class="dot"
-                    style="background:#8b5cf6"
-                  /> iOS <span class="pct">12.4%</span>
-                </div>
-                <div class="l-item">
-                  <span
-                    class="dot"
-                    style="background:#6b7280"
-                  /> 其他 <span class="pct">7.3%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Bottom Row -->
-        <div class="bottom-row">
-          <div class="glass-card info-card">
-            <div class="card-header">
-              <h3>系统信息</h3>
-            </div>
-            <div class="sys-list">
-              <div
-                v-for="sys in sysInfo"
-                :key="sys.label"
-                class="sys-item"
-              >
-                <div class="sys-label">
-                  <span><n-icon><HardwareChipOutline /></n-icon> {{ sys.label }}</span>
-                  <span>{{ sys.percent }}%</span>
-                </div>
-                <div class="progress-bar">
-                  <div
-                    class="fill"
-                    :style="{ width: sys.percent + '%', backgroundColor: sys.color }"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="glass-card info-card">
-            <div class="card-header">
-              <h3>最近操作日志</h3>
-              <span class="more">更多 ></span>
-            </div>
-            <div class="log-list">
-              <div
-                v-for="(log, idx) in logs"
-                :key="idx"
-                class="log-item"
-              >
-                <div class="log-icon">
-                  <div class="avatar-small" />
-                </div>
-                <div class="log-content">
-                  <p><span class="user">{{ log.user }}</span> {{ log.action }}</p>
-                </div>
-                <div class="log-time">
-                  {{ log.time }}
-                </div>
+              <div class="l-item">
+                <span
+                  class="dot"
+                  style="background:#6b7280"
+                /> 其他 <span class="pct">7.3%</span>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </main>
+
+      <!-- Bottom Row -->
+      <div class="bottom-row">
+        <div class="glass-card info-card">
+          <div class="card-header">
+            <h3>系统信息</h3>
+          </div>
+          <div class="sys-list">
+            <div
+              v-for="sys in sysInfo"
+              :key="sys.label"
+              class="sys-item"
+            >
+              <div class="sys-label">
+                <span><n-icon><HardwareChipOutline /></n-icon> {{ sys.label }}</span>
+                <span>{{ sys.percent }}%</span>
+              </div>
+              <div class="progress-bar">
+                <div
+                  class="fill"
+                  :style="{ width: sys.percent + '%', backgroundColor: sys.color }"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card info-card">
+          <div class="card-header">
+            <h3>最近操作日志</h3>
+            <span class="more">更多 ></span>
+          </div>
+          <div class="log-list">
+            <div
+              v-for="(log, idx) in logs"
+              :key="idx"
+              class="log-item"
+            >
+              <div class="log-icon">
+                <div class="avatar-small" />
+              </div>
+              <div class="log-content">
+                <p><span class="user">{{ log.user }}</span> {{ log.action }}</p>
+              </div>
+              <div class="log-time">
+                {{ log.time }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped lang="scss">
-.admin-layout {
-  display: flex;
-  height: 100vh;
+.admin-dashboard-page {
+  min-height: 100vh;
   background: transparent;
   color: var(--cf-text-primary);
-}
-
-.admin-sidebar {
-  width: 220px;
-  background: rgba(22, 27, 34, 0.95);
-  border-right: 1px solid var(--cf-border);
-  display: flex;
-  flex-direction: column;
-
-  .logo {
-    height: 60px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 20px;
-    font-size: 16px;
-    font-weight: bold;
-    border-bottom: 1px solid var(--cf-border);
-
-    .badge {
-      font-size: 10px;
-      font-weight: normal;
-      background: rgba(255,255,255,0.1);
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: var(--cf-text-secondary);
-    }
-  }
-
-  .menu {
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-
-    .menu-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      border-radius: 6px;
-      color: var(--cf-text-secondary);
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.2s;
-
-      &:hover { background: rgba(255,255,255,0.05); color: white; }
-      &.active {
-        background: rgba(99,102,241,0.15);
-        color: var(--cf-primary);
-        font-weight: 500;
-      }
-    }
-  }
-}
-
-.admin-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 
   .top-bar {
     height: 60px;
@@ -348,7 +240,7 @@ const logs = [
     .actions {
       display: flex; align-items: center; gap: 24px; color: var(--cf-text-secondary);
       .admin-profile {
-        display: flex; align-items: center; gap: 8px; font-size: 14px; color: white;
+        display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--cf-text-primary);
         .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--cf-primary); }
       }
     }
@@ -375,7 +267,7 @@ const logs = [
         .label { color: var(--cf-text-secondary); font-size: 14px; margin-bottom: 12px; }
         .value-row {
           display: flex; align-items: baseline; gap: 12px;
-          .value { font-size: 28px; font-weight: bold; color: white; }
+          .value { font-size: 28px; font-weight: bold; color: var(--cf-text-primary); }
           .trend { font-size: 13px; &.up { color: var(--cf-success); } }
         }
 
@@ -432,7 +324,7 @@ const logs = [
               .inner-circle {
                 width: 100px; height: 100px; border-radius: 50%; background: var(--cf-bg-card);
                 display: flex; flex-direction: column; align-items: center; justify-content: center;
-                .total { font-size: 18px; font-weight: bold; color: white; }
+                .total { font-size: 18px; font-weight: bold; color: var(--cf-text-primary); }
                 .sub { font-size: 12px; color: var(--cf-text-secondary); }
               }
             }
@@ -441,7 +333,7 @@ const logs = [
               .l-item {
                 display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--cf-text-secondary);
                 .dot { width: 10px; height: 10px; border-radius: 50%; }
-                .pct { margin-left: auto; color: white; font-weight: 500; }
+                .pct { margin-left: auto; color: var(--cf-text-primary); font-weight: 500; }
               }
             }
           }
@@ -481,7 +373,7 @@ const logs = [
           .log-item {
             display: flex; gap: 16px; align-items: flex-start;
             .avatar-small { width: 32px; height: 32px; border-radius: 50%; background: #38bdf8; flex-shrink: 0; }
-            .log-content { flex: 1; p { margin: 0; font-size: 14px; color: var(--cf-text-secondary); .user { color: white; font-weight: 500; } } }
+            .log-content { flex: 1; p { margin: 0; font-size: 14px; color: var(--cf-text-secondary); .user { color: var(--cf-text-primary); font-weight: 500; } } }
             .log-time { font-size: 12px; color: var(--cf-text-muted); flex-shrink: 0; }
           }
         }

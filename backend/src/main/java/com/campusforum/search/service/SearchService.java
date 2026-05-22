@@ -57,7 +57,7 @@ public class SearchService {
     }
 
     private List<SearchResultVO> searchPosts(String keyword, String sort, Long cursor, int limit) {
-        // Try MeiliSearch first, fall back to MySQL FULLTEXT
+        // 优先走 MeiliSearch，未命中或不可用时再降级到 MySQL FULLTEXT/LIKE。
         try {
             List<SearchResultVO> meiliResults = searchPostsViaMeiliSearch(keyword, limit);
             if (!meiliResults.isEmpty()) {
@@ -82,7 +82,7 @@ public class SearchService {
             }
             qw.last("LIMIT " + limit);
 
-            return postMapper.selectList(qw).stream().map(p -> {
+            List<SearchResultVO> results = postMapper.selectList(qw).stream().map(p -> {
                 User author = userMapper.selectById(p.getAuthorId());
                 String content = p.getContent() != null ? p.getContent() : "";
                 return SearchResultVO.builder()
@@ -97,6 +97,7 @@ public class SearchService {
                         .viewCount(p.getViewCount())
                         .build();
             }).toList();
+            return results.isEmpty() ? searchPostsByLike(keyword, sort, cursor, limit) : results;
         } catch (Exception e) {
             log.warn("MySQL FULLTEXT search failed for keyword={}: {}", keyword, e.getMessage());
             // 最终降级：LIKE 模糊搜索
@@ -108,7 +109,10 @@ public class SearchService {
         try {
             LambdaQueryWrapper<Post> qw = new LambdaQueryWrapper<>();
             qw.eq(Post::getStatus, 1);
-            qw.and(w -> w.like(Post::getTitle, keyword).or().like(Post::getContent, keyword));
+            qw.and(w -> w.like(Post::getTitle, keyword)
+                    .or().like(Post::getContent, keyword)
+                    .or().like(Post::getTopics, keyword)
+                    .or().like(Post::getTags, keyword));
             if (cursor != null) qw.lt(Post::getId, cursor);
             if ("time".equals(sort)) {
                 qw.orderByDesc(Post::getCreatedAt);
@@ -204,7 +208,12 @@ public class SearchService {
         LambdaQueryWrapper<Resource> qw = new LambdaQueryWrapper<>();
         qw.eq(Resource::getStatus, 1);
         qw.and(w -> w.like(Resource::getFileName, keyword)
-                .or().like(Resource::getDescription, keyword));
+                .or().like(Resource::getDescription, keyword)
+                .or().like(Resource::getCourse, keyword)
+                .or().like(Resource::getCollege, keyword)
+                .or().like(Resource::getMajor, keyword)
+                .or().like(Resource::getSemester, keyword)
+                .or().like(Resource::getTags, keyword));
         if (cursor != null) {
             qw.lt(Resource::getId, cursor);
         }
@@ -231,7 +240,8 @@ public class SearchService {
         LambdaQueryWrapper<Space> qw = new LambdaQueryWrapper<>();
         qw.eq(Space::getStatus, 1);
         qw.and(w -> w.like(Space::getName, keyword)
-                .or().like(Space::getDescription, keyword));
+                .or().like(Space::getDescription, keyword)
+                .or().like(Space::getCategory, keyword));
         if (cursor != null) {
             qw.lt(Space::getId, cursor);
         }

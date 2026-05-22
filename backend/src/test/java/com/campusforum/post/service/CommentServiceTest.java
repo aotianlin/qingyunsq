@@ -33,6 +33,7 @@ class CommentServiceTest {
 
     private Long authorId;
     private Long commenterId;
+    private Long replierId;
     private Long postId;
 
     @BeforeEach
@@ -53,6 +54,13 @@ class CommentServiceTest {
         commenterReq.setNickname("评论用户");
         UserVO commenter = userService.register(commenterReq);
         commenterId = commenter.getId();
+
+        RegisterRequest replierReq = new RegisterRequest();
+        replierReq.setEmail("comment-replier" + timestamp + "@campusforum.com");
+        replierReq.setPassword("Test123456");
+        replierReq.setNickname("回复用户");
+        UserVO replier = userService.register(replierReq);
+        replierId = replier.getId();
 
         CreatePostRequest postReq = new CreatePostRequest();
         postReq.setTitle("评论点赞测试");
@@ -106,5 +114,34 @@ class CommentServiceTest {
 
         assertThatThrownBy(() -> commentService.toggleReaction(authorId, created.getId(), req))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void shouldFlattenNestedRepliesUnderRootComment() {
+        CreateCommentRequest rootReq = new CreateCommentRequest();
+        rootReq.setPostId(postId);
+        rootReq.setContent("主评论");
+        CommentVO root = commentService.create(commenterId, rootReq);
+
+        CreateCommentRequest firstReplyReq = new CreateCommentRequest();
+        firstReplyReq.setPostId(postId);
+        firstReplyReq.setParentId(root.getId());
+        firstReplyReq.setReplyToId(root.getId());
+        firstReplyReq.setContent("@评论用户 第一条回复");
+        CommentVO firstReply = commentService.create(replierId, firstReplyReq);
+
+        CreateCommentRequest nestedReplyReq = new CreateCommentRequest();
+        nestedReplyReq.setPostId(postId);
+        nestedReplyReq.setParentId(firstReply.getId());
+        nestedReplyReq.setReplyToId(firstReply.getId());
+        nestedReplyReq.setContent("@回复用户 嵌套回复");
+        CommentVO nestedReply = commentService.create(authorId, nestedReplyReq);
+
+        CommentVO listedRoot = commentService.listByPost(postId, null, 20, false).get(0);
+
+        assertThat(listedRoot.getId()).isEqualTo(root.getId());
+        assertThat(listedRoot.getReplies())
+                .extracting(CommentVO::getId)
+                .containsExactly(firstReply.getId(), nestedReply.getId());
     }
 }

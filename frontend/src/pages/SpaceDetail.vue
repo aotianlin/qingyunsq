@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { NModal, NSpin, NIcon, useMessage } from 'naive-ui';
+import { NDynamicTags, NModal, NSpin, NIcon, useMessage } from 'naive-ui';
 import {
   SparklesOutline,
   LibraryOutline,
@@ -82,7 +82,7 @@ const uploadVisible = ref(false);
 const uploadInputRef = ref<HTMLInputElement | null>(null);
 const uploadFile = ref<File | null>(null);
 const uploadDescription = ref('');
-const uploadTagText = ref('');
+const uploadTags = ref<string[]>([]);
 const uploadDropActive = ref(false);
 const uploadSubmitting = ref(false);
 const profilePanelVisible = ref(false);
@@ -760,7 +760,7 @@ function goUploadResource() {
 function resetUploadForm() {
   uploadFile.value = null;
   uploadDescription.value = '';
-  uploadTagText.value = '';
+  uploadTags.value = [];
   uploadDropActive.value = false;
   if (uploadInputRef.value) {
     uploadInputRef.value.value = '';
@@ -802,7 +802,7 @@ async function submitSpaceResource() {
     message.warning('请先选择一个文件');
     return;
   }
-  const tags = parseUploadTags(uploadTagText.value);
+  const tags = normalizeUploadTags(uploadTags.value);
   if (tags.length === 0) {
     message.warning('请至少填写一个资源标签');
     return;
@@ -828,12 +828,17 @@ async function submitSpaceResource() {
   }
 }
 
-function parseUploadTags(value: string) {
-  return value
-    .split(/[\s,，#]+/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 8);
+function normalizeUploadTags(values: string[]) {
+  return [...new Set(
+    values
+      .flatMap((value) => value.split(/[\s,，、;；#]+/))
+      .map((item) => item.trim())
+      .filter(Boolean),
+  )].slice(0, 8);
+}
+
+function handleUploadTagsUpdate(value: string[]) {
+  uploadTags.value = normalizeUploadTags(value);
 }
 
 async function toggleSpaceMembership() {
@@ -2741,10 +2746,14 @@ watch(() => route.params.id, () => loadSpace());
           <div class="upload-form-grid">
             <label class="upload-field wide">
               <span>标签 / 主题</span>
-              <input
-                v-model="uploadTagText"
-                maxlength="120"
-                placeholder="例如：Java 程序设计 期末复习 笔记"
+              <NDynamicTags
+                :value="uploadTags"
+                :max="8"
+                type="info"
+                round
+                class="space-upload-tags"
+                :input-props="{ placeholder: '输入标签后回车' }"
+                @update:value="handleUploadTagsUpdate"
               />
             </label>
             <label class="upload-field wide">
@@ -2757,7 +2766,7 @@ watch(() => route.params.id, () => loadSpace());
             </label>
           </div>
           <div class="tag-hint">
-            可用空格、逗号或 # 分隔，最多展示 8 个标签。
+            最多 8 个标签；粘贴空格、逗号或 # 分隔的文本会自动拆分。
           </div>
 
           <footer class="upload-actions">
@@ -6956,6 +6965,22 @@ watch(() => route.params.id, () => loadSpace());
   textarea {
     min-height: 78px;
     resize: vertical;
+  }
+}
+
+.space-upload-tags {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  background: var(--cf-bg-glass);
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 12px;
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+
+  &:focus-within {
+    background: var(--cf-bg-readable);
+    border-color: var(--cf-border-strong);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-primary) 12%, transparent);
   }
 }
 

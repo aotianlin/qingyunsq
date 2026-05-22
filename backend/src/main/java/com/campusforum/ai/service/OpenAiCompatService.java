@@ -7,6 +7,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -18,6 +21,9 @@ import java.util.Map;
 @ConditionalOnProperty(name = "ai.provider", havingValue = "openai")
 public class OpenAiCompatService implements AiService {
 
+    private static final int CONNECT_TIMEOUT_MS = 8000;
+    private static final int READ_TIMEOUT_MS = 30000;
+
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final String baseUrl;
@@ -27,11 +33,11 @@ public class OpenAiCompatService implements AiService {
     public OpenAiCompatService(@Value("${ai.base-url}") String baseUrl,
                                @Value("${ai.api-key}") String apiKey,
                                @Value("${ai.model:deepseek-chat}") String model) {
-        this.restTemplate = new RestTemplate();
+        this.restTemplate = createRestTemplate();
         this.objectMapper = new ObjectMapper();
-        this.baseUrl = baseUrl;
+        this.baseUrl = normalizeBaseUrl(baseUrl);
         this.apiKey = apiKey;
-        this.model = model;
+        this.model = model == null || model.isBlank() ? "deepseek-chat" : model;
     }
 
     @Override
@@ -124,9 +130,42 @@ public class OpenAiCompatService implements AiService {
                     }
                 }
             }
+        } catch (RestClientResponseException e) {
+            log.warn("OpenAI API call rejected: status={}, body={}", e.getStatusCode().value(), safeErrorBody(e.getResponseBodyAsString()));
+            return "AI 服务调用失败：模型服务返回 " + e.getStatusCode().value() + "，请检查 API Key、模型名称或服务额度。";
+        } catch (ResourceAccessException e) {
+            log.warn("OpenAI API connection failed: {}", e.getMessage());
+            return "AI 服务调用失败：无法连接到模型服务，请检查服务器网络或 API Base URL。";
         } catch (Exception e) {
             log.warn("OpenAI API call failed: {}", e.getMessage());
+            return "AI 服务调用失败：后端解析模型响应异常，请稍后重试。";
         }
-        return "";
+        return "AI 服务调用失败：模型服务没有返回有效内容。";
+    }
+
+    private static RestTemplate createRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        // 外部大模型接口不可达时不应让用户一直等待；失败信息会返回给前端用于明确提示。
+        factory.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        factory.setReadTimeout(READ_TIMEOUT_MS);
+        return new RestTemplate(factory);
+    }
+
+    private static String safeErrorBody(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value.length() <= 500 ? value : value.substring(0, 500) + "...";
+    }
+
+    private static String normalizeBaseUrl(String value) {
+        if (value == null || value.isBlank()) {
+            return "https://api.deepseek.com/v1";
+        }
+        String trimmed = value.strip();
+        while (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed.endsWith("/v1") ? trimmed : trimmed + "/v1";
     }
 }

@@ -11,7 +11,7 @@ services:
       - ../frontend/dist:/usr/share/nginx/html:ro
     depends_on:
       - app
-    restart: unless-stopped
+    restart: always
 
   app:
     build:
@@ -41,7 +41,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    restart: unless-stopped
+    restart: always
 
   mysql:
     image: mysql:8.0
@@ -58,13 +58,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
+    restart: always
 
   redis:
     image: redis:7-alpine
     volumes:
       - redis_data:/data
-    restart: unless-stopped
+    restart: always
 
   meilisearch:
     image: getmeili/meilisearch:v1.9
@@ -72,7 +72,7 @@ services:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
     volumes:
       - meili_data:/meili_data
-    restart: unless-stopped
+    restart: always
 
   minio:
     image: minio/minio:latest
@@ -82,7 +82,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
-    restart: unless-stopped
+    restart: always
 
 volumes:
   mysql_data:

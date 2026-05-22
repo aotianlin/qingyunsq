@@ -13,4 +13,5 @@ public class AiResponse {
     private String riskReason;
     private List<String> tags;
     private String reply;
+    private List<AiCitation> citations;
 }

@@ -1,12 +1,10 @@
 package com.campusforum.ai.service;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 
 @Service
-@ConditionalOnProperty(name = "ai.provider", havingValue = "mock", matchIfMissing = true)
 public class MockAiService implements AiService {
 
     private static final Set<String> RISK_KEYWORDS = Set.of(
@@ -65,6 +63,17 @@ public class MockAiService implements AiService {
 
     @Override
     public String chat(List<ChatMessage> messages, String context) {
+        if (context != null && context.contains("【站内检索资料】")) {
+            String question = messages == null || messages.isEmpty() ? "" : messages.get(messages.size() - 1).content();
+            String sources = extractRagSources(context);
+            if (!sources.isBlank()) {
+                return "我已结合站内检索资料回答你的问题：" + question + "\n\n"
+                        + "本地 mock 模式不会调用外部大模型，但已经完成检索增强链路，召回到的资料如下：\n"
+                        + sources;
+            }
+            return "我已尝试进行站内检索，但没有召回到可确认的资料。可以换一个更具体的课程、标签、资源名或帖子关键词再问。";
+        }
+
         if (messages == null || messages.isEmpty()) {
             return "你好！我是 CampusForum AI 助手。有什么可以帮助你的吗？";
         }
@@ -105,5 +114,19 @@ public class MockAiService implements AiService {
             if (contentLower.contains(kw)) return true;
         }
         return false;
+    }
+
+    private String extractRagSources(String context) {
+        // RAG 服务会按 “[编号] 类型 标题” 拼接来源；mock 环境提取这些行，方便本地直接验证召回是否生效。
+        StringBuilder sources = new StringBuilder();
+        for (String line : context.split("\\R")) {
+            if (line.matches("\\[\\d+]\\s+.*")) {
+                if (!sources.isEmpty()) {
+                    sources.append('\n');
+                }
+                sources.append(line);
+            }
+        }
+        return sources.toString();
     }
 }

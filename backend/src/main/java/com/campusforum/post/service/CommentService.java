@@ -30,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -85,16 +87,27 @@ public class CommentService {
                     "评论通知", commenterName + " 评论了你的帖子", "/posts/" + post.getId());
         }
 
+        Comment parentComment = null;
         if (req.getParentId() != null) {
             // Bug fix 1.18: 显式空值检查
-            Comment parentComment = commentMapper.selectById(req.getParentId());
+            parentComment = commentMapper.selectById(req.getParentId());
             if (parentComment == null) {
                 throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "父评论不存在");
             }
-            if (!parentComment.getAuthorId().equals(userId)) {
-                notifyService.create(parentComment.getAuthorId(), userId, "REPLY",
-                        "回复通知", commenterName + " 回复了你", "/posts/" + req.getPostId());
+        }
+
+        Comment replyTargetComment = null;
+        if (req.getReplyToId() != null) {
+            replyTargetComment = commentMapper.selectById(req.getReplyToId());
+            if (replyTargetComment == null) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "回复目标不存在");
             }
+        }
+
+        Comment notifyTargetComment = replyTargetComment != null ? replyTargetComment : parentComment;
+        if (notifyTargetComment != null && !notifyTargetComment.getAuthorId().equals(userId)) {
+            notifyService.create(notifyTargetComment.getAuthorId(), userId, "REPLY",
+                    "回复通知", commenterName + " 回复了你", "/posts/" + req.getPostId());
         }
 
         // 解析 @提及 并发送通知
@@ -155,22 +168,7 @@ public class CommentService {
             List<Comment> parents = allParents;
             if (parents.isEmpty()) return List.of();
 
-            List<Long> parentIds = parents.stream().map(Comment::getId).toList();
-            LambdaQueryWrapper<Comment> childQw = new LambdaQueryWrapper<>();
-            childQw.in(Comment::getParentId, parentIds);
-            childQw.eq(Comment::getStatus, 1);
-            childQw.orderByAsc(Comment::getId);
-            List<Comment> children = commentMapper.selectList(childQw);
-
-            Map<Long, List<CommentVO>> childMap = children.stream()
-                    .map(this::toVO)
-                    .collect(Collectors.groupingBy(c -> c.getParentId()));
-
-            return parents.stream().map(p -> {
-                CommentVO vo = toVO(p);
-                vo.setReplies(childMap.getOrDefault(p.getId(), List.of()));
-                return vo;
-            }).toList();
+            return attachFlatReplies(postId, parents);
         }
 
         // 普通模式：按 ID 游标分页
@@ -183,22 +181,58 @@ public class CommentService {
         List<Comment> parents = commentMapper.selectList(qw);
         if (parents.isEmpty()) return List.of();
 
-        List<Long> parentIds = parents.stream().map(Comment::getId).toList();
+        return attachFlatReplies(postId, parents);
+    }
+
+    private List<CommentVO> attachFlatReplies(Long postId, List<Comment> parents) {
+        Set<Long> parentIds = parents.stream().map(Comment::getId).collect(Collectors.toSet());
         LambdaQueryWrapper<Comment> childQw = new LambdaQueryWrapper<>();
-        childQw.in(Comment::getParentId, parentIds);
+        childQw.eq(Comment::getPostId, postId);
+        childQw.isNotNull(Comment::getParentId);
         childQw.eq(Comment::getStatus, 1);
         childQw.orderByAsc(Comment::getId);
         List<Comment> children = commentMapper.selectList(childQw);
 
-        Map<Long, List<CommentVO>> childMap = children.stream()
-                .map(this::toVO)
-                .collect(Collectors.groupingBy(c -> c.getParentId()));
+        Map<Long, Comment> commentById = new HashMap<>();
+        parents.forEach(comment -> commentById.put(comment.getId(), comment));
+        children.forEach(comment -> commentById.put(comment.getId(), comment));
 
-        return parents.stream().map(p -> {
-            CommentVO vo = toVO(p);
-            vo.setReplies(childMap.getOrDefault(p.getId(), List.of()));
+        // 评论区只允许主评论下面有一个回复区。这里把历史上可能存在的多级回复
+        // 全部沿 parentId 向上追溯到当前页主评论，然后压平成主评论的 replies。
+        Map<Long, List<CommentVO>> repliesByRoot = new HashMap<>();
+        for (Comment child : children) {
+            Long rootId = findRootCommentId(child, commentById, parentIds);
+            if (rootId == null) {
+                continue;
+            }
+            repliesByRoot.computeIfAbsent(rootId, ignored -> new ArrayList<>()).add(toVO(child));
+        }
+
+        return parents.stream().map(parent -> {
+            CommentVO vo = toVO(parent);
+            vo.setReplies(repliesByRoot.getOrDefault(parent.getId(), List.of()));
             return vo;
         }).toList();
+    }
+
+    private Long findRootCommentId(Comment comment, Map<Long, Comment> commentById, Set<Long> rootIds) {
+        Long parentId = comment.getParentId();
+        Set<Long> visited = new HashSet<>();
+
+        // 防御异常数据形成的 parentId 环，避免评论列表接口因为脏数据无限循环。
+        while (parentId != null && visited.add(parentId)) {
+            if (rootIds.contains(parentId)) {
+                return parentId;
+            }
+
+            Comment parent = commentById.get(parentId);
+            if (parent == null) {
+                return null;
+            }
+            parentId = parent.getParentId();
+        }
+
+        return null;
     }
 
     @Transactional

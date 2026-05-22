@@ -48,7 +48,7 @@ function handleMenuClick(key: string) {
 
 <template>
   <NLayout
-    style="min-height: 100vh;"
+    class="admin-shell"
     has-sider
   >
     <NLayoutSider
@@ -57,9 +57,15 @@ function handleMenuClick(key: string) {
       :collapsed-width="64"
       :width="200"
       :collapsed="collapsed"
+      :content-style="{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+      }"
       @update:collapsed="collapsed = $event"
+      class="admin-shell-sider"
     >
-      <div style="padding: 16px 12px 8px; display: flex; justify-content: flex-end;">
+      <div class="sider-toggle">
         <NButton
           text
           size="small"
@@ -68,19 +74,21 @@ function handleMenuClick(key: string) {
           {{ collapsed ? '▶' : '◀' }}
         </NButton>
       </div>
-      <NMenu
-        :value="activeKey"
-        :collapsed="collapsed"
-        :collapsed-width="64"
-        :collapsed-icon-size="22"
-        :options="menuOptions"
-        @update:value="handleMenuClick"
-      />
-      <div style="position: absolute; bottom: 16px; left: 0; right: 0; padding: 0 12px;">
+      <div class="sider-menu">
+        <NMenu
+          :value="activeKey"
+          :collapsed="collapsed"
+          :collapsed-width="64"
+          :collapsed-icon-size="22"
+          :options="menuOptions"
+          @update:value="handleMenuClick"
+        />
+      </div>
+      <div class="sider-footer">
         <NButton
           text
           size="small"
-          style="width: 100%;"
+          class="return-btn"
           @click="router.push('/')"
         >
           <template #icon>
@@ -90,8 +98,53 @@ function handleMenuClick(key: string) {
         </NButton>
       </div>
     </NLayoutSider>
-    <NLayoutContent style="background: var(--body-color);">
+    <NLayoutContent class="admin-shell-content">
       <router-view />
     </NLayoutContent>
   </NLayout>
 </template>
+
+<style scoped lang="scss">
+.admin-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.admin-shell-sider {
+  height: 100vh;
+}
+
+.sider-toggle {
+  flex: 0 0 auto;
+  padding: 16px 12px 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sider-menu {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+
+.sider-footer {
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding: 12px;
+  border-top: 1px solid var(--cf-border);
+  background: var(--cf-bg-readable);
+}
+
+.return-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.admin-shell-content {
+  height: 100vh;
+  min-width: 0;
+  overflow: auto;
+  background: var(--body-color);
+}
+</style>

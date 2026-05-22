@@ -561,6 +561,8 @@ public class PostService {
         doc.put("status", post.getStatus());
         doc.put("scope", post.getScope());
         doc.put("type", post.getType());
+        doc.put("topics", post.getTopics());
+        doc.put("tags", post.getTags());
         return doc;
     }
 }
