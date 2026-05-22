@@ -1,17 +1,20 @@
 # ===== 开发环境配置 =====
+# 说明：开发态必须复用已经存在并挂好历史数据卷的 Docker 容器，禁止为了启动后端新建或重建数据库/缓存容器。
+# 当前有历史测试数据的是 my-mysql/my-redis，它们通过宿主机端口映射暴露为 localhost:3306/6379。
+# 这里的 localhost 是 Docker 端口映射入口，不代表在宿主机裸跑 MySQL/Redis；不要擅自改到 deploy-mysql-1 这类空库容器。
 server:
   port: 8080
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/campus_forum?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
-    username: root
-    password: 123456
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/campus_forum?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:123456}
   data:
     redis:
-      host: localhost
-      port: 6379
-      password: 123456
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:123456}
 
 logging:
   level:
@@ -22,12 +25,24 @@ logging:
 ai:
   provider: mock
 
-# 开发环境使用 MySQL FULLTEXT 搜索（无需启动 MeiliSearch）
+# 开发环境复用已有的 MeiliSearch 容器
 search:
-  type: mysql
+  type: meilisearch
+  meilisearch:
+    host: ${SEARCH_MEILISEARCH_HOST:http://172.18.0.5:7700}
+    api-key: ${MEILI_MASTER_KEY:ChangeMe123}
 
-# 开发环境使用本地文件存储
+# 开发环境复用已有的 MinIO 容器
 storage:
-  type: local
-  local:
-    path: ./uploads
+  type: minio
+  minio:
+    endpoint: ${STORAGE_MINIO_ENDPOINT:http://172.18.0.2:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:ChangeMe123}
+    bucket: ${MINIO_BUCKET:campusforum}
+
+# 开发环境 SMTP 默认是占位配置，关闭邮件健康检查，避免影响整体健康状态
+management:
+  health:
+    mail:
+      enabled: false

@@ -13,6 +13,8 @@ JAVA_HOME=/home/morose/.local/jdk-17 /mnt/d/develop/apache-maven-3.9.4/bin/mvn t
 JAVA_HOME=/home/morose/.local/jdk-17 /mnt/d/develop/apache-maven-3.9.4/bin/mvn spring-boot:run
 ```
 
+本地开发默认复用已经存在并挂好历史测试数据的数据容器：`my-mysql` 与 `my-redis`。它们通过 Docker 端口映射暴露为宿主机 `localhost:3306` 和 `localhost:6379`，所以 `application-dev.yml` 里的 `localhost` 表示 Docker 映射入口，不是宿主机裸跑 MySQL/Redis。启动服务前必须先执行 `docker ps` 检查现有容器和端口映射；不要为后端启动新建数据库/缓存容器，不要把 dev 配置改到空库容器，也不要运行 `docker compose up` 去补齐 `deploy-mysql` / `deploy-redis` 这类空库服务。后端只用宿主机/虚拟机 JVM 跑，基础设施继续复用已有 Docker 容器，避免为了调试反复构建后端镜像。
+
 Frontend commands run from `frontend/`:
 
 ```bash

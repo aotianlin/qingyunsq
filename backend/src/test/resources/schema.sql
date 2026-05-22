@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS comments (
   like_count  INT NOT NULL DEFAULT 0,
   status      TINYINT NOT NULL DEFAULT 1,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT NULL COMMENT '最后编辑时间',
   deleted     TINYINT NOT NULL DEFAULT 0,
   KEY idx_post (post_id, created_at),
   KEY idx_author (author_id)
