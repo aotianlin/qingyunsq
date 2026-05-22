@@ -1,17 +1,24 @@
 package com.campusforum.user.controller;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.campusforum.common.BusinessException;
+import com.campusforum.common.ErrorCode;
 import com.campusforum.common.R;
+import com.campusforum.infra.email.EmailCodeScene;
 import com.campusforum.infra.security.WsTicketService;
 import com.campusforum.user.dto.ChangePasswordRequest;
+import com.campusforum.user.dto.EmailCodeRequest;
+import com.campusforum.user.dto.EmailOnlyRequest;
 import com.campusforum.user.dto.LoginRequest;
 import com.campusforum.user.dto.RegisterRequest;
+import com.campusforum.user.dto.ResetPasswordRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Locale;
 import java.util.Map;
 
 @RestController
@@ -26,6 +33,12 @@ public class AuthController {
     public R<UserVO> register(@Valid @RequestBody RegisterRequest req) {
         UserVO user = userService.register(req);
         return R.ok(user);
+    }
+
+    @PostMapping("/email-code")
+    public R<Map<String, String>> sendEmailCode(@Valid @RequestBody EmailCodeRequest req) {
+        userService.sendEmailCode(req.getEmail(), parseScene(req.getScene()));
+        return R.ok(Map.of("message", "验证码已发送，请查收邮箱"));
     }
 
     @PostMapping("/login")
@@ -59,25 +72,19 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password")
-    public R<Map<String, String>> forgotPassword(@RequestBody Map<String, String> body) {
-        // 无论邮箱是否存在，统一返回相同响应，防止用户枚举攻击
-        // token 不通过 HTTP 响应返回，应通过邮件发送（当前为 mock，仅记录日志）
-        try {
-            userService.forgotPassword(body.get("email"));
-        } catch (Exception ignored) {
-            // 故意忽略异常，防止通过错误响应枚举用户
-        }
-        return R.ok(Map.of("message", "如该邮箱已注册，重置链接将发送至您的邮箱"));
+    public R<Map<String, String>> forgotPassword(@Valid @RequestBody EmailOnlyRequest req) {
+        userService.forgotPassword(req.getEmail());
+        return R.ok(Map.of("message", "如该邮箱已注册，验证码将发送至您的邮箱"));
     }
 
     @PostMapping("/reset-password")
-    public R<?> resetPassword(@RequestBody Map<String, String> body) {
-        userService.resetPassword(body.get("email"), body.get("token"), body.get("newPassword"));
+    public R<?> resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
+        userService.resetPassword(req.getEmail(), req.getEmailCode(), req.getNewPassword());
         return R.ok();
     }
 
     /**
-     * 颁发 WebSocket 一次性票据。
+     * 颁发 WebSocket 一次性票据（缺陷 1.3 加固）。
      *
      * <p>客户端在建立 WebSocket 连接前调用本接口拿到短期票据，
      * 用 {@code ?ticket=xxx} 替代将 Sa-Token 主令牌写入 URL，
@@ -89,13 +96,20 @@ public class AuthController {
         Object tid = StpUtil.getSession().get("tenantId");
         if (!(tid instanceof Number)) {
             // session 中 tenantId 缺失视为异常，要求重新登录
-            throw new com.campusforum.common.BusinessException(
-                    com.campusforum.common.ErrorCode.UNAUTHORIZED);
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
         WsTicketService.Ticket t = wsTicketService.issue(userId, ((Number) tid).longValue());
         return R.ok(Map.of(
                 "ticket", t.token(),
                 "expiresAt", t.expiresAtSeconds()
         ));
+    }
+
+    private EmailCodeScene parseScene(String scene) {
+        try {
+            return EmailCodeScene.valueOf(scene.trim().toUpperCase(Locale.ROOT));
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "验证码用途不正确");
+        }
     }
 }

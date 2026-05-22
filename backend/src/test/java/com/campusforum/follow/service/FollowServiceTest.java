@@ -5,6 +5,7 @@ import com.campusforum.common.BusinessException;
 import com.campusforum.follow.domain.Follow;
 import com.campusforum.follow.mapper.FollowMapper;
 import com.campusforum.tenant.TenantContext;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
@@ -13,9 +14,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -30,6 +33,9 @@ class FollowServiceTest {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
     private Long followerId;
     private Long followeeId;
 
@@ -41,6 +47,7 @@ class FollowServiceTest {
         r1.setEmail("follower" + ts + "@campusforum.com");
         r1.setPassword("Test123456");
         r1.setNickname("关注者" + ts);
+        prepareRegisterCode(stringRedisTemplate, r1);
         UserVO u1 = userService.register(r1);
         followerId = u1.getId();
 
@@ -48,6 +55,7 @@ class FollowServiceTest {
         r2.setEmail("followee" + ts + "@campusforum.com");
         r2.setPassword("Test123456");
         r2.setNickname("被关注者" + ts);
+        prepareRegisterCode(stringRedisTemplate, r2);
         UserVO u2 = userService.register(r2);
         followeeId = u2.getId();
     }
@@ -93,7 +101,7 @@ class FollowServiceTest {
     void shouldGetFollowers() {
         followService.follow(followerId, followeeId);
 
-        List<UserVO> followers = followService.getFollowers(followeeId, null, 20);
+        List<PublicUserVO> followers = followService.getFollowers(followeeId, null, 20);
         assertThat(followers).isNotEmpty();
         assertThat(followers.get(0).getId()).isEqualTo(followerId);
     }
@@ -102,7 +110,7 @@ class FollowServiceTest {
     void shouldGetFollowing() {
         followService.follow(followerId, followeeId);
 
-        List<UserVO> following = followService.getFollowing(followerId, null, 20);
+        List<PublicUserVO> following = followService.getFollowing(followerId, null, 20);
         assertThat(following).isNotEmpty();
         assertThat(following.get(0).getId()).isEqualTo(followeeId);
     }

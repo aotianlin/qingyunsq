@@ -43,6 +43,17 @@ class SmtpEmailServiceTest {
     }
 
     @Test
+    void sendVerificationCode_success() {
+        MimeMessage mimeMessage = mock(MimeMessage.class);
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        assertThatNoException().isThrownBy(() ->
+                emailService.sendVerificationCode("user@example.com", EmailCodeScene.REGISTER, "123456", 10));
+
+        verify(mailSender).send(any(MimeMessage.class));
+    }
+
+    @Test
     void sendResetEmail_smtpFailure_doesNotThrow() {
         MimeMessage mimeMessage = mock(MimeMessage.class);
         when(mailSender.createMimeMessage()).thenReturn(mimeMessage);

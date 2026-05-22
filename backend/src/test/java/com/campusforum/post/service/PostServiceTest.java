@@ -15,9 +15,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -32,6 +34,9 @@ class PostServiceTest {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
     private Long authorId;
 
     @BeforeEach
@@ -42,6 +47,7 @@ class PostServiceTest {
         req.setEmail("post-author" + timestamp + "@campusforum.com");
         req.setPassword("Test123456");
         req.setNickname("帖子作者");
+        prepareRegisterCode(stringRedisTemplate, req);
         UserVO user = userService.register(req);
         authorId = user.getId();
     }
@@ -126,6 +132,7 @@ class PostServiceTest {
         otherUserReq.setEmail("other-post-author" + System.currentTimeMillis() + "@campusforum.com");
         otherUserReq.setPassword("Test123456");
         otherUserReq.setNickname("其他作者");
+        prepareRegisterCode(stringRedisTemplate, otherUserReq);
         Long otherAuthorId = userService.register(otherUserReq).getId();
 
         CreatePostRequest otherReq = new CreatePostRequest();

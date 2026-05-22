@@ -2,6 +2,7 @@ package com.campusforum.user.service;
 
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.infra.email.EmailCodeScene;
 import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.LoginRequest;
 import com.campusforum.user.dto.RegisterRequest;
@@ -14,7 +15,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
+import static com.campusforum.test.EmailCodeTestUtils.emailCodeKey;
+import static com.campusforum.test.EmailCodeTestUtils.putEmailCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -25,6 +29,9 @@ class UserServiceTest {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     @BeforeEach
     void setUp() {
@@ -44,6 +51,7 @@ class UserServiceTest {
         req.setEmail("test" + timestamp + "@campusforum.com");
         req.setPassword("Test123456");
         req.setNickname("测试用户");
+        prepareRegisterCode(req);
 
         UserVO user = userService.register(req);
 
@@ -59,6 +67,7 @@ class UserServiceTest {
         req.setEmail("dup" + timestamp + "@campusforum.com");
         req.setPassword("Test123456");
         req.setNickname("重复用户");
+        prepareRegisterCode(req);
         userService.register(req);
 
         assertThatThrownBy(() -> userService.register(req))
@@ -73,6 +82,7 @@ class UserServiceTest {
         req.setEmail("login" + timestamp + "@campusforum.com");
         req.setPassword("Test123456");
         req.setNickname("登录测试");
+        prepareRegisterCode(req);
         userService.register(req);
 
         LoginRequest loginReq = new LoginRequest();
@@ -80,6 +90,52 @@ class UserServiceTest {
         loginReq.setPassword("Test123456");
         UserVO user = userService.login(loginReq);
 
+        assertThat(user.getEmail()).isEqualTo(req.getEmail());
+    }
+
+    @Test
+    void shouldLoginWithEmailCode() {
+        long timestamp = System.currentTimeMillis();
+        RegisterRequest req = new RegisterRequest();
+        req.setEmail("codelogin" + timestamp + "@campusforum.com");
+        req.setPassword("Test123456");
+        req.setNickname("验证码登录测试");
+        prepareRegisterCode(req);
+        userService.register(req);
+
+        String code = "246810";
+        String key = emailCodeKey(1L, EmailCodeScene.LOGIN, req.getEmail());
+        putEmailCode(stringRedisTemplate, 1L, EmailCodeScene.LOGIN, req.getEmail(), code);
+
+        LoginRequest loginReq = new LoginRequest();
+        loginReq.setEmail(req.getEmail());
+        loginReq.setLoginType("CODE");
+        loginReq.setEmailCode(code);
+        UserVO user = userService.login(loginReq);
+
+        assertThat(user.getEmail()).isEqualTo(req.getEmail());
+        assertThat(stringRedisTemplate.opsForValue().get(key)).isNull();
+    }
+
+    @Test
+    void shouldResetPasswordWithEmailCode() {
+        long timestamp = System.currentTimeMillis();
+        RegisterRequest req = new RegisterRequest();
+        req.setEmail("reset" + timestamp + "@campusforum.com");
+        req.setPassword("OldPass123");
+        req.setNickname("验证码重置测试");
+        prepareRegisterCode(req);
+        userService.register(req);
+
+        String code = "135790";
+        putEmailCode(stringRedisTemplate, 1L, EmailCodeScene.RESET_PASSWORD, req.getEmail(), code);
+
+        userService.resetPassword(req.getEmail(), code, "NewPass123");
+
+        LoginRequest loginReq = new LoginRequest();
+        loginReq.setEmail(req.getEmail());
+        loginReq.setPassword("NewPass123");
+        UserVO user = userService.login(loginReq);
         assertThat(user.getEmail()).isEqualTo(req.getEmail());
     }
 
@@ -91,6 +147,7 @@ class UserServiceTest {
         req.setEmail("wrongpwd" + timestamp + "@campusforum.com");
         req.setPassword("Test123456");
         req.setNickname("密码测试");
+        prepareRegisterCode(req);
         userService.register(req);
 
         LoginRequest loginReq = new LoginRequest();
@@ -123,6 +180,7 @@ class UserServiceTest {
         regReq.setEmail("allfail" + timestamp + "@campusforum.com");
         regReq.setPassword("Test123456");
         regReq.setNickname("统一错误码测试");
+        prepareRegisterCode(regReq);
         UserVO registeredUser = userService.register(regReq);
 
         // --- 场景 1：当前租户下用户不存在（邮箱未注册） ---
@@ -186,5 +244,9 @@ class UserServiceTest {
 
         // 恢复租户上下文
         TenantContext.setTenantId(1L);
+    }
+
+    private void prepareRegisterCode(RegisterRequest req) {
+        com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode(stringRedisTemplate, req);
     }
 }

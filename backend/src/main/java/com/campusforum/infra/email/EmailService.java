@@ -6,6 +6,16 @@ package com.campusforum.infra.email;
 public interface EmailService {
 
     /**
+     * 发送邮箱验证码。
+     *
+     * @param toEmail 收件人邮箱
+     * @param scene 验证码用途
+     * @param code 验证码明文
+     * @param expireMinutes 过期分钟数
+     */
+    void sendVerificationCode(String toEmail, EmailCodeScene scene, String code, int expireMinutes);
+
+    /**
      * 发送密码重置邮件
      *
      * @param toEmail 收件人邮箱

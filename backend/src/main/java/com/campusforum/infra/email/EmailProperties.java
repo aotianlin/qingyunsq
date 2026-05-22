@@ -18,6 +18,9 @@ public class EmailProperties {
     /** 应用名称（显示在邮件中） */
     private String appName = "CampusForum";
 
+    /** 邮箱验证码过期时间（分钟） */
+    private int codeExpireMinutes = 10;
+
     /** 重置令牌过期时间（分钟） */
     private int resetTokenExpireMinutes = 30;
 

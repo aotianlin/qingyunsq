@@ -180,17 +180,33 @@ async function submitReport() {
 
 async function loadPost() {
   loading.value = true;
+  post.value = null;
+  qa.value = null;
+  comments.value = [];
   try {
     const id = Number(route.params.id);
     post.value = await getPostById(id);
-    comments.value = await getComments(id, undefined, 20, post.value?.type === 'QA');
-    if (post.value?.type === 'QA') {
-      qa.value = await getQaInfo(id);
-    }
   } catch {
     post.value = null;
+    return;
   } finally {
     loading.value = false;
+  }
+
+  try {
+    comments.value = await getComments(post.value.id, undefined, 20, post.value.type === 'QA');
+  } catch {
+    comments.value = [];
+    message.error('评论加载失败，请稍后重试');
+  }
+
+  if (post.value.type === 'QA') {
+    try {
+      qa.value = await getQaInfo(post.value.id);
+    } catch {
+      qa.value = null;
+      message.error('问答信息加载失败，请稍后重试');
+    }
   }
 }
 

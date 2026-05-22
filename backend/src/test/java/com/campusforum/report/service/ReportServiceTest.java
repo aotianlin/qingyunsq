@@ -14,9 +14,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -31,6 +33,9 @@ class ReportServiceTest {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
     private Long reporterId;
     private Long postId = 100L;
 
@@ -42,6 +47,7 @@ class ReportServiceTest {
         req.setEmail("report-test" + ts + "@campusforum.com");
         req.setPassword("Test123456");
         req.setNickname("举报测试用户");
+        prepareRegisterCode(stringRedisTemplate, req);
         UserVO user = userService.register(req);
         reporterId = user.getId();
         StpUtil.login(reporterId);

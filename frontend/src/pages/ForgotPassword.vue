@@ -10,7 +10,7 @@ const message = useMessage();
 
 const step = ref(1);
 const email = ref('');
-const token = ref('');
+const emailCode = ref('');
 const newPassword = ref('');
 const confirmPassword = ref('');
 const loading = ref(false);
@@ -29,33 +29,36 @@ async function handleSendCode() {
   }
   loading.value = true;
   try {
-    const res = await forgotPassword(email.value.trim());
-    token.value = res.token;
-    message.success('重置令牌已生成');
+    await forgotPassword(email.value.trim());
+    message.success('验证码已发送，请查收邮箱');
     step.value = 2;
   } catch {
-    message.error('该邮箱未注册');
+    message.error('验证码发送失败');
   } finally {
     loading.value = false;
   }
 }
 
 async function handleReset() {
-  if (!newPassword.value || !confirmPassword.value) {
-    message.warning('请填写新密码');
+  if (!emailCode.value.trim() || !newPassword.value || !confirmPassword.value) {
+    message.warning('请填写验证码和新密码');
     return;
   }
   if (newPassword.value !== confirmPassword.value) {
     message.warning('两次密码不一致');
     return;
   }
-  if (newPassword.value.length < 6) {
-    message.warning('密码至少 6 位');
+  if (newPassword.value.length < 8 || newPassword.value.length > 64) {
+    message.warning('密码长度需 8-64 位');
+    return;
+  }
+  if (!/(?=.*[A-Za-z])(?=.*\d)/.test(newPassword.value)) {
+    message.warning('密码必须同时包含字母和数字');
     return;
   }
   loading.value = true;
   try {
-    await resetPassword(email.value.trim(), token.value, newPassword.value);
+    await resetPassword(email.value.trim(), emailCode.value.trim(), newPassword.value);
     message.success('密码重置成功，请重新登录');
     router.push('/login');
   } catch (error) {
@@ -74,17 +77,17 @@ async function handleReset() {
           <span class="cf-pill">Account Recovery</span>
           <h1>安全地找回你的校园账号</h1>
           <p>
-            采用两步流程完成密码重置：先验证注册邮箱，再使用系统返回的令牌设置新密码，整个过程保持与新视觉系统一致。
+            采用两步流程完成密码重置：先验证注册邮箱，再使用邮箱验证码设置新密码，整个过程保持与新视觉系统一致。
           </p>
 
           <div class="visual-steps">
             <div class="visual-step active">
               <strong>01 验证邮箱</strong>
-              <span>确认你当前使用的注册邮箱，系统会返回重置令牌。</span>
+              <span>确认你当前使用的注册邮箱，系统会发送一次性验证码。</span>
             </div>
             <div class="visual-step" :class="{ active: step === 2 }">
               <strong>02 设置新密码</strong>
-              <span>输入返回的令牌与新密码，完成账号恢复。</span>
+              <span>输入邮箱验证码与新密码，完成账号恢复。</span>
             </div>
           </div>
         </div>
@@ -124,17 +127,17 @@ async function handleReset() {
             @click="handleSendCode"
           >
             <n-icon size="16"><RefreshOutline /></n-icon>
-            {{ loading ? '提交中...' : '获取重置令牌' }}
+            {{ loading ? '提交中...' : '获取验证码' }}
           </button>
         </div>
 
         <div v-else class="form-area">
           <div class="form-block">
-            <label>重置令牌</label>
+            <label>邮箱验证码</label>
             <n-input
-              v-model:value="token"
+              v-model:value="emailCode"
               size="large"
-              placeholder="系统返回的 token"
+              placeholder="请输入邮箱验证码"
             >
               <template #prefix>
                 <n-icon><KeyOutline /></n-icon>
@@ -148,8 +151,9 @@ async function handleReset() {
               v-model:value="newPassword"
               type="password"
               size="large"
-              placeholder="请输入新密码"
+              placeholder="8-64 位，需包含字母和数字"
               show-password-on="click"
+              maxlength="64"
             >
               <template #prefix>
                 <n-icon><LockClosedOutline /></n-icon>
@@ -165,6 +169,7 @@ async function handleReset() {
               size="large"
               placeholder="请再次输入新密码"
               show-password-on="click"
+              maxlength="64"
             >
               <template #prefix>
                 <n-icon><LockClosedOutline /></n-icon>

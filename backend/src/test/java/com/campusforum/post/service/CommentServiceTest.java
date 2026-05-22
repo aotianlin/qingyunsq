@@ -15,7 +15,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -31,6 +33,9 @@ class CommentServiceTest {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
     private Long authorId;
     private Long commenterId;
     private Long replierId;
@@ -45,6 +50,7 @@ class CommentServiceTest {
         authorReq.setEmail("comment-post-author" + timestamp + "@campusforum.com");
         authorReq.setPassword("Test123456");
         authorReq.setNickname("帖子作者");
+        prepareRegisterCode(stringRedisTemplate, authorReq);
         UserVO author = userService.register(authorReq);
         authorId = author.getId();
 
@@ -52,6 +58,7 @@ class CommentServiceTest {
         commenterReq.setEmail("comment-user" + timestamp + "@campusforum.com");
         commenterReq.setPassword("Test123456");
         commenterReq.setNickname("评论用户");
+        prepareRegisterCode(stringRedisTemplate, commenterReq);
         UserVO commenter = userService.register(commenterReq);
         commenterId = commenter.getId();
 
@@ -59,6 +66,7 @@ class CommentServiceTest {
         replierReq.setEmail("comment-replier" + timestamp + "@campusforum.com");
         replierReq.setPassword("Test123456");
         replierReq.setNickname("回复用户");
+        prepareRegisterCode(stringRedisTemplate, replierReq);
         UserVO replier = userService.register(replierReq);
         replierId = replier.getId();
 
