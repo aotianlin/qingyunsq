@@ -14,10 +14,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.LocalDate;
 import java.util.List;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -28,6 +30,9 @@ class CheckinServiceTest {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     private Long userId1;
     private Long userId2;
@@ -40,12 +45,14 @@ class CheckinServiceTest {
         req.setEmail("ck-user1-" + ts + "@test.com");
         req.setPassword("Test123456");
         req.setNickname("打卡用户1");
+        prepareRegisterCode(stringRedisTemplate, req);
         userId1 = userService.register(req).getId();
 
         RegisterRequest req2 = new RegisterRequest();
         req2.setEmail("ck-user2-" + ts + "@test.com");
         req2.setPassword("Test123456");
         req2.setNickname("打卡用户2");
+        prepareRegisterCode(stringRedisTemplate, req2);
         userId2 = userService.register(req2).getId();
     }
 

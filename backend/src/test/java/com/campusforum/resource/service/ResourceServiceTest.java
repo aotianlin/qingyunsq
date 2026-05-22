@@ -12,12 +12,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -28,6 +30,9 @@ class ResourceServiceTest {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     private Long userId1;
     private Long userId2;
@@ -41,12 +46,14 @@ class ResourceServiceTest {
         req.setEmail("res-user1-" + ts + "@test.com");
         req.setPassword("Test123456");
         req.setNickname("资源上传者");
+        prepareRegisterCode(stringRedisTemplate, req);
         userId1 = userService.register(req).getId();
 
         RegisterRequest req2 = new RegisterRequest();
         req2.setEmail("res-user2-" + ts + "@test.com");
         req2.setPassword("Test123456");
         req2.setNickname("资源下载者");
+        prepareRegisterCode(stringRedisTemplate, req2);
         userId2 = userService.register(req2).getId();
     }
 

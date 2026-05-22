@@ -11,9 +11,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -24,6 +26,9 @@ class TenantIsolationTest {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     private Long tenant1UserId;
     private Long tenant1PostId;
@@ -112,6 +117,7 @@ class TenantIsolationTest {
         req.setEmail(email);
         req.setPassword("Test123456");
         req.setNickname(nickname);
+        prepareRegisterCode(stringRedisTemplate, req);
         return req;
     }
 }

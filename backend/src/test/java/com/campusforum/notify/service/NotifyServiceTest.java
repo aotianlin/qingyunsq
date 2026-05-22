@@ -9,9 +9,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -22,6 +24,9 @@ class NotifyServiceTest {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     private Long userId1;
     private Long userId2;
@@ -34,12 +39,14 @@ class NotifyServiceTest {
         req1.setEmail("notif-u1-" + ts + "@test.com");
         req1.setPassword("Test123456");
         req1.setNickname("通知用户1");
+        prepareRegisterCode(stringRedisTemplate, req1);
         userId1 = userService.register(req1).getId();
 
         RegisterRequest req2 = new RegisterRequest();
         req2.setEmail("notif-u2-" + ts + "@test.com");
         req2.setPassword("Test123456");
         req2.setNickname("通知用户2");
+        prepareRegisterCode(stringRedisTemplate, req2);
         userId2 = userService.register(req2).getId();
     }
 

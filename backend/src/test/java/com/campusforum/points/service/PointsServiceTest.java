@@ -13,10 +13,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -31,6 +33,9 @@ class PointsServiceTest {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
     private Long userId;
 
     @BeforeEach
@@ -41,6 +46,7 @@ class PointsServiceTest {
         req.setEmail("points-test" + ts + "@campusforum.com");
         req.setPassword("Test123456");
         req.setNickname("积分测试用户");
+        prepareRegisterCode(stringRedisTemplate, req);
         UserVO user = userService.register(req);
         userId = user.getId();
     }

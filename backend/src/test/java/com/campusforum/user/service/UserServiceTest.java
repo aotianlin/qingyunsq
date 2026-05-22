@@ -2,6 +2,7 @@ package com.campusforum.user.service;
 
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.infra.email.EmailCodeScene;
 import com.campusforum.tenant.TenantContext;
 import com.campusforum.user.dto.LoginRequest;
 import com.campusforum.user.dto.RegisterRequest;
@@ -16,8 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-import java.util.concurrent.TimeUnit;
-
+import static com.campusforum.test.EmailCodeTestUtils.emailCodeKey;
+import static com.campusforum.test.EmailCodeTestUtils.putEmailCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -103,8 +104,8 @@ class UserServiceTest {
         userService.register(req);
 
         String code = "246810";
-        String key = emailCodeKey("login", req.getEmail());
-        stringRedisTemplate.opsForValue().set(key, code, 10, TimeUnit.MINUTES);
+        String key = emailCodeKey(1L, EmailCodeScene.LOGIN, req.getEmail());
+        putEmailCode(stringRedisTemplate, 1L, EmailCodeScene.LOGIN, req.getEmail(), code);
 
         LoginRequest loginReq = new LoginRequest();
         loginReq.setEmail(req.getEmail());
@@ -127,11 +128,7 @@ class UserServiceTest {
         userService.register(req);
 
         String code = "135790";
-        stringRedisTemplate.opsForValue().set(
-                emailCodeKey("reset_password", req.getEmail()),
-                code,
-                10,
-                TimeUnit.MINUTES);
+        putEmailCode(stringRedisTemplate, 1L, EmailCodeScene.RESET_PASSWORD, req.getEmail(), code);
 
         userService.resetPassword(req.getEmail(), code, "NewPass123");
 
@@ -249,17 +246,7 @@ class UserServiceTest {
         TenantContext.setTenantId(1L);
     }
 
-    private String emailCodeKey(String scene, String email) {
-        return "email_code:1:" + scene + ":" + email.toLowerCase();
-    }
-
     private void prepareRegisterCode(RegisterRequest req) {
-        String code = "123456";
-        req.setEmailCode(code);
-        stringRedisTemplate.opsForValue().set(
-                emailCodeKey("register", req.getEmail()),
-                code,
-                10,
-                TimeUnit.MINUTES);
+        com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode(stringRedisTemplate, req);
     }
 }

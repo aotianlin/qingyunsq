@@ -10,7 +10,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -34,6 +36,9 @@ class LoginTimingTest {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
     private String existingEmail;
 
     @BeforeEach
@@ -48,6 +53,7 @@ class LoginTimingTest {
         req.setEmail(existingEmail);
         req.setPassword("CorrectPassword123");
         req.setNickname("时序测试用户");
+        prepareRegisterCode(stringRedisTemplate, req);
         userService.register(req);
     }
 

@@ -12,9 +12,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -25,6 +27,9 @@ class SpaceServiceTest {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     private Long ownerId;
     private Long memberId;
@@ -37,6 +42,7 @@ class SpaceServiceTest {
         req.setEmail("space-owner" + timestamp + "@campusforum.com");
         req.setPassword("Test123456");
         req.setNickname("空间创建者");
+        prepareRegisterCode(stringRedisTemplate, req);
         UserVO owner = userService.register(req);
         ownerId = owner.getId();
 
@@ -44,6 +50,7 @@ class SpaceServiceTest {
         req2.setEmail("space-member" + timestamp + "@campusforum.com");
         req2.setPassword("Test123456");
         req2.setNickname("空间成员");
+        prepareRegisterCode(stringRedisTemplate, req2);
         UserVO member = userService.register(req2);
         memberId = member.getId();
     }

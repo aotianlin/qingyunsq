@@ -13,9 +13,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 
+import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -30,6 +32,9 @@ class FollowServiceTest {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
     private Long followerId;
     private Long followeeId;
 
@@ -41,6 +46,7 @@ class FollowServiceTest {
         r1.setEmail("follower" + ts + "@campusforum.com");
         r1.setPassword("Test123456");
         r1.setNickname("关注者" + ts);
+        prepareRegisterCode(stringRedisTemplate, r1);
         UserVO u1 = userService.register(r1);
         followerId = u1.getId();
 
@@ -48,6 +54,7 @@ class FollowServiceTest {
         r2.setEmail("followee" + ts + "@campusforum.com");
         r2.setPassword("Test123456");
         r2.setNickname("被关注者" + ts);
+        prepareRegisterCode(stringRedisTemplate, r2);
         UserVO u2 = userService.register(r2);
         followeeId = u2.getId();
     }
