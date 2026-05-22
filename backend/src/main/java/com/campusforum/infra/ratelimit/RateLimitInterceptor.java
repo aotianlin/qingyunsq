@@ -1,6 +1,7 @@
 package com.campusforum.infra.ratelimit;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.campusforum.infra.security.TrustedProxyResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private final RedisRateLimiter rateLimiter;
     private final RateLimitProperties properties;
+    private final TrustedProxyResolver trustedProxyResolver;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -38,7 +40,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             rateLimitKey = "rate_limit:user:" + userId + ":" + path;
             if (config == null) config = properties.getAuthenticated();
         } else {
-            String ip = getClientIp(request);
+            // 通过 TrustedProxyResolver 拿到真实 IP，仅在请求来自可信代理时才相信 X-Forwarded-For
+            String ip = trustedProxyResolver.resolve(request);
             rateLimitKey = "rate_limit:ip:" + ip + ":" + path;
             if (config == null) config = properties.getAnonymous();
         }
@@ -64,18 +67,4 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         return path.equals(pattern);
     }
 
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        // 取第一个 IP（多级代理情况）
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
-    }
 }

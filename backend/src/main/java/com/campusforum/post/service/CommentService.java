@@ -113,8 +113,11 @@ public class CommentService {
         // 解析 @提及 并发送通知
         Set<String> mentionedNames = MentionParser.extract(req.getContent());
         for (String name : mentionedNames) {
-            User mentioned = userMapper.selectOne(new LambdaQueryWrapper<User>()
-                    .eq(User::getNickname, name));
+            // 同昵称可能存在多个用户（不强制唯一），这里限定查询取第一条，避免 selectOne 抛 TooManyResults
+            List<User> matches = userMapper.selectList(new LambdaQueryWrapper<User>()
+                    .eq(User::getNickname, name)
+                    .last("LIMIT 1"));
+            User mentioned = matches.isEmpty() ? null : matches.get(0);
             if (mentioned != null && !mentioned.getId().equals(userId)) {
                 notifyService.create(mentioned.getId(), userId, "MENTION",
                         "提及通知", commenterName + " @了你", "/posts/" + req.getPostId());

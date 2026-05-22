@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import {
   NAlert,
   NButton,
@@ -89,9 +89,25 @@ const typeIcons: Record<string, string> = {
   webp: '🖼',
 };
 
-const previewUrl = computed(() => {
-  return selectedResource.value ? getPreviewUrl(selectedResource.value.id) : '';
-});
+const previewUrl = ref('');
+
+watch(
+  () => selectedResource.value?.id,
+  async (id) => {
+    if (!id) {
+      previewUrl.value = '';
+      return;
+    }
+    try {
+      // 异步申请签名 URL，避免在 URL 中暴露会话 token
+      previewUrl.value = await getPreviewUrl(id);
+    } catch (err) {
+      console.error('获取预览签名失败', err);
+      previewUrl.value = '';
+    }
+  },
+  { immediate: true },
+);
 
 const markdownSrcdoc = computed(() => {
   if (!previewText.value) return '';
@@ -255,10 +271,15 @@ function selectTopic(topic: string) {
   activeTopic.value = topic;
 }
 
-function handleDownload(resource = selectedResource.value) {
+async function handleDownload(resource = selectedResource.value) {
   if (!resource) return;
-  window.open(getDownloadUrl(resource.id), '_blank');
-  setTimeout(() => refreshResource(resource.id), 1000);
+  try {
+    const url = await getDownloadUrl(resource.id);
+    window.open(url, '_blank');
+    setTimeout(() => refreshResource(resource.id), 1000);
+  } catch (err) {
+    console.error('下载链接获取失败', err);
+  }
 }
 
 async function refreshResource(id: number) {

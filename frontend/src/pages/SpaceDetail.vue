@@ -1446,10 +1446,24 @@ async function refreshSpaceData() {
 
 async function copySpaceLink() {
   try {
-    await navigator.clipboard.writeText(spaceLink.value);
-    message.success('圈子链接已复制');
+    // navigator.clipboard 仅在 HTTPS 或 localhost 下可用
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(spaceLink.value);
+      message.success('圈子链接已复制');
+    } else {
+      // HTTP 环境下使用 execCommand 兜底
+      const textarea = document.createElement('textarea');
+      textarea.value = spaceLink.value;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      message.success('圈子链接已复制');
+    }
   } catch {
-    message.info(spaceLink.value);
+    message.info(`请手动复制：${spaceLink.value}`);
   }
 }
 

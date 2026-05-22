@@ -245,6 +245,11 @@ async function submitComment() {
     message.warning('评论内容不能为空，请输入有效内容');
     return;
   }
+  // 评论字数限制
+  if (commentText.value.length > 2000) {
+    message.warning(`评论内容过长（${commentText.value.length}/2000），请精简后再发布`);
+    return;
+  }
   submitting.value = true;
   try {
     await createComment({
@@ -255,8 +260,8 @@ async function submitComment() {
     commentText.value = '';
     comments.value = await getComments(post.value.id, undefined, 20, post.value?.type === 'QA');
     if (post.value) post.value.commentCount += 1;
-  } catch {
-    message.error('评论失败');
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '评论失败');
   } finally {
     submitting.value = false;
   }
@@ -526,12 +531,16 @@ onMounted(loadPost);
                 v-model:value="commentText"
                 type="textarea"
                 class="cf-textarea"
-                placeholder="写下你的想法，或者补充你的观点"
+                placeholder="写下你的想法，或者补充你的观点（最多 2000 字）"
                 :autosize="{ minRows: 4, maxRows: 10 }"
+                maxlength="2000"
               />
               <div class="editor-actions">
+                <span class="comment-char-count" :class="{ over: commentText.length > 2000 }">
+                  {{ commentText.length }}/2000
+                </span>
                 <button class="cf-secondary-btn" @click="clearCommentEditor">清空</button>
-                <button class="cf-primary-btn" :disabled="submitting" @click="submitComment">
+                <button class="cf-primary-btn" :disabled="submitting || commentText.length > 2000" @click="submitComment">
                   发布评论
                 </button>
               </div>
@@ -550,6 +559,7 @@ onMounted(loadPost);
                       <div class="comment-avatar">{{ formatAuthorName(comment).charAt(0) }}</div>
                       <div>
                         <strong>{{ formatAuthorName(comment) }}</strong>
+                        <span v-if="comment.authorId === post?.authorId" class="author-badge">作者</span>
                         <span>{{ formatTime(comment.createdAt) }}</span>
                       </div>
                     </button>
@@ -1371,6 +1381,29 @@ onMounted(loadPost);
 
   .ai-send-btn {
     width: 100%;
+  }
+}
+
+.author-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--cf-primary-soft);
+  color: var(--cf-primary);
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.comment-char-count {
+  color: var(--cf-text-muted);
+  font-size: 13px;
+  margin-right: auto;
+
+  &.over {
+    color: #ef4444;
+    font-weight: 600;
   }
 }
 </style>

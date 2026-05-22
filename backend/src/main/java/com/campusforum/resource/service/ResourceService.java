@@ -10,6 +10,10 @@ import com.campusforum.resource.dto.ResourcePreviewVO;
 import com.campusforum.resource.dto.ResourceVO;
 import com.campusforum.resource.dto.UploadResourceRequest;
 import com.campusforum.resource.mapper.ResourceMapper;
+import com.campusforum.space.domain.Space;
+import com.campusforum.space.domain.SpaceMember;
+import com.campusforum.space.mapper.SpaceMapper;
+import com.campusforum.space.mapper.SpaceMemberMapper;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
@@ -47,6 +51,8 @@ public class ResourceService {
 
     private final ResourceMapper resourceMapper;
     private final UserMapper userMapper;
+    private final SpaceMapper spaceMapper;
+    private final SpaceMemberMapper spaceMemberMapper;
     private final StorageService storageService;
     private final ObjectMapper objectMapper;
 
@@ -54,10 +60,13 @@ public class ResourceService {
     private final Set<String> allowedExtensions;
 
     public ResourceService(ResourceMapper resourceMapper, UserMapper userMapper,
+                           SpaceMapper spaceMapper, SpaceMemberMapper spaceMemberMapper,
                            StorageService storageService, ObjectMapper objectMapper,
                            @Value("${upload.allowed-extensions:pdf,doc,docx,ppt,pptx,xls,xlsx,zip,rar,7z,jpg,jpeg,png,gif,webp,md,markdown}") String allowedExtensionsConfig) {
         this.resourceMapper = resourceMapper;
         this.userMapper = userMapper;
+        this.spaceMapper = spaceMapper;
+        this.spaceMemberMapper = spaceMemberMapper;
         this.storageService = storageService;
         this.objectMapper = objectMapper;
         this.allowedExtensions = Arrays.stream(allowedExtensionsConfig.split(","))
@@ -136,6 +145,7 @@ public class ResourceService {
         if (resource == null || resource.getDeleted() == 1) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
+        ensureCanAccess(resource);
         return toVO(resource);
     }
 
@@ -161,7 +171,13 @@ public class ResourceService {
         qw.orderByDesc(Resource::getId);
         qw.last("LIMIT " + size);
 
-        return resourceMapper.selectList(qw).stream().map(this::toVO).toList();
+        // 列表层面也按可见性过滤，避免 PRIVATE / 仅空间成员可见的资源在列表中泄漏
+        Long currentUserId = currentUserIdOrNull();
+        String currentRole = currentRoleOrNull();
+        return resourceMapper.selectList(qw).stream()
+                .filter(r -> canAccess(r, currentUserId, currentRole))
+                .map(this::toVO)
+                .toList();
     }
 
     @Transactional
@@ -170,20 +186,23 @@ public class ResourceService {
         if (resource == null || resource.getDeleted() == 1) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
+        ensureCanAccess(resource);
 
-        resource.setDownloadCount(resource.getDownloadCount() + 1);
-        resourceMapper.updateById(resource);
+        // 用 SQL 原子自增计数，避免并发下载时的丢失更新
+        resourceMapper.incrementDownloadCount(resourceId);
 
         return storageService.download(resource.getStorageKey());
     }
 
     public InputStream preview(Long resourceId) {
         Resource resource = getActiveResource(resourceId);
+        ensureCanAccess(resource);
         return storageService.download(resource.getStorageKey());
     }
 
     public ResourcePreviewVO previewText(Long resourceId) {
         Resource resource = getActiveResource(resourceId);
+        ensureCanAccess(resource);
         String fileType = resource.getFileType() == null ? "" : resource.getFileType().toLowerCase();
 
         try (InputStream is = storageService.download(resource.getStorageKey())) {
@@ -209,11 +228,13 @@ public class ResourceService {
 
     public String getFileName(Long resourceId) {
         Resource resource = getActiveResource(resourceId);
+        ensureCanAccess(resource);
         return resource.getFileName();
     }
 
     public String getFileType(Long resourceId) {
         Resource resource = getActiveResource(resourceId);
+        ensureCanAccess(resource);
         return resource.getFileType();
     }
 
@@ -284,6 +305,74 @@ public class ResourceService {
         return resource;
     }
 
+    /**
+     * 资源访问可见性校验。规则：
+     * <ul>
+     *   <li>上传者本人或租户/超管：始终可访问；</li>
+     *   <li>visibility = PUBLIC：登录用户均可访问；</li>
+     *   <li>visibility = PRIVATE：仅上传者可访问（管理员除外）；</li>
+     *   <li>visibility = SPACE 且资源属于某个空间：仅该空间成员可访问；</li>
+     *   <li>其他未知值按 PRIVATE 处理。</li>
+     * </ul>
+     */
+    private void ensureCanAccess(Resource resource) {
+        Long currentUserId = currentUserIdOrNull();
+        String role = currentRoleOrNull();
+        if (!canAccess(resource, currentUserId, role)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    private boolean canAccess(Resource resource, Long currentUserId, String role) {
+        if ("TENANT_ADMIN".equals(role) || "SUPER_ADMIN".equals(role)) {
+            return true;
+        }
+        if (currentUserId != null && currentUserId.equals(resource.getUploaderId())) {
+            return true;
+        }
+        String visibility = resource.getVisibility() == null ? "PUBLIC" : resource.getVisibility().toUpperCase();
+        return switch (visibility) {
+            // PUBLIC 资源对站内所有人可见，包含未登录访问的预览/封面场景
+            case "PUBLIC" -> true;
+            case "SPACE" -> currentUserId != null && resource.getSpaceId() != null
+                    && isSpaceMember(resource.getSpaceId(), currentUserId);
+            // PRIVATE 或未知值：默认仅上传者本人，已在前面 return 过
+            default -> false;
+        };
+    }
+
+    private boolean isSpaceMember(Long spaceId, Long userId) {
+        Space space = spaceMapper.selectById(spaceId);
+        if (space == null || space.getDeleted() == 1) {
+            return false;
+        }
+        // 空间所有者一定是成员
+        if (userId.equals(space.getOwnerId())) return true;
+        SpaceMember member = spaceMemberMapper.selectOne(new LambdaQueryWrapper<SpaceMember>()
+                .eq(SpaceMember::getSpaceId, spaceId)
+                .eq(SpaceMember::getUserId, userId)
+                .eq(SpaceMember::getStatus, 1)
+                .last("LIMIT 1"));
+        return member != null;
+    }
+
+    private static Long currentUserIdOrNull() {
+        try {
+            return StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String currentRoleOrNull() {
+        try {
+            if (!StpUtil.isLogin()) return null;
+            return (String) StpUtil.getSession().get("role");
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private static String readUtf8Text(InputStream is) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         is.transferTo(out);
@@ -307,6 +396,13 @@ public class ResourceService {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);
+            // 防 XXE：禁用 DOCTYPE 与外部实体加载，避免上传文档触发 SSRF/任意文件读取
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            factory.setXIncludeAware(false);
+            factory.setExpandEntityReferences(false);
             Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(xml));
             NodeList paragraphs = document.getElementsByTagNameNS("*", "p");
             StringBuilder text = new StringBuilder();

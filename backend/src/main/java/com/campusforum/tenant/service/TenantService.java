@@ -87,23 +87,72 @@ public class TenantService {
             Map<String, Object> cfg = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
             Map<String, Object> result = new HashMap<>(defaults);
             result.putAll(cfg);
-            if (result.containsKey("apiKey") && result.get("apiKey") instanceof String) {
-                result.put("apiKey", CryptoUtils.decrypt((String) result.get("apiKey")));
-            }
+            // 不回传明文 API Key：仅指示是否已配置，避免管理员页面网络面板/日志泄漏第三方密钥
+            Object stored = result.get("apiKey");
+            boolean configured = stored instanceof String s && !s.isBlank();
+            result.put("apiKey", "");
+            result.put("apiKeyConfigured", configured);
             return result;
         } catch (JsonProcessingException e) {
             return defaults;
         }
     }
 
+    /**
+     * 仅供后端内部（AI 调用链路）使用，返回明文 baseUrl/apiKey/model。不要暴露给 controller。
+     */
+    public Map<String, String> resolveAiCredentials(Long tenantId) {
+        Tenant t = tenantMapper.selectById(tenantId);
+        Map<String, String> credentials = new LinkedHashMap<>();
+        credentials.put("provider", "mock");
+        credentials.put("baseUrl", "");
+        credentials.put("apiKey", "");
+        credentials.put("model", "");
+        if (t == null || t.getAiConfig() == null) return credentials;
+        try {
+            Map<String, Object> cfg = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
+            for (Map.Entry<String, Object> entry : cfg.entrySet()) {
+                if (entry.getValue() instanceof String s) {
+                    credentials.put(entry.getKey(), s);
+                }
+            }
+            String enc = credentials.get("apiKey");
+            if (enc != null && !enc.isBlank()) {
+                credentials.put("apiKey", CryptoUtils.decrypt(enc));
+            }
+        } catch (JsonProcessingException ignored) {
+        }
+        return credentials;
+    }
+
     @Transactional
     public void updateAiConfig(Long tenantId, String provider, String baseUrl, String apiKey, String model) {
         Tenant t = tenantMapper.selectById(tenantId);
         if (t == null) throw new BusinessException(40000, "租户不存在");
+        // 仅当 provider 为外部远程服务时校验 baseUrl 防 SSRF；mock/ollama-local 等本地形式由该校验放行
+        if (baseUrl != null && !baseUrl.isBlank()
+                && provider != null && "openai".equalsIgnoreCase(provider)) {
+            try {
+                com.campusforum.infra.security.PrivateNetworkValidator.requirePublic(baseUrl, true);
+            } catch (IllegalArgumentException ex) {
+                throw new BusinessException(40000, "AI baseUrl 不合法：" + ex.getMessage());
+            }
+        }
+
+        // 在已存配置基础上做 merge，避免传 null 时清空已有字段（特别是 apiKey 留空表示"不修改"）
         Map<String, String> cfg = new LinkedHashMap<>();
+        if (t.getAiConfig() != null && !t.getAiConfig().isBlank()) {
+            try {
+                Map<String, Object> existing = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
+                for (Map.Entry<String, Object> entry : existing.entrySet()) {
+                    if (entry.getValue() instanceof String s) cfg.put(entry.getKey(), s);
+                }
+            } catch (JsonProcessingException ignored) {}
+        }
         if (provider != null) cfg.put("provider", provider);
         if (baseUrl != null) cfg.put("baseUrl", baseUrl);
-        if (apiKey != null) cfg.put("apiKey", CryptoUtils.encrypt(apiKey));
+        // apiKey 仅在显式提供且非空时才更新；空字符串视作"保留原值"
+        if (apiKey != null && !apiKey.isBlank()) cfg.put("apiKey", CryptoUtils.encrypt(apiKey));
         if (model != null) cfg.put("model", model);
         try {
             t.setAiConfig(new ObjectMapper().writeValueAsString(cfg));

@@ -27,12 +27,16 @@ async function load() {
   loading.value = false;
 }
 
-function handleDownload() {
+async function handleDownload() {
   if (!resource.value) return;
-  const url = getDownloadUrl(resource.value.id);
-  window.open(url, '_blank');
-  // 刷新以更新下载计数
-  setTimeout(load, 1000);
+  try {
+    const url = await getDownloadUrl(resource.value.id);
+    window.open(url, '_blank');
+    // 刷新以更新下载计数
+    setTimeout(load, 1000);
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : '下载链接获取失败');
+  }
 }
 
 async function handleDelete() {

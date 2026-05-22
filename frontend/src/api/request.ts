@@ -49,6 +49,9 @@ instance.interceptors.response.use(
       error.message = '该文件类型不支持此操作';
     } else if (error.response?.status === 413) {
       error.message = '文件过大';
+    } else if (error.response?.data?.message) {
+      // 提取后端返回的具体错误信息（如 400 参数校验失败）
+      error.message = error.response.data.message;
     }
     return Promise.reject(error);
   },

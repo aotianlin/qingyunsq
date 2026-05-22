@@ -227,10 +227,25 @@ public class ExportService {
 
     private String esc(String val) {
         if (val == null) return "";
-        return val.replace(",", "，").replace("\n", " ").replace("\r", "");
+        String safe = val.replace(",", "，").replace("\n", " ").replace("\r", "");
+        // CSV 公式注入防御：以 = + - @ Tab 开头的内容会被 Excel 当公式解析，前置单引号转义
+        if (!safe.isEmpty()) {
+            char first = safe.charAt(0);
+            if (first == '=' || first == '+' || first == '-' || first == '@' || first == '\t') {
+                safe = "'" + safe;
+            }
+        }
+        return safe;
     }
 
     private String str(String val) {
-        return val != null ? val : "";
+        if (val == null) return "";
+        if (!val.isEmpty()) {
+            char first = val.charAt(0);
+            if (first == '=' || first == '+' || first == '-' || first == '@' || first == '\t') {
+                return "'" + val;
+            }
+        }
+        return val;
     }
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NIcon, NInput, useMessage } from 'naive-ui';
 import { ArrowForwardOutline, IdCardOutline, LockClosedOutline, MailOutline, PersonOutline, SchoolOutline } from '@vicons/ionicons5';
@@ -15,13 +15,88 @@ const studentNo = ref('');
 const nickname = ref('');
 const loading = ref(false);
 
+// 实时校验状态
+const emailError = ref('');
+const passwordError = ref('');
+const confirmError = ref('');
+const nicknameError = ref('');
+
 const benefits = [
   '在广场记录课程心得与校园见闻',
   '加入学习圈，参与专题讨论与资料共享',
   '开启打卡、积分、成就和 AI 学习辅助能力',
 ];
 
+// 密码强度计算
+const passwordStrength = computed(() => {
+  const pwd = password.value;
+  if (!pwd) return { level: 0, text: '', color: '' };
+  let score = 0;
+  if (pwd.length >= 6) score++;
+  if (pwd.length >= 10) score++;
+  if (/[A-Z]/.test(pwd)) score++;
+  if (/[0-9]/.test(pwd)) score++;
+  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+  if (score <= 1) return { level: 1, text: '弱', color: '#ef4444' };
+  if (score <= 3) return { level: 2, text: '中', color: '#f59e0b' };
+  return { level: 3, text: '强', color: '#10b981' };
+});
+
+// 实时校验函数（输入框失焦时触发）
+function validateEmail() {
+  if (!email.value.trim()) {
+    emailError.value = '邮箱不能为空';
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) {
+    emailError.value = '邮箱格式不正确';
+  } else {
+    emailError.value = '';
+  }
+}
+
+function validatePassword() {
+  if (!password.value) {
+    passwordError.value = '密码不能为空';
+  } else if (password.value.length < 6) {
+    passwordError.value = '密码至少 6 位';
+  } else if (password.value.length > 32) {
+    passwordError.value = '密码最长 32 位';
+  } else {
+    passwordError.value = '';
+  }
+  // 同步校验确认密码
+  if (confirmPassword.value) validateConfirm();
+}
+
+function validateConfirm() {
+  if (!confirmPassword.value) {
+    confirmError.value = '';
+  } else if (confirmPassword.value !== password.value) {
+    confirmError.value = '两次密码不一致';
+  } else {
+    confirmError.value = '';
+  }
+}
+
+function validateNickname() {
+  if (!nickname.value.trim()) {
+    nicknameError.value = '昵称不能为空';
+  } else if (nickname.value.trim().length > 64) {
+    nicknameError.value = '昵称最长 64 位';
+  } else {
+    nicknameError.value = '';
+  }
+}
+
 async function handleRegister() {
+  // 触发全部校验
+  validateEmail();
+  validatePassword();
+  validateConfirm();
+  validateNickname();
+
+  if (emailError.value || passwordError.value || confirmError.value || nicknameError.value) {
+    return;
+  }
   if (!email.value || !password.value || !nickname.value) {
     message.warning('请填写必填项');
     return;
@@ -30,11 +105,9 @@ async function handleRegister() {
     message.warning('两次密码不一致');
     return;
   }
-  if (password.value.length < 6) {
-    message.warning('密码至少 6 位');
-    return;
-  }
 
+  // 防止重复提交
+  if (loading.value) return;
   loading.value = true;
   try {
     await register({
@@ -81,11 +154,15 @@ async function handleRegister() {
               v-model:value="nickname"
               size="large"
               placeholder="例如：数据结构补完计划"
+              maxlength="64"
+              :status="nicknameError ? 'error' : undefined"
+              @blur="validateNickname"
             >
               <template #prefix>
                 <n-icon><PersonOutline /></n-icon>
               </template>
             </n-input>
+            <span v-if="nicknameError" class="field-error">{{ nicknameError }}</span>
           </div>
           <div class="form-block">
             <label>学号</label>
@@ -93,6 +170,7 @@ async function handleRegister() {
               v-model:value="studentNo"
               size="large"
               placeholder="选填"
+              maxlength="32"
             >
               <template #prefix>
                 <n-icon><IdCardOutline /></n-icon>
@@ -108,11 +186,14 @@ async function handleRegister() {
               v-model:value="email"
               size="large"
               placeholder="name@college.edu"
+              :status="emailError ? 'error' : undefined"
+              @blur="validateEmail"
             >
               <template #prefix>
                 <n-icon><MailOutline /></n-icon>
               </template>
             </n-input>
+            <span v-if="emailError" class="field-error">{{ emailError }}</span>
           </div>
 
           <div class="form-block">
@@ -121,13 +202,26 @@ async function handleRegister() {
               v-model:value="password"
               type="password"
               size="large"
-              placeholder="至少 6 位"
+              placeholder="6-32 位，建议包含大小写和数字"
               show-password-on="click"
+              maxlength="32"
+              :status="passwordError ? 'error' : undefined"
+              @blur="validatePassword"
             >
               <template #prefix>
                 <n-icon><LockClosedOutline /></n-icon>
               </template>
             </n-input>
+            <span v-if="passwordError" class="field-error">{{ passwordError }}</span>
+            <div v-if="password && !passwordError" class="password-strength">
+              <div class="strength-bar">
+                <div
+                  class="strength-fill"
+                  :style="{ width: `${(passwordStrength.level / 3) * 100}%`, background: passwordStrength.color }"
+                />
+              </div>
+              <span :style="{ color: passwordStrength.color }">{{ passwordStrength.text }}</span>
+            </div>
           </div>
 
           <div class="form-block">
@@ -138,11 +232,15 @@ async function handleRegister() {
               size="large"
               placeholder="再次输入密码"
               show-password-on="click"
+              maxlength="32"
+              :status="confirmError ? 'error' : undefined"
+              @blur="validateConfirm"
             >
               <template #prefix>
                 <n-icon><LockClosedOutline /></n-icon>
               </template>
             </n-input>
+            <span v-if="confirmError" class="field-error">{{ confirmError }}</span>
           </div>
         </div>
 
@@ -292,6 +390,38 @@ async function handleRegister() {
   text-align: center;
   color: var(--cf-text-secondary);
   font-size: 14px;
+}
+
+.field-error {
+  color: #ef4444;
+  font-size: 12px;
+  margin-top: -4px;
+}
+
+.password-strength {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: -4px;
+
+  span {
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+
+.strength-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--cf-border);
+  overflow: hidden;
+}
+
+.strength-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s, background 0.3s;
 }
 
 .text-link {

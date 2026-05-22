@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NEmpty, NIcon, NSpin, NTag } from 'naive-ui';
 import {
+  ArrowUpOutline,
   BookmarkOutline,
   ChatbubblesOutline,
   EyeOutline,
@@ -23,6 +24,8 @@ const posts = ref<PostVO[]>([]);
 const loading = ref(false);
 const hasMore = ref(true);
 const sort = ref<'latest' | 'trending' | 'essence' | 'follow'>('latest');
+const showBackToTop = ref(false);
+const squarePageRef = ref<HTMLElement | null>(null);
 
 const sortOptions = [
   { key: 'latest', label: '最新发布', icon: TimeOutline },
@@ -112,9 +115,15 @@ function formatTime(value: string) {
 
 function scrollToListEnd(e: Event) {
   const target = e.target as HTMLElement;
+  // 显示/隐藏回到顶部按钮
+  showBackToTop.value = target.scrollTop > 400;
   if (target.scrollHeight - target.scrollTop - target.clientHeight < 160) {
     loadPosts();
   }
+}
+
+function scrollToTop() {
+  squarePageRef.value?.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 onMounted(() => loadPosts(true));
@@ -122,6 +131,7 @@ onMounted(() => loadPosts(true));
 
 <template>
   <div
+    ref="squarePageRef"
     class="square-page"
     @scroll="scrollToListEnd"
   >
@@ -291,6 +301,20 @@ onMounted(() => loadPosts(true));
         </div>
       </aside>
     </section>
+
+    <!-- 回到顶部按钮 -->
+    <Transition name="fade">
+      <button
+        v-if="showBackToTop"
+        class="back-to-top-btn"
+        title="回到顶部"
+        @click="scrollToTop"
+      >
+        <n-icon size="20">
+          <ArrowUpOutline />
+        </n-icon>
+      </button>
+    </Transition>
   </div>
 </template>
 
@@ -303,6 +327,43 @@ onMounted(() => loadPosts(true));
   gap: 18px;
   padding-right: 4px;
   perspective: 1200px;
+  position: relative;
+}
+
+.back-to-top-btn {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--cf-border);
+  background: var(--cf-bg-elevated);
+  color: var(--cf-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  transition: all 0.3s;
+
+  &:hover {
+    color: var(--cf-primary);
+    border-color: var(--cf-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 .toolbar-row {

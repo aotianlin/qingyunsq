@@ -131,13 +131,14 @@ public class OpenAiCompatService implements AiService {
                 }
             }
         } catch (RestClientResponseException e) {
-            log.warn("OpenAI API call rejected: status={}, body={}", e.getStatusCode().value(), safeErrorBody(e.getResponseBodyAsString()));
+            // 仅记录上游 HTTP 状态码，不再回写响应体（可能含 prompt 片段）
+            log.warn("OpenAI API call rejected: status={}", e.getStatusCode().value());
             return "AI 服务调用失败：模型服务返回 " + e.getStatusCode().value() + "，请检查 API Key、模型名称或服务额度。";
         } catch (ResourceAccessException e) {
-            log.warn("OpenAI API connection failed: {}", e.getMessage());
+            log.warn("OpenAI API connection failed: {}", e.getClass().getSimpleName());
             return "AI 服务调用失败：无法连接到模型服务，请检查服务器网络或 API Base URL。";
         } catch (Exception e) {
-            log.warn("OpenAI API call failed: {}", e.getMessage());
+            log.warn("OpenAI API call failed: {}", e.getClass().getSimpleName());
             return "AI 服务调用失败：后端解析模型响应异常，请稍后重试。";
         }
         return "AI 服务调用失败：模型服务没有返回有效内容。";
@@ -149,13 +150,6 @@ public class OpenAiCompatService implements AiService {
         factory.setConnectTimeout(CONNECT_TIMEOUT_MS);
         factory.setReadTimeout(READ_TIMEOUT_MS);
         return new RestTemplate(factory);
-    }
-
-    private static String safeErrorBody(String value) {
-        if (value == null || value.isBlank()) {
-            return "";
-        }
-        return value.length() <= 500 ? value : value.substring(0, 500) + "...";
     }
 
     private static String normalizeBaseUrl(String value) {
