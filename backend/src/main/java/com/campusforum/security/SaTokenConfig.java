@@ -11,6 +11,9 @@ public class SaTokenConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // 仅对 /api/v1/** 应用 Sa-Token 强制登录拦截，且仅放行匿名访问的认证类接口。
+        // 注意：actuator / swagger / api-docs 不再列入 excludePathPatterns，
+        // 它们由 Spring Security 之外的网关或 management.endpoints.web.exposure.include 进一步限制。
         registry.addInterceptor(new SaInterceptor(handle -> StpUtil.checkLogin()))
                 .addPathPatterns("/api/v1/**")
                 .excludePathPatterns(
@@ -18,9 +21,9 @@ public class SaTokenConfig implements WebMvcConfigurer {
                         "/api/v1/auth/register",
                         "/api/v1/auth/forgot-password",
                         "/api/v1/auth/reset-password",
-                        "/swagger-ui/**",
-                        "/v3/api-docs/**",
-                        "/actuator/**"
+                        // 资源下载/预览支持签名 URL 模式（&lt;a&gt; 直链等场景），controller 内部会按 sig 或登录态进行校验
+                        "/api/v1/resources/*/download",
+                        "/api/v1/resources/*/preview"
                 );
     }
 }

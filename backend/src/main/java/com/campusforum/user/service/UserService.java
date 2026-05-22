@@ -7,6 +7,7 @@ import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
 import com.campusforum.infra.email.EmailProperties;
 import com.campusforum.infra.email.EmailService;
+import com.campusforum.infra.security.LoginLockoutService;
 import com.campusforum.points.service.PointsService;
 import com.campusforum.tenant.TenantContext;
 import com.campusforum.tenant.cache.ActiveTenantCache;
@@ -48,6 +49,7 @@ public class UserService {
     private final EmailService emailService;
     private final EmailProperties emailProperties;
     private final StringRedisTemplate stringRedisTemplate;
+    private final LoginLockoutService loginLockoutService;
 
     /**
      * 固定 BCrypt hash，仅用于用户不存在时消耗等量 CPU 时间，防止时序攻击。
@@ -99,6 +101,9 @@ public class UserService {
 
     public UserVO login(LoginRequest req) {
         long tid = TenantContext.getTenantId();
+        // 登录前先检查是否已被锁定（基于 (tenantId, email)）
+        loginLockoutService.ensureNotLocked(tid, req.getEmail());
+
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
                 .eq(User::getTenantId, tid)
                 .eq(User::getEmail, req.getEmail()));
@@ -117,8 +122,13 @@ public class UserService {
         }
 
         if (!ok) {
+            // 累计失败次数（无论邮箱是否存在），达到阈值会触发锁定
+            loginLockoutService.recordFailure(tid, req.getEmail());
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
+
+        // 登录成功，清空失败计数
+        loginLockoutService.recordSuccess(tid, req.getEmail());
 
         // Sa-Token 登录
         StpUtil.login(user.getId());

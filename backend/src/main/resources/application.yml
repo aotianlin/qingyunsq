@@ -42,8 +42,10 @@ mybatis-plus:
 
 sa-token:
   token-name: Authorization
-  timeout: 2592000
-  active-timeout: -1
+  # 7 天总有效期（原 30 天 + active-timeout=-1 在 token 泄漏后影响过大）
+  timeout: 604800
+  # 闲置 4 小时未使用即失效，强迫长时间未活跃的 token 失效
+  active-timeout: 14400
   is-concurrent: true
   is-share: false
   token-style: tik
@@ -128,20 +130,73 @@ rate-limit:
     window-seconds: 60
   exclude-patterns:
     - /actuator/**
-    - /api/v1/auth/login
+  # 端点级覆盖：AI / 上传 / 登录 等高成本或安全敏感接口单独配额
+  # key 格式：METHOD path（与 RateLimitInterceptor 内拼接顺序一致）
+  overrides:
+    "[POST /api/v1/ai/chat]":
+      max-requests: 5
+      window-seconds: 60
+    "[POST /api/v1/ai/rag-chat]":
+      max-requests: 5
+      window-seconds: 60
+    "[POST /api/v1/ai/summarize]":
+      max-requests: 10
+      window-seconds: 60
+    "[POST /api/v1/ai/moderate]":
+      max-requests: 10
+      window-seconds: 60
+    "[POST /api/v1/ai/tags]":
+      max-requests: 10
+      window-seconds: 60
+    "[POST /api/v1/auth/login]":
+      max-requests: 10
+      window-seconds: 60
+    "[POST /api/v1/auth/register]":
+      max-requests: 5
+      window-seconds: 300
+    "[POST /api/v1/auth/forgot-password]":
+      max-requests: 5
+      window-seconds: 900
+    "[POST /api/v1/resources]":
+      max-requests: 10
+      window-seconds: 60
 
 # ---------- 邮件配置 ----------
 email:
   from: ${EMAIL_FROM:noreply@campusforum.com}
-  reset-link-base: ${RESET_LINK_BASE:http://localhost:3000/reset-password}
+  reset-link-base: ${RESET_LINK_BASE:https://localhost:3000/reset-password}
   app-name: CampusForum
   reset-token-expire-minutes: 30
   rate-limit-max-requests: 5
   rate-limit-window-minutes: 15
+
+# ---------- 安全相关 ----------
+security:
+  trusted-proxies:
+    - 127.0.0.1
+    - "::1"
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+  signed-url-secret: ${SIGNED_URL_SECRET:campus-forum-default-signed-url-secret-please-override}
+  signed-url-ttl-seconds: 60
+  ai-base-url-block-private-network: true
+  login-lockout:
+    enabled: true
+    max-failures: 5
+    window-seconds: 900
+    lockout-seconds: 900
+
+# ---------- WebSocket 跨域来源（生产用环境变量覆盖为前端域名） ----------
+ws:
+  allowed-origins: ${WS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
 
 # ---------- 管理端点 ----------
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health
+  endpoint:
+    health:
+      show-details: never

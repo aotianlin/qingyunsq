@@ -45,16 +45,40 @@ export async function getResourceById(id: number): Promise<ResourceVO> {
   return res.data;
 }
 
-export function getDownloadUrl(id: number): string {
-  const token = localStorage.getItem('token');
-  const base = import.meta.env.VITE_API_BASE || '/api/v1';
-  return `${base}/resources/${id}/download?token=${token}`;
+interface SignedUrlResponse {
+  token: string;
+  expiresAt: number;
 }
 
-export function getPreviewUrl(id: number): string {
-  const token = localStorage.getItem('token');
+/**
+ * 申请短期下载/预览签名 URL。
+ *
+ * <p>把会话 token 拼到 URL 会让 token 出现在 access log/Referer/浏览器历史里，因此改用：
+ * <ol>
+ *   <li>前端先调用此接口获取一次性 sig；</li>
+ *   <li>用 ?sig= 拼到下载/预览 URL；</li>
+ *   <li>服务端 HMAC 校验 + 短期过期。</li>
+ * </ol>
+ */
+async function fetchSignedToken(id: number, action: 'download' | 'preview'): Promise<string> {
+  const res = await request<SignedUrlResponse>({
+    method: 'GET',
+    url: `/resources/${id}/signed-url`,
+    params: { action },
+  });
+  return res.data.token;
+}
+
+export async function getDownloadUrl(id: number): Promise<string> {
+  const sig = await fetchSignedToken(id, 'download');
   const base = import.meta.env.VITE_API_BASE || '/api/v1';
-  return `${base}/resources/${id}/preview?token=${token}`;
+  return `${base}/resources/${id}/download?sig=${encodeURIComponent(sig)}`;
+}
+
+export async function getPreviewUrl(id: number): Promise<string> {
+  const sig = await fetchSignedToken(id, 'preview');
+  const base = import.meta.env.VITE_API_BASE || '/api/v1';
+  return `${base}/resources/${id}/preview?sig=${encodeURIComponent(sig)}`;
 }
 
 export async function getResourcePreviewText(id: number): Promise<ResourcePreviewVO> {

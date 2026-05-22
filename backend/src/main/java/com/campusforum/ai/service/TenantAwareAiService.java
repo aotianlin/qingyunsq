@@ -51,14 +51,22 @@ public class TenantAwareAiService implements AiService {
         }
 
         try {
-            Map<String, Object> config = tenantService.getAiConfig(tenantId);
-            String provider = stringValue(config.get("provider"));
-            String apiKey = stringValue(config.get("apiKey"));
-            String baseUrl = stringValue(config.get("baseUrl"));
-            String model = stringValue(config.get("model"));
+            Map<String, String> config = tenantService.resolveAiCredentials(tenantId);
+            String provider = config.get("provider");
+            String apiKey = config.get("apiKey");
+            String baseUrl = config.get("baseUrl");
+            String model = config.get("model");
 
             // 管理端的 AI 配置按租户保存；运行时每次读取当前租户配置，避免重启后端才生效。
             if ("openai".equalsIgnoreCase(provider) && apiKey != null && !apiKey.isBlank()) {
+                // 调用前再次校验 baseUrl 不指向私网，避免历史脏数据导致 SSRF
+                try {
+                    com.campusforum.infra.security.PrivateNetworkValidator.requirePublic(baseUrl, true);
+                } catch (IllegalArgumentException ex) {
+                    log.warn("Tenant AI baseUrl rejected (SSRF guard): tenantId={}, error={}",
+                            tenantId, ex.getMessage());
+                    return mockAiService;
+                }
                 return new OpenAiCompatService(baseUrl, apiKey, model);
             }
         } catch (Exception e) {
