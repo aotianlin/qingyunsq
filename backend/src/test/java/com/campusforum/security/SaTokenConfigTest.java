@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SaTokenConfigTest {
 
     @Test
-    @DisplayName("forgot-password 和 reset-password 应在排除路径中")
+    @DisplayName("email-code、forgot-password 和 reset-password 应在排除路径中")
     void shouldExcludeForgotAndResetPasswordPaths() throws Exception {
         SaTokenConfig config = new SaTokenConfig();
         InterceptorRegistry registry = new InterceptorRegistry();
@@ -29,6 +29,7 @@ class SaTokenConfigTest {
         List<String> excludePatterns = getExcludePatterns(registry);
 
         assertThat(excludePatterns)
+                .contains("/api/v1/auth/email-code")
                 .contains("/api/v1/auth/forgot-password")
                 .contains("/api/v1/auth/reset-password");
     }

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { NIcon, NInput, useMessage } from 'naive-ui';
-import { ArrowForwardOutline, LockClosedOutline, MailOutline, SparklesOutline } from '@vicons/ionicons5';
-import { login } from '@/api/auth';
+import { NIcon, NInput, NTabPane, NTabs, useMessage } from 'naive-ui';
+import { ArrowForwardOutline, LockClosedOutline, MailOutline, ShieldCheckmarkOutline, SparklesOutline } from '@vicons/ionicons5';
+import { login, loginWithEmailCode, sendEmailCode } from '@/api/auth';
 import { useAuthStore } from '@/stores/auth';
 
 const router = useRouter();
@@ -12,7 +12,12 @@ const authStore = useAuthStore();
 
 const email = ref('');
 const password = ref('');
+const emailCode = ref('');
+const loginMode = ref<'password' | 'code'>('password');
 const loading = ref(false);
+const codeLoading = ref(false);
+const codeCountdown = ref(0);
+let codeTimer: number | undefined;
 
 const featureList = [
   '加入多校学习圈，追踪热门课程讨论',
@@ -20,17 +25,51 @@ const featureList = [
   '使用 AI 助手快速总结帖子与学习内容',
 ];
 
-const canSubmit = computed(() => email.value.trim() && password.value.trim());
+const canSubmit = computed(() => {
+  if (!email.value.trim()) return false;
+  return loginMode.value === 'password' ? password.value.trim() : emailCode.value.trim();
+});
+
+function startCodeCountdown() {
+  codeCountdown.value = 60;
+  window.clearInterval(codeTimer);
+  codeTimer = window.setInterval(() => {
+    codeCountdown.value -= 1;
+    if (codeCountdown.value <= 0) {
+      window.clearInterval(codeTimer);
+      codeTimer = undefined;
+    }
+  }, 1000);
+}
+
+async function handleSendCode() {
+  if (!email.value.trim()) {
+    message.warning('请先填写邮箱');
+    return;
+  }
+  codeLoading.value = true;
+  try {
+    await sendEmailCode(email.value.trim(), 'LOGIN');
+    message.success('验证码已发送，请查收邮箱');
+    startCodeCountdown();
+  } catch (err: unknown) {
+    message.error(err instanceof Error ? err.message : '验证码发送失败');
+  } finally {
+    codeLoading.value = false;
+  }
+}
 
 async function handleLogin() {
   if (!canSubmit.value) {
-    message.warning('请填写邮箱和密码');
+    message.warning(loginMode.value === 'password' ? '请填写邮箱和密码' : '请填写邮箱和验证码');
     return;
   }
 
   loading.value = true;
   try {
-    const res = await login({ email: email.value.trim(), password: password.value });
+    const res = loginMode.value === 'password'
+      ? await login({ email: email.value.trim(), password: password.value })
+      : await loginWithEmailCode({ email: email.value.trim(), emailCode: emailCode.value.trim() });
     authStore.setToken(res.token);
     authStore.setUser(res.user);
     if (res.tenantId && res.tenantCode) {
@@ -39,12 +78,15 @@ async function handleLogin() {
     message.success('登录成功');
     router.push('/square');
   } catch {
-    // 后端统一返回 INVALID_CREDENTIALS(40101)，前端不区分具体失败原因
-    message.error('邮箱或密码错误');
+    message.error(loginMode.value === 'password' ? '邮箱或密码错误' : '邮箱或验证码错误');
   } finally {
     loading.value = false;
   }
 }
+
+onBeforeUnmount(() => {
+  window.clearInterval(codeTimer);
+});
 </script>
 
 <template>
@@ -96,6 +138,22 @@ async function handleLogin() {
           <p>使用你的校园账号进入社区。</p>
         </div>
 
+        <n-tabs
+          v-model:value="loginMode"
+          type="segment"
+          animated
+          class="login-tabs"
+        >
+          <n-tab-pane
+            name="password"
+            tab="密码登录"
+          />
+          <n-tab-pane
+            name="code"
+            tab="验证码登录"
+          />
+        </n-tabs>
+
         <div class="form-block">
           <label>邮箱</label>
           <n-input
@@ -109,7 +167,10 @@ async function handleLogin() {
           </n-input>
         </div>
 
-        <div class="form-block">
+        <div
+          v-if="loginMode === 'password'"
+          class="form-block"
+        >
           <div class="label-row">
             <label>密码</label>
             <button
@@ -130,6 +191,31 @@ async function handleLogin() {
               <n-icon><LockClosedOutline /></n-icon>
             </template>
           </n-input>
+        </div>
+
+        <div
+          v-else
+          class="form-block"
+        >
+          <label>邮箱验证码</label>
+          <div class="code-input-row">
+            <n-input
+              v-model:value="emailCode"
+              size="large"
+              placeholder="输入 6 位验证码"
+            >
+              <template #prefix>
+                <n-icon><ShieldCheckmarkOutline /></n-icon>
+              </template>
+            </n-input>
+            <button
+              class="cf-secondary-btn code-btn"
+              :disabled="codeLoading || codeCountdown > 0"
+              @click="handleSendCode"
+            >
+              {{ codeCountdown > 0 ? `${codeCountdown}s` : codeLoading ? '发送中...' : '获取验证码' }}
+            </button>
+          </div>
         </div>
 
         <button
@@ -297,6 +383,10 @@ async function handleLogin() {
   }
 }
 
+.login-tabs {
+  margin-bottom: 18px;
+}
+
 .form-block {
   display: flex;
   flex-direction: column;
@@ -318,6 +408,19 @@ async function handleLogin() {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+}
+
+.code-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 118px;
+  gap: 10px;
+  align-items: center;
+}
+
+.code-btn {
+  min-height: 40px;
+  padding: 0 12px;
+  white-space: nowrap;
 }
 
 .submit-btn {
@@ -376,6 +479,10 @@ async function handleLogin() {
   }
 
   .visual-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .code-input-row {
     grid-template-columns: 1fr;
   }
 }

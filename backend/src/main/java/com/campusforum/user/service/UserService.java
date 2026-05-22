@@ -5,8 +5,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
-import com.campusforum.infra.email.EmailProperties;
-import com.campusforum.infra.email.EmailService;
+import com.campusforum.infra.email.EmailCodeScene;
 import com.campusforum.infra.security.LoginLockoutService;
 import com.campusforum.points.service.PointsService;
 import com.campusforum.tenant.TenantContext;
@@ -24,18 +23,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
-import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -46,10 +43,8 @@ public class UserService {
     private final PointsService pointsService;
     private final StudentNoMappingProperties studentNoMapping;
     private final ActiveTenantCache activeTenantCache;
-    private final EmailService emailService;
-    private final EmailProperties emailProperties;
-    private final StringRedisTemplate stringRedisTemplate;
     private final LoginLockoutService loginLockoutService;
+    private final EmailVerificationCodeService emailVerificationCodeService;
 
     /**
      * 固定 BCrypt hash，仅用于用户不存在时消耗等量 CPU 时间，防止时序攻击。
@@ -60,11 +55,14 @@ public class UserService {
 
     @Transactional
     public UserVO register(RegisterRequest req) {
+        String email = normalizeEmail(req.getEmail());
+
         // 检查邮箱是否已注册
         if (userMapper.selectCount(new LambdaQueryWrapper<User>()
-                .eq(User::getEmail, req.getEmail())) > 0) {
+                .eq(User::getEmail, email)) > 0) {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "该邮箱已注册");
         }
+
         // 检查学号是否重复（非空时）
         if (req.getStudentNo() != null && !req.getStudentNo().isBlank()) {
             if (userMapper.selectCount(new LambdaQueryWrapper<User>()
@@ -72,9 +70,10 @@ public class UserService {
                 throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "该学号已注册");
             }
         }
+        emailVerificationCodeService.verifyAndConsume(email, EmailCodeScene.REGISTER, req.getEmailCode());
 
         User user = new User();
-        user.setEmail(req.getEmail());
+        user.setEmail(email);
         user.setPasswordHash(BCrypt.hashpw(req.getPassword(), BCrypt.gensalt(10)));
         user.setStudentNo(req.getStudentNo());
         user.setNickname(req.getNickname());
@@ -99,37 +98,67 @@ public class UserService {
         return toVO(user);
     }
 
-    public UserVO login(LoginRequest req) {
-        long tid = TenantContext.getTenantId();
-        // 登录前先检查是否已被锁定（基于 (tenantId, email)）
-        loginLockoutService.ensureNotLocked(tid, req.getEmail());
+    public void sendEmailCode(String email, EmailCodeScene scene) {
+        emailVerificationCodeService.sendCode(email, scene);
+    }
 
-        User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
-                .eq(User::getTenantId, tid)
-                .eq(User::getEmail, req.getEmail()));
+    public UserVO login(LoginRequest req) {
+        if ("CODE".equalsIgnoreCase(req.getLoginType())) {
+            return loginByEmailCode(req);
+        }
+        return loginByPassword(req);
+    }
+
+    private UserVO loginByPassword(LoginRequest req) {
+        long tid = requireTenantId();
+        String email = normalizeEmail(req.getEmail());
+        String password = req.getPassword();
+        // 登录前先检查是否已被锁定（基于租户和归一化邮箱）。
+        loginLockoutService.ensureNotLocked(tid, email);
+        User user = findTenantUser(tid, email);
 
         boolean ok;
         if (user == null) {
             // 防时序攻击：用户不存在时仍执行一次 BCrypt 校验，消耗等量 CPU 时间
-            BCrypt.checkpw(req.getPassword(), DUMMY_BCRYPT_HASH);
+            BCrypt.checkpw(StringUtils.hasText(password) ? password : "invalid-password", DUMMY_BCRYPT_HASH);
             ok = false;
         } else if (user.getStatus() == 0) {
             // 账号封禁：仍执行密码校验以保持时序一致
-            BCrypt.checkpw(req.getPassword(), user.getPasswordHash());
+            BCrypt.checkpw(StringUtils.hasText(password) ? password : "invalid-password", user.getPasswordHash());
             ok = false;
         } else {
-            ok = BCrypt.checkpw(req.getPassword(), user.getPasswordHash());
+            ok = StringUtils.hasText(password) && BCrypt.checkpw(password, user.getPasswordHash());
         }
 
         if (!ok) {
             // 累计失败次数（无论邮箱是否存在），达到阈值会触发锁定
-            loginLockoutService.recordFailure(tid, req.getEmail());
+            loginLockoutService.recordFailure(tid, email);
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
         // 登录成功，清空失败计数
-        loginLockoutService.recordSuccess(tid, req.getEmail());
+        loginLockoutService.recordSuccess(tid, email);
+        return completeLogin(user);
+    }
 
+    private UserVO loginByEmailCode(LoginRequest req) {
+        long tid = requireTenantId();
+        String email = normalizeEmail(req.getEmail());
+        User user = findTenantUser(tid, email);
+        if (user == null || user.getStatus() == 0 || !StringUtils.hasText(req.getEmailCode())) {
+            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS.getCode(), "邮箱或验证码错误");
+        }
+
+        try {
+            emailVerificationCodeService.verifyAndConsume(tid, email, EmailCodeScene.LOGIN, req.getEmailCode());
+        } catch (BusinessException e) {
+            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS.getCode(), "邮箱或验证码错误");
+        }
+
+        return completeLogin(user);
+    }
+
+    private UserVO completeLogin(User user) {
         // Sa-Token 登录
         StpUtil.login(user.getId());
         SaSession session = StpUtil.getSession();
@@ -177,94 +206,23 @@ public class UserService {
         userMapper.updateById(user);
     }
 
-    private static final SecureRandom secureRandom = new SecureRandom();
-    private static final Base64.Encoder base64Encoder = Base64.getUrlEncoder().withoutPadding();
-
     /**
-     * 忘记密码：生成重置 token，通过邮件发送重置链接。
-     * 包含频率限制（每邮箱 15 分钟最多 5 次）和旧令牌失效逻辑。
+     * 忘记密码：发送邮箱验证码。
      * 无论邮箱是否存在，统一返回 void，避免用户枚举攻击。
      */
     public void forgotPassword(String email) {
-        // 频率限制检查（无论邮箱是否存在都执行，防止枚举）
-        String rateLimitKey = "reset_rate:" + email;
-        if (isRateLimited(rateLimitKey)) {
-            log.info("Password reset rate limited for email (suppressed)");
-            return; // 静默返回，不暴露限流信息
-        }
-
-        User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
-                .eq(User::getEmail, email));
-        // 邮箱不存在时静默返回，不抛异常，防止枚举
-        if (user == null) {
-            log.info("Password reset requested for non-existent email (suppressed)");
-            return;
-        }
-
-        // 使旧令牌失效
-        user.setResetToken(null);
-        user.setResetTokenExpires(null);
-
-        // 生成新令牌
-        byte[] bytes = new byte[32];
-        secureRandom.nextBytes(bytes);
-        String token = base64Encoder.encodeToString(bytes);
-        user.setResetToken(token);
-        user.setResetTokenExpires(LocalDateTime.now().plusMinutes(emailProperties.getResetTokenExpireMinutes()));
-        userMapper.updateById(user);
-
-        // 增加频率计数
-        incrementRateLimit(rateLimitKey);
-
-        // 通过邮件发送重置链接
-        emailService.sendResetEmail(email, token);
-        log.info("Password reset token generated and email sent for user id={}", user.getId());
-    }
-
-    /**
-     * 检查是否超过频率限制
-     */
-    private boolean isRateLimited(String key) {
-        try {
-            String countStr = stringRedisTemplate.opsForValue().get(key);
-            if (countStr != null) {
-                int count = Integer.parseInt(countStr);
-                return count >= emailProperties.getRateLimitMaxRequests();
-            }
-            return false;
-        } catch (Exception e) {
-            // Redis 不可用时不限流（fail-open）
-            log.warn("Redis unavailable for rate limit check, allowing request");
-            return false;
-        }
-    }
-
-    /**
-     * 增加频率限制计数
-     */
-    private void incrementRateLimit(String key) {
-        try {
-            Long count = stringRedisTemplate.opsForValue().increment(key);
-            if (count != null && count == 1) {
-                // 首次设置过期时间
-                stringRedisTemplate.expire(key, emailProperties.getRateLimitWindowMinutes(), TimeUnit.MINUTES);
-            }
-        } catch (Exception e) {
-            log.warn("Redis unavailable for rate limit increment");
-        }
+        emailVerificationCodeService.sendCode(email, EmailCodeScene.RESET_PASSWORD);
     }
 
     @Transactional
-    public void resetPassword(String email, String token, String newPassword) {
-        User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
-                .eq(User::getEmail, email));
-        // 统一返回"令牌无效"，不区分"邮箱不存在"和"token 错误"，防止枚举
-        if (user == null || user.getResetToken() == null || !user.getResetToken().equals(token)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "重置令牌无效或已过期");
+    public void resetPassword(String email, String emailCode, String newPassword) {
+        long tid = requireTenantId();
+        String normalizedEmail = normalizeEmail(email);
+        User user = findTenantUser(tid, normalizedEmail);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "验证码无效或已过期");
         }
-        if (user.getResetTokenExpires() == null || user.getResetTokenExpires().isBefore(LocalDateTime.now())) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "重置令牌无效或已过期");
-        }
+        emailVerificationCodeService.verifyAndConsume(tid, normalizedEmail, EmailCodeScene.RESET_PASSWORD, emailCode);
         user.setPasswordHash(BCrypt.hashpw(newPassword, BCrypt.gensalt(10)));
         user.setResetToken(null);
         user.setResetTokenExpires(null);
@@ -439,6 +397,24 @@ public class UserService {
             } catch (JsonProcessingException ignored) {}
         }
         return result;
+    }
+
+    private User findTenantUser(long tenantId, String email) {
+        return userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getTenantId, tenantId)
+                .eq(User::getEmail, email));
+    }
+
+    private long requireTenantId() {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw new IllegalStateException("TenantContext is null while handling user operation");
+        }
+        return tenantId;
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
     }
 
     private UserVO toVO(User user) {

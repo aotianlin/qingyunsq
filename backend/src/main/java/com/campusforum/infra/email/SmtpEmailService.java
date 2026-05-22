@@ -16,6 +16,25 @@ public class SmtpEmailService implements EmailService {
     private final EmailProperties emailProperties;
 
     @Override
+    public void sendVerificationCode(String toEmail, EmailCodeScene scene, String code, int expireMinutes) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(emailProperties.getFrom());
+            helper.setTo(toEmail);
+            helper.setSubject(emailProperties.getAppName() + " - " + scene.getSubjectLabel() + "验证码");
+            helper.setText(buildCodeHtmlContent(scene, code, expireMinutes), true);
+
+            mailSender.send(message);
+            log.info("Verification code email sent to: {}, scene={}", maskEmail(toEmail), scene.name());
+        } catch (Exception e) {
+            log.error("Failed to send verification code email: {}", e.getMessage());
+            throw new IllegalStateException("验证码邮件发送失败", e);
+        }
+    }
+
+    @Override
     public void sendResetEmail(String toEmail, String resetToken) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -32,6 +51,37 @@ public class SmtpEmailService implements EmailService {
             // 记录失败但不抛出异常，防止邮箱枚举
             log.error("Failed to send reset email: {}", e.getMessage());
         }
+    }
+
+    private String buildCodeHtmlContent(EmailCodeScene scene, String code, int expireMinutes) {
+        String appName = emailProperties.getAppName();
+        return """
+                <!DOCTYPE html>
+                <html>
+                <head><meta charset="UTF-8"></head>
+                <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <div style="background: #f8f9fa; border-radius: 8px; padding: 30px;">
+                        <h2 style="color: #333; margin-top: 0;">%s %s</h2>
+                        <p style="color: #666; line-height: 1.6;">
+                            您正在进行%s，请在页面中输入以下验证码：
+                        </p>
+                        <div style="text-align: center; margin: 28px 0;">
+                            <span style="display: inline-block; font-size: 32px; letter-spacing: 8px;
+                                         color: #111827; font-weight: bold; background: #fff;
+                                         border: 1px solid #e5e7eb; border-radius: 8px;
+                                         padding: 14px 22px;">%s</span>
+                        </div>
+                        <p style="color: #999; font-size: 14px; line-height: 1.5;">
+                            验证码将在 %d 分钟后过期。如果不是您本人操作，请忽略此邮件。
+                        </p>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                        <p style="color: #bbb; font-size: 12px;">
+                            此邮件由 %s 系统自动发送，请勿回复。
+                        </p>
+                    </div>
+                </body>
+                </html>
+                """.formatted(appName, scene.getSubjectLabel(), scene.getActionLabel(), code, expireMinutes, appName);
     }
 
     private String buildHtmlContent(String resetToken) {

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NIcon, NInput, useMessage } from 'naive-ui';
-import { ArrowForwardOutline, IdCardOutline, LockClosedOutline, MailOutline, PersonOutline, SchoolOutline } from '@vicons/ionicons5';
-import { register } from '@/api/auth';
+import { ArrowForwardOutline, IdCardOutline, LockClosedOutline, MailOutline, PersonOutline, SchoolOutline, ShieldCheckmarkOutline } from '@vicons/ionicons5';
+import { register, sendEmailCode } from '@/api/auth';
 
 const router = useRouter();
 const message = useMessage();
@@ -13,7 +13,11 @@ const password = ref('');
 const confirmPassword = ref('');
 const studentNo = ref('');
 const nickname = ref('');
+const emailCode = ref('');
 const loading = ref(false);
+const codeLoading = ref(false);
+const codeCountdown = ref(0);
+let codeTimer: number | undefined;
 
 // 实时校验状态
 const emailError = ref('');
@@ -56,10 +60,12 @@ function validateEmail() {
 function validatePassword() {
   if (!password.value) {
     passwordError.value = '密码不能为空';
-  } else if (password.value.length < 6) {
-    passwordError.value = '密码至少 6 位';
-  } else if (password.value.length > 32) {
-    passwordError.value = '密码最长 32 位';
+  } else if (password.value.length < 8) {
+    passwordError.value = '密码至少 8 位';
+  } else if (password.value.length > 64) {
+    passwordError.value = '密码最长 64 位';
+  } else if (!/(?=.*[A-Za-z])(?=.*\d)/.test(password.value)) {
+    passwordError.value = '密码必须同时包含字母和数字';
   } else {
     passwordError.value = '';
   }
@@ -87,6 +93,35 @@ function validateNickname() {
   }
 }
 
+function startCodeCountdown() {
+  codeCountdown.value = 60;
+  window.clearInterval(codeTimer);
+  codeTimer = window.setInterval(() => {
+    codeCountdown.value -= 1;
+    if (codeCountdown.value <= 0) {
+      window.clearInterval(codeTimer);
+      codeTimer = undefined;
+    }
+  }, 1000);
+}
+
+async function handleSendCode() {
+  if (!email.value.trim()) {
+    message.warning('请先填写邮箱');
+    return;
+  }
+  codeLoading.value = true;
+  try {
+    await sendEmailCode(email.value.trim(), 'REGISTER');
+    message.success('验证码已发送，请查收邮箱');
+    startCodeCountdown();
+  } catch (err: unknown) {
+    message.error(err instanceof Error ? err.message : '验证码发送失败');
+  } finally {
+    codeLoading.value = false;
+  }
+}
+
 async function handleRegister() {
   // 触发全部校验
   validateEmail();
@@ -97,7 +132,7 @@ async function handleRegister() {
   if (emailError.value || passwordError.value || confirmError.value || nicknameError.value) {
     return;
   }
-  if (!email.value || !password.value || !nickname.value) {
+  if (!email.value || !password.value || !nickname.value || !emailCode.value) {
     message.warning('请填写必填项');
     return;
   }
@@ -113,13 +148,14 @@ async function handleRegister() {
     await register({
       email: email.value.trim(),
       password: password.value,
+      emailCode: emailCode.value.trim(),
       studentNo: studentNo.value.trim() || undefined,
       nickname: nickname.value.trim(),
     });
     message.success('注册成功，请登录');
     router.push('/login');
   } catch (err: unknown) {
-    // 解析后端返回的具体验证错误信息（如"密码长度 6-32 位"）
+    // 解析后端返回的具体验证错误信息（如"密码长度需 8-64 位"）
     const errMsg = err instanceof Error ? err.message : '注册失败';
     // 后端 BindException 返回格式为 "field: message; field: message"
     // 提取中文部分展示给用户
@@ -136,6 +172,10 @@ async function handleRegister() {
     loading.value = false;
   }
 }
+
+onBeforeUnmount(() => {
+  window.clearInterval(codeTimer);
+});
 </script>
 
 <template>
@@ -202,9 +242,9 @@ async function handleRegister() {
               v-model:value="password"
               type="password"
               size="large"
-              placeholder="6-32 位，建议包含大小写和数字"
+              placeholder="8-64 位，需包含字母和数字"
               show-password-on="click"
-              maxlength="32"
+              maxlength="64"
               :status="passwordError ? 'error' : undefined"
               @blur="validatePassword"
             >
@@ -232,7 +272,7 @@ async function handleRegister() {
               size="large"
               placeholder="再次输入密码"
               show-password-on="click"
-              maxlength="32"
+              maxlength="64"
               :status="confirmError ? 'error' : undefined"
               @blur="validateConfirm"
             >
@@ -241,6 +281,28 @@ async function handleRegister() {
               </template>
             </n-input>
             <span v-if="confirmError" class="field-error">{{ confirmError }}</span>
+          </div>
+
+          <div class="form-block">
+            <label>邮箱验证码</label>
+            <div class="code-input-row">
+              <n-input
+                v-model:value="emailCode"
+                size="large"
+                placeholder="输入 6 位验证码"
+              >
+                <template #prefix>
+                  <n-icon><ShieldCheckmarkOutline /></n-icon>
+                </template>
+              </n-input>
+              <button
+                class="cf-secondary-btn code-btn"
+                :disabled="codeLoading || codeCountdown > 0"
+                @click="handleSendCode"
+              >
+                {{ codeCountdown > 0 ? `${codeCountdown}s` : codeLoading ? '发送中...' : '获取验证码' }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -377,6 +439,19 @@ async function handleRegister() {
     font-size: 14px;
     font-weight: 700;
   }
+}
+
+.code-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 118px;
+  gap: 10px;
+  align-items: center;
+}
+
+.code-btn {
+  min-height: 40px;
+  padding: 0 12px;
+  white-space: nowrap;
 }
 
 .submit-btn {
@@ -576,6 +651,10 @@ async function handleRegister() {
 
   .form-grid.two-col,
   .preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .code-input-row {
     grid-template-columns: 1fr;
   }
 }
