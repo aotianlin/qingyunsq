@@ -5,6 +5,7 @@ import com.campusforum.common.BusinessException;
 import com.campusforum.follow.domain.Follow;
 import com.campusforum.follow.mapper.FollowMapper;
 import com.campusforum.tenant.TenantContext;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
@@ -100,7 +101,7 @@ class FollowServiceTest {
     void shouldGetFollowers() {
         followService.follow(followerId, followeeId);
 
-        List<UserVO> followers = followService.getFollowers(followeeId, null, 20);
+        List<PublicUserVO> followers = followService.getFollowers(followeeId, null, 20);
         assertThat(followers).isNotEmpty();
         assertThat(followers.get(0).getId()).isEqualTo(followerId);
     }
@@ -109,7 +110,7 @@ class FollowServiceTest {
     void shouldGetFollowing() {
         followService.follow(followerId, followeeId);
 
-        List<UserVO> following = followService.getFollowing(followerId, null, 20);
+        List<PublicUserVO> following = followService.getFollowing(followerId, null, 20);
         assertThat(following).isNotEmpty();
         assertThat(following.get(0).getId()).isEqualTo(followeeId);
     }

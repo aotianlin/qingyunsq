@@ -1,6 +1,6 @@
 package com.campusforum.checkin.dto;
 
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import lombok.Builder;
 import lombok.Data;
 
@@ -13,7 +13,7 @@ public class CheckinChallengeVO {
     private Long id;
     private Long spaceId;
     private Long creatorId;
-    private UserVO creator;
+    private PublicUserVO creator;
     private String name;
     private String description;
     private LocalDate startDate;

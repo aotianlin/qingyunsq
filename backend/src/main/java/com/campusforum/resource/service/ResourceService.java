@@ -15,7 +15,7 @@ import com.campusforum.space.domain.SpaceMember;
 import com.campusforum.space.mapper.SpaceMapper;
 import com.campusforum.space.mapper.SpaceMemberMapper;
 import com.campusforum.user.domain.User;
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.mapper.UserMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +31,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -58,17 +59,21 @@ public class ResourceService {
 
     // SEC-03: 从配置文件读取文件扩展名白名单
     private final Set<String> allowedExtensions;
+    /** 真实 MIME 校验器（缺陷 1.22）。 */
+    private final com.campusforum.infra.security.MimeTypeValidator mimeTypeValidator;
 
     public ResourceService(ResourceMapper resourceMapper, UserMapper userMapper,
                            SpaceMapper spaceMapper, SpaceMemberMapper spaceMemberMapper,
                            StorageService storageService, ObjectMapper objectMapper,
-                           @Value("${upload.allowed-extensions:pdf,doc,docx,ppt,pptx,xls,xlsx,zip,rar,7z,jpg,jpeg,png,gif,webp,md,markdown}") String allowedExtensionsConfig) {
+                           com.campusforum.infra.security.MimeTypeValidator mimeTypeValidator,
+                           @Value("${upload.allowed-extensions:pdf,doc,docx,ppt,pptx,xls,xlsx,jpg,jpeg,png,gif,webp,md,markdown}") String allowedExtensionsConfig) {
         this.resourceMapper = resourceMapper;
         this.userMapper = userMapper;
         this.spaceMapper = spaceMapper;
         this.spaceMemberMapper = spaceMemberMapper;
         this.storageService = storageService;
         this.objectMapper = objectMapper;
+        this.mimeTypeValidator = mimeTypeValidator;
         this.allowedExtensions = Arrays.stream(allowedExtensionsConfig.split(","))
                 .map(String::trim).map(String::toLowerCase)
                 .collect(Collectors.toUnmodifiableSet());
@@ -89,26 +94,39 @@ public class ResourceService {
                     "不支持的文件类型：." + ext + "，允许的类型：" + String.join(", ", allowedExtensions));
         }
 
-        byte[] fileBytes;
+        // 安全加固（缺陷 1.22）：检测真实 MIME 类型，与扩展名做交叉验证。
+        // 即使攻击者把 PHP 改名为 .png 也会在此被拦截。
+        mimeTypeValidator.validate(file, ext);
+
+        // 安全加固（缺陷 1.13 + 1.32）：
+        // - 流式 SHA-256 计算 + 上传，避免 file.getBytes() 把整个 50MB 文件读进堆
+        // - 使用 SHA-256 替代 MD5 做指纹，避免抗碰撞失效带来的去重歧义
+        String storageKey;
+        String sha256Hex;
         try {
-            fileBytes = file.getBytes();
+            MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+            try (java.io.InputStream in = file.getInputStream();
+                 DigestInputStream dis = new DigestInputStream(in, sha256)) {
+                storageKey = storageService.upload(dis, originalName, file.getContentType());
+            }
+            sha256Hex = HexFormat.of().formatHex(sha256.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new BusinessException(ErrorCode.STORAGE_ERROR);
         } catch (IOException e) {
             throw new BusinessException(ErrorCode.STORAGE_ERROR);
         }
 
-        // MD5 去重
-        String md5 = md5Hex(fileBytes);
+        // 去重：优先匹配 SHA-256；同一文件已存在时回收新上传的对象
         Resource existing = resourceMapper.selectOne(new LambdaQueryWrapper<Resource>()
-                .eq(Resource::getFileMd5, md5)
+                .eq(Resource::getFileSha256, sha256Hex)
                 .eq(Resource::getStatus, 1)
                 .last("LIMIT 1"));
         if (existing != null) {
-            log.info("Duplicate file detected by MD5, reusing existing resource {}", existing.getId());
+            log.info("Duplicate file detected by SHA-256, reusing existing resource {}", existing.getId());
+            // 删除刚上传到存储的副本，避免重复占用空间
+            try { storageService.delete(storageKey); } catch (Exception ignored) {}
             return toVO(existing);
         }
-
-        String storageKey;
-        storageKey = storageService.upload(new ByteArrayInputStream(fileBytes), originalName, file.getContentType());
 
         Resource resource = new Resource();
         resource.setUploaderId(userId);
@@ -117,7 +135,8 @@ public class ResourceService {
         resource.setFileSize(file.getSize());
         resource.setFileType(ext);
         resource.setStorageKey(storageKey);
-        resource.setFileMd5(md5);
+        resource.setFileSha256(sha256Hex);
+        // 历史 file_md5 列保持 NULL；后续清理迁移完成后从实体与表中删除
         resource.setVisibility(req.getVisibility() != null ? req.getVisibility() : "PUBLIC");
         resource.setCollege(req.getCollege());
         resource.setMajor(req.getMajor());
@@ -258,14 +277,7 @@ public class ResourceService {
 
     private ResourceVO toVO(Resource r) {
         User uploader = userMapper.selectById(r.getUploaderId());
-        UserVO uploaderVO = null;
-        if (uploader != null) {
-            uploaderVO = UserVO.builder()
-                    .id(uploader.getId())
-                    .nickname(uploader.getNickname())
-                    .avatarUrl(uploader.getAvatarUrl())
-                    .build();
-        }
+        PublicUserVO uploaderVO = PublicUserVO.from(uploader);
 
         List<String> tagList = Collections.emptyList();
         if (r.getTags() != null && !r.getTags().isEmpty() && !"[]".equals(r.getTags())) {
@@ -314,12 +326,15 @@ public class ResourceService {
      *   <li>visibility = SPACE 且资源属于某个空间：仅该空间成员可访问；</li>
      *   <li>其他未知值按 PRIVATE 处理。</li>
      * </ul>
+     *
+     * <p>安全加固（缺陷 1.12）：无权访问时统一返回 {@code RESOURCE_NOT_FOUND}（404），
+     * 与"资源不存在"响应一致，避免攻击者通过错误码差异枚举本租户所有资源 ID。</p>
      */
     private void ensureCanAccess(Resource resource) {
         Long currentUserId = currentUserIdOrNull();
         String role = currentRoleOrNull();
         if (!canAccess(resource, currentUserId, role)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
     }
 
@@ -434,6 +449,7 @@ public class ResourceService {
     }
 
     private static String md5Hex(byte[] data) {
+        // @deprecated 仅供历史代码引用；新写入路径已经切换为流式 SHA-256。
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
             byte[] digest = md.digest(data);

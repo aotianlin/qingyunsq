@@ -6,7 +6,7 @@ import com.campusforum.notify.dto.NotificationVO;
 import com.campusforum.notify.mapper.NotificationMapper;
 import com.campusforum.notify.websocket.SessionRegistry;
 import com.campusforum.user.domain.User;
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.mapper.UserMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -129,16 +129,10 @@ public class NotifyService {
     }
 
     private NotificationVO toVO(Notification n) {
-        UserVO senderVO = null;
+        PublicUserVO senderVO = null;
         if (n.getSenderId() != null) {
             User sender = userMapper.selectById(n.getSenderId());
-            if (sender != null) {
-                senderVO = UserVO.builder()
-                        .id(sender.getId())
-                        .nickname(sender.getNickname())
-                        .avatarUrl(sender.getAvatarUrl())
-                        .build();
-            }
+            senderVO = PublicUserVO.from(sender);
         }
 
         return NotificationVO.builder()

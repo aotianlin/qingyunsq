@@ -1,6 +1,6 @@
 package com.campusforum.space.dto;
 
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import lombok.Builder;
 import lombok.Data;
 
@@ -12,7 +12,7 @@ public class SpaceVO {
 
     private Long id;
     private Long ownerId;
-    private UserVO owner;
+    private PublicUserVO owner;
     private String name;
     private String description;
     private String category;

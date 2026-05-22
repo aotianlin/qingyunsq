@@ -3,7 +3,7 @@ package com.campusforum.follow.controller;
 import cn.dev33.satoken.stp.StpUtil;
 import com.campusforum.common.R;
 import com.campusforum.follow.service.FollowService;
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,14 +39,14 @@ public class FollowController {
     }
 
     @GetMapping("/{userId}/followers")
-    public R<List<UserVO>> getFollowers(@PathVariable Long userId,
+    public R<List<PublicUserVO>> getFollowers(@PathVariable Long userId,
                                          @RequestParam(required = false) Long cursor,
                                          @RequestParam(defaultValue = "20") int limit) {
         return R.ok(followService.getFollowers(userId, cursor, limit));
     }
 
     @GetMapping("/{userId}/following")
-    public R<List<UserVO>> getFollowing(@PathVariable Long userId,
+    public R<List<PublicUserVO>> getFollowing(@PathVariable Long userId,
                                          @RequestParam(required = false) Long cursor,
                                          @RequestParam(defaultValue = "20") int limit) {
         return R.ok(followService.getFollowing(userId, cursor, limit));

@@ -47,7 +47,7 @@ CREATE TABLE users (
   points          BIGINT NOT NULL DEFAULT 0 COMMENT '积分',
   status          TINYINT NOT NULL DEFAULT 1 COMMENT '1正常 0封禁',
   last_login_at   DATETIME DEFAULT NULL,
-  reset_token     VARCHAR(128) DEFAULT NULL COMMENT '密码重置令牌',
+  reset_token     VARCHAR(64)  DEFAULT NULL COMMENT '密码重置令牌 SHA-256 哈希（hex）',
   reset_token_expires DATETIME DEFAULT NULL COMMENT '密码重置令牌过期时间',
   mute_settings   JSON DEFAULT NULL COMMENT '消息免打扰设置',
   tag_subscriptions JSON DEFAULT NULL COMMENT '问答标签订阅',
@@ -228,6 +228,7 @@ CREATE TABLE resources (
   file_size     BIGINT UNSIGNED NOT NULL,
   file_type     VARCHAR(32)  NOT NULL,
   file_md5      VARCHAR(64)  DEFAULT NULL,
+  file_sha256   VARCHAR(64)  DEFAULT NULL COMMENT 'SHA-256 hex 指纹',
   storage_key   VARCHAR(255) NOT NULL,
   visibility    VARCHAR(16)  NOT NULL DEFAULT 'PUBLIC' COMMENT 'PUBLIC/SPACE/PRIVATE',
   college       VARCHAR(64)  DEFAULT NULL,
@@ -246,7 +247,8 @@ CREATE TABLE resources (
   KEY idx_tenant (tenant_id),
   KEY idx_uploader (uploader_id),
   KEY idx_space (space_id),
-  KEY idx_md5 (file_md5)
+  KEY idx_md5 (file_md5),
+  KEY idx_resources_file_sha256 (file_sha256)
 ) ENGINE=InnoDB COMMENT='资源';
 
 -- ============================================================

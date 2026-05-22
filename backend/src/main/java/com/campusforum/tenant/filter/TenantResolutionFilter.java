@@ -34,8 +34,8 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res,
                                     FilterChain chain) throws ServletException, IOException {
-        // 排除路径：actuator, swagger, api-docs, ws upgrade（WS 走 HandshakeInterceptor）
-        if (isExcluded(req.getRequestURI())) {
+        // 排除路径：actuator (仅 localhost), swagger, api-docs, ws upgrade（WS 走 HandshakeInterceptor）
+        if (isExcluded(req)) {
             chain.doFilter(req, res);
             return;
         }
@@ -52,9 +52,17 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
         }
     }
 
-    private boolean isExcluded(String uri) {
-        return uri.startsWith("/actuator/")
-                || uri.startsWith("/swagger-ui/")
+    private boolean isExcluded(HttpServletRequest req) {
+        String uri = req.getRequestURI();
+        if (uri.startsWith("/actuator/")) {
+            // 安全加固（缺陷 1.28）：actuator 仅本地访问；
+            // 外部访问由 nginx 层拦截返回 404，这里作为后端兜底。
+            String remote = req.getRemoteAddr();
+            return "127.0.0.1".equals(remote)
+                    || "::1".equals(remote)
+                    || "0:0:0:0:0:0:0:1".equals(remote);
+        }
+        return uri.startsWith("/swagger-ui/")
                 || uri.startsWith("/v3/api-docs/")
                 || uri.startsWith("/ws/");
     }

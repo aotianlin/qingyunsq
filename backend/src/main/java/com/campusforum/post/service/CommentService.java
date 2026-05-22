@@ -17,7 +17,7 @@ import com.campusforum.post.mapper.ReactionMapper;
 import com.campusforum.qa.domain.QaQuestion;
 import com.campusforum.qa.mapper.QaQuestionMapper;
 import com.campusforum.user.domain.User;
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.mapper.UserMapper;
 import com.campusforum.notify.websocket.SessionRegistry;
 import com.campusforum.sensitive.service.SensitiveWordService;
@@ -347,14 +347,7 @@ public class CommentService {
 
     private CommentVO toVO(Comment comment) {
         User author = userMapper.selectById(comment.getAuthorId());
-        UserVO authorVO = null;
-        if (author != null) {
-            authorVO = UserVO.builder()
-                    .id(author.getId())
-                    .nickname(author.getNickname())
-                    .avatarUrl(author.getAvatarUrl())
-                    .build();
-        }
+        PublicUserVO authorVO = PublicUserVO.from(author);
 
         return CommentVO.builder()
                 .id(comment.getId())

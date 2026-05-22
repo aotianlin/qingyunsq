@@ -1,6 +1,6 @@
 package com.campusforum.resource.dto;
 
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import lombok.Builder;
 import lombok.Data;
 
@@ -12,7 +12,7 @@ import java.util.List;
 public class ResourceVO {
     private Long id;
     private Long uploaderId;
-    private UserVO uploader;
+    private PublicUserVO uploader;
     private Long spaceId;
     private String fileName;
     private Long fileSize;

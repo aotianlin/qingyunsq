@@ -1,6 +1,8 @@
 package com.campusforum.tenant.websocket;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.campusforum.infra.security.SecurityProperties;
+import com.campusforum.infra.security.WsTicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
@@ -13,26 +15,57 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * WebSocket 握手拦截器：从 query param 或 Authorization header 提取 Sa-Token，
- * 验证有效性并从 Session 读取 tenantId 写入 attributes。
- * token 缺失/无效/session 缺 tenantId 时返回 401 拒绝握手。
+ * WebSocket 握手拦截器：优先识别一次性 {@code ticket} 参数（推荐），未提供时回退到旧
+ * {@code token}（兼容期）。
+ *
+ * <p>验证有效性后将 userId/tenantId 写入 attributes，供 WebSocketHandler 后续使用。
+ * 全部失败时返回 401 拒绝握手。</p>
+ *
+ * <p>当 {@code security.ws-ticket.enforced=true} 时拒绝旧 {@code token} 路径，强制使用 ticket。</p>
  */
 @Component
 @RequiredArgsConstructor
 public class TenantHandshakeInterceptor implements HandshakeInterceptor {
 
+    private final WsTicketService wsTicketService;
+    private final SecurityProperties securityProperties;
+
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                     WebSocketHandler wsHandler,
                                     Map<String, Object> attributes) {
-        // 1. 提取 token
+        // 1) 优先：ticket 路径（短期、签名、绑定 tenantId）
+        String ticket = extractQueryParam(request, "ticket");
+        if (ticket != null) {
+            WsTicketService.Verified v = wsTicketService.verify(ticket);
+            if (v == null) {
+                response.setStatusCode(HttpStatus.UNAUTHORIZED);
+                return false;
+            }
+            attributes.put("userId", v.userId());
+            attributes.put("tenantId", v.tenantId());
+            return true;
+        }
+
+        // 2) 兼容期：token 路径（短期内允许；ws-ticket.enforced=true 时禁用）
+        if (securityProperties.getWsTicket().isEnforced()) {
+            response.setStatusCode(HttpStatus.UNAUTHORIZED);
+            return false;
+        }
+        return verifyByLegacyToken(request, response, attributes);
+    }
+
+    /**
+     * 兼容旧版本的 token query 路径。计划在所有客户端切换到 ticket 后下线。
+     */
+    private boolean verifyByLegacyToken(ServerHttpRequest request, ServerHttpResponse response,
+                                        Map<String, Object> attributes) {
         String token = extractToken(request);
         if (token == null) {
             response.setStatusCode(HttpStatus.UNAUTHORIZED);
             return false;
         }
 
-        // 2. 验证 token 有效性
         Object loginId;
         try {
             loginId = StpUtil.getLoginIdByToken(token);
@@ -48,7 +81,6 @@ public class TenantHandshakeInterceptor implements HandshakeInterceptor {
 
         long userId = Long.parseLong(loginId.toString());
 
-        // 3. 从 Sa-Token Session 读取 tenantId
         Object tid;
         try {
             tid = StpUtil.getSessionByLoginId(userId).get("tenantId");
@@ -62,7 +94,6 @@ public class TenantHandshakeInterceptor implements HandshakeInterceptor {
             return false;
         }
 
-        // 4. 写入 attributes 供 WebSocketHandler 使用
         attributes.put("userId", userId);
         attributes.put("tenantId", ((Number) tid).longValue());
         return true;
@@ -75,21 +106,27 @@ public class TenantHandshakeInterceptor implements HandshakeInterceptor {
     }
 
     /**
-     * 优先从 query string ?token=xxx 提取（浏览器原生 WebSocket API 不支持自定义 header），
-     * 其次从 Authorization header 提取。
+     * 从 query string 提取指定参数；找不到返回 null。
      */
-    private String extractToken(ServerHttpRequest request) {
+    private String extractQueryParam(ServerHttpRequest request, String name) {
         String query = request.getURI().getQuery();
-        if (query != null) {
-            for (String kv : query.split("&")) {
-                if (kv.startsWith("token=")) {
-                    String value = kv.substring(6);
-                    if (!value.isEmpty()) {
-                        return value;
-                    }
-                }
+        if (query == null) return null;
+        String prefix = name + "=";
+        for (String kv : query.split("&")) {
+            if (kv.startsWith(prefix)) {
+                String value = kv.substring(prefix.length());
+                if (!value.isEmpty()) return value;
             }
         }
+        return null;
+    }
+
+    /**
+     * 旧版本 token 提取：优先从 query string ?token=xxx 提取，其次从 Authorization header。
+     */
+    private String extractToken(ServerHttpRequest request) {
+        String fromQuery = extractQueryParam(request, "token");
+        if (fromQuery != null) return fromQuery;
         List<String> auth = request.getHeaders().get("Authorization");
         return (auth != null && !auth.isEmpty()) ? auth.get(0) : null;
     }

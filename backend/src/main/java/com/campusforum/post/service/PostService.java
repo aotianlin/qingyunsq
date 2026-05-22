@@ -24,7 +24,7 @@ import com.campusforum.qa.mapper.QaQuestionMapper;
 import com.campusforum.space.domain.SpaceMember;
 import com.campusforum.space.mapper.SpaceMemberMapper;
 import com.campusforum.user.domain.User;
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.mapper.UserMapper;
 import com.campusforum.user.service.UserService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -455,15 +455,8 @@ public class PostService {
 
     private PostVO toVO(Post post, Long currentUserId) {
         User author = userMapper.selectById(post.getAuthorId());
-        UserVO authorVO = null;
-        if (author != null) {
-            authorVO = UserVO.builder()
-                    .id(author.getId())
-                    .nickname(author.getNickname())
-                    .avatarUrl(author.getAvatarUrl())
-                    .email(author.getEmail())
-                    .build();
-        }
+        // 安全加固（缺陷 1.21）：公共场景使用 PublicUserVO，不再回传作者邮箱
+        PublicUserVO authorVO = PublicUserVO.from(author);
 
         List<String> topicList = Collections.emptyList();
         List<String> tagList = Collections.emptyList();

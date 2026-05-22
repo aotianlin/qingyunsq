@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.admin.domain.AuditLog;
 import com.campusforum.admin.dto.AuditLogVO;
 import com.campusforum.admin.mapper.AuditLogMapper;
+import com.campusforum.infra.security.TrustedProxyResolver;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.mapper.UserMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,6 +24,7 @@ public class AuditLogService {
     private final AuditLogMapper auditLogMapper;
     private final UserMapper userMapper;
     private final HttpServletRequest request;
+    private final TrustedProxyResolver trustedProxyResolver;
 
     @Transactional
     public void log(String action, String targetType, Long targetId, String detail) {
@@ -79,8 +81,9 @@ public class AuditLogService {
     }
 
     private String getClientIp() {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank()) ip = request.getRemoteAddr();
-        return ip != null ? ip : "unknown";
+        // 安全加固（缺陷 1.17）：通过 TrustedProxyResolver 获取真实 IP，
+        // 仅在请求来源为可信代理时才接受 X-Forwarded-For，与限流器逻辑保持一致。
+        // 否则攻击者可伪造 X-Forwarded-For 在审计日志中栽赃他人 IP。
+        return trustedProxyResolver.resolve(request);
     }
 }

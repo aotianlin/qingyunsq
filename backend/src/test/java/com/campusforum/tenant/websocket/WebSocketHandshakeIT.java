@@ -78,8 +78,32 @@ class WebSocketHandshakeIT {
         }
 
         @Bean
-        public TenantHandshakeInterceptor tenantHandshakeInterceptor() {
-            return new TenantHandshakeInterceptor();
+        public com.campusforum.infra.security.SecurityProperties securityProperties() {
+            // 测试场景：默认不强制 ticket，允许旧 token 兼容路径
+            com.campusforum.infra.security.SecurityProperties p =
+                    new com.campusforum.infra.security.SecurityProperties();
+            p.getWsTicket().setEnforced(false);
+            return p;
+        }
+
+        @Bean
+        public com.campusforum.infra.security.SignedUrlService signedUrlService(
+                com.campusforum.infra.security.SecurityProperties props) {
+            return new com.campusforum.infra.security.SignedUrlService(props);
+        }
+
+        @Bean
+        public com.campusforum.infra.security.WsTicketService wsTicketService(
+                com.campusforum.infra.security.SignedUrlService signedUrlService,
+                com.campusforum.infra.security.SecurityProperties props) {
+            return new com.campusforum.infra.security.WsTicketService(signedUrlService, props);
+        }
+
+        @Bean
+        public TenantHandshakeInterceptor tenantHandshakeInterceptor(
+                com.campusforum.infra.security.WsTicketService wsTicketService,
+                com.campusforum.infra.security.SecurityProperties props) {
+            return new TenantHandshakeInterceptor(wsTicketService, props);
         }
 
         @Bean
@@ -94,8 +118,10 @@ class WebSocketHandshakeIT {
 
         @Override
         public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+            // 由 Spring 注入的 interceptor bean 通过 ApplicationContextAware 获取，
+            // 这里走 lookup-by-type 风格在 registry 中注册
             registry.addHandler(testHandler(), "/ws/notify")
-                    .addInterceptors(tenantHandshakeInterceptor())
+                    .addInterceptors(context.getBean(TenantHandshakeInterceptor.class))
                     .setAllowedOrigins("*");
         }
     }

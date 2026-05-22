@@ -7,6 +7,8 @@ import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
 import com.campusforum.infra.email.EmailCodeScene;
 import com.campusforum.infra.security.LoginLockoutService;
+import com.campusforum.infra.security.SecurityProperties;
+import com.campusforum.infra.security.TrustedProxyResolver;
 import com.campusforum.points.service.PointsService;
 import com.campusforum.tenant.TenantContext;
 import com.campusforum.tenant.cache.ActiveTenantCache;
@@ -20,6 +22,7 @@ import com.campusforum.user.mapper.UserMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
@@ -27,17 +30,31 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.net.URI;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
+
+    /** 标签合法字符白名单：中英文/数字/下划线/连字符，长度 1-32（缺陷 1.4 加固）。 */
+    private static final Pattern TAG_PATTERN =
+            Pattern.compile("^[\\w\\u4e00-\\u9fa5\\-]{1,32}$");
+
+    /** 角色权重映射，用于 changeRole / banUser 校验（缺陷 1.7 加固）。 */
+    private static final java.util.Map<String, Integer> ROLE_WEIGHT = java.util.Map.of(
+            "USER", 1,
+            "TENANT_ADMIN", 2,
+            "SUPER_ADMIN", 3
+    );
 
     private final UserMapper userMapper;
     private final PointsService pointsService;
@@ -45,6 +62,9 @@ public class UserService {
     private final ActiveTenantCache activeTenantCache;
     private final LoginLockoutService loginLockoutService;
     private final EmailVerificationCodeService emailVerificationCodeService;
+    private final TrustedProxyResolver trustedProxyResolver;
+    private final HttpServletRequest httpRequest;
+    private final SecurityProperties securityProperties;
 
     /**
      * 固定 BCrypt hash，仅用于用户不存在时消耗等量 CPU 时间，防止时序攻击。
@@ -102,6 +122,7 @@ public class UserService {
         emailVerificationCodeService.sendCode(email, scene);
     }
 
+
     public UserVO login(LoginRequest req) {
         if ("CODE".equalsIgnoreCase(req.getLoginType())) {
             return loginByEmailCode(req);
@@ -113,7 +134,10 @@ public class UserService {
         long tid = requireTenantId();
         String email = normalizeEmail(req.getEmail());
         String password = req.getPassword();
-        // 登录前先检查是否已被锁定（基于租户和归一化邮箱）。
+        // 解析真实 IP（仅在可信代理后相信 X-Forwarded-For），用于 IP 维度锁定校验
+        String clientIp = trustedProxyResolver.resolve(httpRequest);
+        // 安全加固（缺陷 1.15）：先校验 IP 维度锁定，再校验账号维度锁定
+        loginLockoutService.ensureIpNotLocked(clientIp);
         loginLockoutService.ensureNotLocked(tid, email);
         User user = findTenantUser(tid, email);
 
@@ -131,12 +155,13 @@ public class UserService {
         }
 
         if (!ok) {
-            // 累计失败次数（无论邮箱是否存在），达到阈值会触发锁定
+            // 同时累计账号维度与 IP 维度失败次数
             loginLockoutService.recordFailure(tid, email);
+            loginLockoutService.recordIpFailure(clientIp);
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
-        // 登录成功，清空失败计数
+        // 登录成功，清空账号维度失败计数（IP 维度不清空，避免攻击者借合法账号刷掉 IP 计数）
         loginLockoutService.recordSuccess(tid, email);
         return completeLogin(user);
     }
@@ -230,6 +255,7 @@ public class UserService {
         log.info("Password reset for user {}", user.getId());
     }
 
+
     public UserVO getById(Long userId) {
         User user = userMapper.selectById(userId);
         if (user == null) {
@@ -245,8 +271,15 @@ public class UserService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
         if (req.getNickname() != null) user.setNickname(req.getNickname());
-        if (req.getAvatarUrl() != null) user.setAvatarUrl(req.getAvatarUrl());
-        if (req.getProfileCoverUrl() != null) user.setProfileCoverUrl(req.getProfileCoverUrl());
+        if (req.getAvatarUrl() != null) {
+            // 安全加固（缺陷 1.20）：URL 域名白名单校验，防止 javascript:/data: XSS 与 Open Redirect
+            assertHostAllowed(req.getAvatarUrl());
+            user.setAvatarUrl(req.getAvatarUrl());
+        }
+        if (req.getProfileCoverUrl() != null) {
+            assertHostAllowed(req.getProfileCoverUrl());
+            user.setProfileCoverUrl(req.getProfileCoverUrl());
+        }
         if (req.getBio() != null) user.setBio(req.getBio());
         if (req.getCollege() != null) user.setCollege(req.getCollege());
         if (req.getMajor() != null) user.setMajor(req.getMajor());
@@ -255,6 +288,31 @@ public class UserService {
         userMapper.updateById(user);
         log.info("User profile updated: id={}", userId);
         return toVO(user);
+    }
+
+    /**
+     * 校验头像 / 封面 URL 域名是否在白名单内（缺陷 1.20）。
+     * 白名单为空时跳过（开发环境便利），生产应通过 ENV 强制配置。
+     * 空字符串视为"清空"，直接放行。
+     */
+    private void assertHostAllowed(String url) {
+        if (url == null || url.isBlank()) return;
+        var hosts = securityProperties.getUpload().getAllowedAssetHosts();
+        if (hosts == null || hosts.isEmpty()) return;
+        try {
+            String host = URI.create(url).getHost();
+            if (host == null) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "URL 解析失败");
+            }
+            if (!hosts.contains(host)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(),
+                        "URL 域名不在允许列表内：" + host);
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "URL 格式非法");
+        }
     }
 
     @Transactional
@@ -266,8 +324,12 @@ public class UserService {
         if (user.getStatus() == 0) {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "该用户已被封禁");
         }
+        // 安全加固（缺陷 1.7）：仅允许"调用方权重 ≥ 目标用户权重"，防止 TENANT_ADMIN 封禁 SUPER_ADMIN
+        ensureCallerWeightSufficient(user.getRole());
         user.setStatus(0);
         userMapper.updateById(user);
+        // 角色被封禁后强制下线，避免被封用户继续持有合法 token 直到过期
+        StpUtil.kickout(userId);
         log.info("User banned: id={}", userId);
     }
 
@@ -277,9 +339,25 @@ public class UserService {
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
+        ensureCallerWeightSufficient(user.getRole());
         user.setStatus(1);
         userMapper.updateById(user);
         log.info("User unbanned: id={}", userId);
+    }
+
+    private static int weightOf(String role) {
+        if (role == null) return 0;
+        return ROLE_WEIGHT.getOrDefault(role, 0);
+    }
+
+    /**
+     * 校验调用方权重 ≥ 目标用户当前角色权重（缺陷 1.7）。
+     */
+    private void ensureCallerWeightSufficient(String targetCurrentRole) {
+        String callerRole = (String) StpUtil.getSession().get("role");
+        if (weightOf(callerRole) < weightOf(targetCurrentRole)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "权限不足，无法操作权限更高的用户");
+        }
     }
 
     public List<UserVO> listUsers(String keyword, String role, Integer status, Long cursor, int limit) {
@@ -313,17 +391,24 @@ public class UserService {
         if (!List.of("USER", "TENANT_ADMIN").contains(role)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "无效的角色");
         }
-        // Bug fix 1.12: 提升为 TENANT_ADMIN 需要 SUPER_ADMIN 权限
-        if ("TENANT_ADMIN".equals(role)) {
-            String callerRole = (String) StpUtil.getSession().get("role");
-            if (!"SUPER_ADMIN".equals(callerRole)) {
-                throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "仅超级管理员可提升用户为租户管理员");
-            }
+        String callerRole = (String) StpUtil.getSession().get("role");
+        // 安全加固（缺陷 1.7）：调用方权重必须 ≥ 目标用户当前角色权重，且 ≥ 目标新角色权重。
+        // 例如 TENANT_ADMIN 不可将 SUPER_ADMIN 改为 USER（反向降级接管）。
+        if (weightOf(callerRole) < weightOf(user.getRole())
+                || weightOf(callerRole) < weightOf(role)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "权限不足，无法变更该用户角色");
+        }
+        // 进一步：提升为 TENANT_ADMIN 需要 SUPER_ADMIN 权限（与历史 Bug fix 1.12 行为一致）
+        if ("TENANT_ADMIN".equals(role) && !"SUPER_ADMIN".equals(callerRole)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "仅超级管理员可提升用户为租户管理员");
         }
         user.setRole(role);
         userMapper.updateById(user);
-        log.info("User role changed: id={}, role={}", userId, role);
+        // 角色变更后强制下线，确保下次登录时 Sa-Token Session 中的 role 缓存与 DB 一致
+        StpUtil.kickout(userId);
+        log.info("User role changed: id={}, role={}, by={}", userId, role, callerRole);
     }
+
 
     private static final ObjectMapper jsonMapper = new ObjectMapper();
 
@@ -374,21 +459,47 @@ public class UserService {
     /**
      * 查找订阅了指定标签的所有用户 ID。
      * Bug fix 1.15: 使用 SQL 层过滤替代全表加载
+     * 安全加固（缺陷 1.4）：
+     * <ul>
+     *   <li>对 tag 做白名单校验，非法 tag 直接跳过；</li>
+     *   <li>对 LIKE 通配符 {@code \\ % _} 进行转义并配合 ESCAPE 子句，防止 tag = "%" 等命中全表；</li>
+     *   <li>SQL 显式追加 tenant_id 条件作为深度防御。</li>
+     * </ul>
      */
     public Set<Long> findSubscribedUserIds(List<String> tags) {
         if (tags == null || tags.isEmpty()) return Set.of();
+        // 白名单 + LIKE 转义
+        List<String> safeTags = new ArrayList<>();
+        for (String tag : tags) {
+            if (tag == null) continue;
+            if (!TAG_PATTERN.matcher(tag).matches()) {
+                log.debug("Skip invalid tag in findSubscribedUserIds: length={}", tag.length());
+                continue;
+            }
+            String escaped = tag
+                    .replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_");
+            safeTags.add(escaped);
+        }
+        if (safeTags.isEmpty()) return Set.of();
+
+        Long tid = TenantContext.getTenantId();
+        if (tid == null) return Set.of();
+
         // SQL 层粗筛
-        List<Long> candidateIds = userMapper.selectUserIdsByTagSubscription(tags);
+        List<Long> candidateIds = userMapper.selectUserIdsByTagSubscription(tid, safeTags);
         if (candidateIds.isEmpty()) return Set.of();
-        // Java 层精确匹配（SQL LIKE 可能有误匹配）
+        // Java 层精确匹配（SQL LIKE 仍可能有少量误匹配，例如标签包含特殊字符）
         Set<Long> result = new HashSet<>();
+        Set<String> originalTags = new HashSet<>(tags);
         for (Long uid : candidateIds) {
             User user = userMapper.selectById(uid);
             if (user == null || user.getTagSubscriptions() == null) continue;
             try {
                 Set<String> subs = jsonMapper.readValue(user.getTagSubscriptions(),
                         new TypeReference<Set<String>>() {});
-                for (String tag : tags) {
+                for (String tag : originalTags) {
                     if (subs.contains(tag)) {
                         result.add(uid);
                         break;

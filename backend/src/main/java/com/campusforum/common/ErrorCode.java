@@ -21,6 +21,10 @@ public enum ErrorCode {
 
     // 4xxxx 客户端错误
     BAD_REQUEST(40000, "请求参数错误"),
+    SSRF_BLOCKED(40005, "禁止指向内网或本机地址"),
+    MIME_MISMATCH(40006, "文件类型与扩展名不一致"),
+    RESET_TOKEN_INVALID(40007, "重置令牌无效或已过期"),
+    BATCH_SIZE_EXCEEDED(40008, "单次最多处理 100 条"),
     TENANT_NOT_RESOLVED(40010, "无法识别租户"),
     TENANT_NOT_FOUND(40011, "租户不存在或已停用"),
     UNAUTHORIZED(40100, "未登录"),
@@ -34,6 +38,8 @@ public enum ErrorCode {
     AI_SERVICE_UNAVAILABLE(50001, "AI 服务暂不可用"),
     SEARCH_UNAVAILABLE(50002, "搜索服务暂不可用"),
     STORAGE_ERROR(50003, "文件存储异常"),
+    CRYPTO_FAILURE(50010, "加密服务异常"),
+    SERVICE_UNAVAILABLE(50301, "服务暂时不可用，请稍后重试"),
     TENANT_VIOLATION(51001, "租户数据隔离异常");
 
     private final int code;

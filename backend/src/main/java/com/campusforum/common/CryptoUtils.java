@@ -5,6 +5,14 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
+/**
+ * @deprecated 已被 {@link com.campusforum.infra.security.crypto.CryptoService}（AES-GCM + HKDF）替代。
+ * 本类仅保留 {@link #decrypt(String)} 方法用于解密历史 ECB 密文以支持灰度迁移，
+ * 在所有租户的 ai_config 都升级到 encVersion=2 之后将彻底删除。
+ *
+ * <p><b>请勿在新代码中调用本类。</b></p>
+ */
+@Deprecated(forRemoval = true)
 public class CryptoUtils {
 
     // 默认的 16 字节密钥（生产环境应配置到外部）

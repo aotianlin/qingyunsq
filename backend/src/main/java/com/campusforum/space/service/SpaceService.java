@@ -11,7 +11,7 @@ import com.campusforum.space.dto.*;
 import com.campusforum.space.mapper.SpaceMapper;
 import com.campusforum.space.mapper.SpaceMemberMapper;
 import com.campusforum.user.domain.User;
-import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -227,11 +227,7 @@ public class SpaceService {
                     .id(m.getId())
                     .spaceId(m.getSpaceId())
                     .userId(m.getUserId())
-                    .user(user != null ? UserVO.builder()
-                            .id(user.getId())
-                            .nickname(user.getNickname())
-                            .avatarUrl(user.getAvatarUrl())
-                            .build() : null)
+                    .user(PublicUserVO.from(user))
                     .role(m.getRole())
                     .status(m.getStatus())
                     .joinedAt(m.getJoinedAt())
@@ -383,14 +379,7 @@ public class SpaceService {
 
     private SpaceVO toVO(Space space, Long currentUserId, String memberRole, boolean isMember) {
         User owner = userMapper.selectById(space.getOwnerId());
-        UserVO ownerVO = null;
-        if (owner != null) {
-            ownerVO = UserVO.builder()
-                    .id(owner.getId())
-                    .nickname(owner.getNickname())
-                    .avatarUrl(owner.getAvatarUrl())
-                    .build();
-        }
+        PublicUserVO ownerVO = PublicUserVO.from(owner);
 
         return SpaceVO.builder()
                 .id(space.getId())
