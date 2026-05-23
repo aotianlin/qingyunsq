@@ -2,6 +2,7 @@ package com.campusforum.tenant.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.common.BusinessException;
+import com.campusforum.common.CryptoUtils;
 import com.campusforum.infra.security.crypto.CryptoService;
 import com.campusforum.tenant.domain.Tenant;
 import com.campusforum.tenant.mapper.TenantMapper;
@@ -95,7 +96,25 @@ public class TenantService {
         Map<String, Object> defaults = Map.of("provider", "mock", "baseUrl", "", "apiKey", "", "model", "");
         if (t == null || t.getAiConfig() == null) return defaults;
         try {
-            Map<String, Object> cfg = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> cfg = mapper.readValue(t.getAiConfig(), Map.class);
+
+            // 懒迁移：检测到旧 AES-ECB 密文 → 解密 → 用新 AES-GCM 重新加密 → 回写 DB。
+            // 单次代价：一次解密 + 一次加密 + 一次 update。失败不阻塞返回。
+            Object rawApiKey = cfg.get("apiKey");
+            if (rawApiKey instanceof String s && CryptoUtils.isLegacyFormat(s) && !s.isBlank()) {
+                try {
+                    String plain = CryptoUtils.decrypt(s);
+                    String reencrypted = CryptoUtils.encrypt(plain);
+                    cfg.put("apiKey", reencrypted);
+                    t.setAiConfig(mapper.writeValueAsString(cfg));
+                    tenantMapper.updateById(t);
+                    log.info("Migrated tenant {} apiKey from legacy ECB to AES-GCM", tenantId);
+                } catch (Exception e) {
+                    log.warn("Failed to migrate apiKey for tenant {}: {}", tenantId, e.getMessage());
+                }
+            }
+
             Map<String, Object> result = new HashMap<>(defaults);
             result.putAll(cfg);
             // 不回传明文 API Key：仅指示是否已配置，避免管理员页面网络面板/日志泄漏第三方密钥
@@ -201,15 +220,20 @@ public class TenantService {
             }
         }
 
-        // 在已存配置基础上做 merge，避免传 null 时清空已有字段（特别是 apiKey 留空表示"不修改"）
-        // cfg 用 Object 值类型，兼容 encVersion (int) 与其他字符串字段共存
+        // Partial update：从旧配置起步，传入 null 的字段保留原值。
+        // 避免「前端只想改 baseUrl 但没传 apiKey，结果把 apiKey 清空」这种回归。
+        // cfg 用 Object 值类型，兼容 encVersion (int) 与其他字符串字段共存。
+        ObjectMapper mapper = new ObjectMapper();
         Map<String, Object> cfg = new LinkedHashMap<>();
         if (t.getAiConfig() != null && !t.getAiConfig().isBlank()) {
             try {
-                Map<String, Object> existing = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
-                cfg.putAll(existing);
-            } catch (JsonProcessingException ignored) {}
+                cfg.putAll(mapper.readValue(t.getAiConfig(), Map.class));
+            } catch (JsonProcessingException ignored) {
+                // 旧 cfg 损坏，从空 map 开始重建
+            }
         }
+
+
         if (provider != null) cfg.put("provider", provider);
         if (baseUrl != null) cfg.put("baseUrl", baseUrl);
         // apiKey 仅在显式提供且非空时才更新；空字符串视作"保留原值"
@@ -218,8 +242,9 @@ public class TenantService {
             cfg.put(ENC_VERSION_FIELD, CURRENT_ENC_VERSION);
         }
         if (model != null) cfg.put("model", model);
+
         try {
-            t.setAiConfig(new ObjectMapper().writeValueAsString(cfg));
+            t.setAiConfig(mapper.writeValueAsString(cfg));
         } catch (JsonProcessingException e) {
             throw new BusinessException(40000, "序列化 AI 配置失败");
         }

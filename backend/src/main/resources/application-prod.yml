@@ -31,9 +31,9 @@ logging:
 
 ai:
   provider: ${AI_PROVIDER:mock}
-  base-url: ${AI_BASE_URL:https://api.deepseek.com/v1}
+  base-url: ${AI_BASE_URL:https://api.deepseek.com}
   api-key: ${AI_API_KEY:}
-  model: ${AI_MODEL:deepseek-chat}
+  model: ${AI_MODEL:deepseek-v4-flash}
 
 storage:
   type: minio

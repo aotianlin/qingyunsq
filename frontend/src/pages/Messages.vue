@@ -344,7 +344,9 @@ watch(() => route.query.peer, (val) => {
 
 <style scoped lang="scss">
 .messages-layout {
-  height: 100vh;
+  height: calc(100vh - var(--cf-header-height) - 48px);
+  height: calc(100dvh - var(--cf-header-height) - 48px);
+  min-height: 0;
   overflow: hidden;
   background: transparent;
   background-image: radial-gradient(circle at 20% 80%, rgba(99, 102, 241, 0.08), transparent 40%);
@@ -639,6 +641,7 @@ watch(() => route.query.peer, (val) => {
   align-items: flex-end;
   gap: 12px;
   padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
   border-radius: 16px;
   flex-shrink: 0;
   
@@ -715,6 +718,77 @@ watch(() => route.query.peer, (val) => {
   p {
     margin: 0;
     font-size: 14px;
+  }
+}
+
+@media (max-width: 960px) {
+  .messages-layout {
+    height: calc(100vh - 150px);
+    height: calc(100dvh - 150px);
+  }
+
+  .header-banner {
+    padding: 22px 16px 16px;
+  }
+
+  .main-container {
+    padding: 0 16px 24px;
+  }
+
+  .chat-container {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .chat-header {
+    padding: 12px 14px;
+    border-radius: 14px;
+  }
+
+  .chat-messages {
+    padding: 10px 4px;
+  }
+
+  .chat-input-area {
+    gap: 8px;
+    padding: 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    border-radius: 14px;
+
+    .send-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 11px;
+    }
+  }
+}
+
+@media (max-width: 560px) {
+  .messages-layout {
+    height: calc(100vh - 164px);
+    height: calc(100dvh - 164px);
+  }
+
+  .header-banner .page-title {
+    font-size: 26px;
+  }
+
+  .conv-item {
+    padding: 14px 16px;
+  }
+
+  .chat-bubble-wrapper {
+    gap: 8px;
+
+    .bubble-avatar {
+      width: 32px;
+      height: 32px;
+      font-size: 13px;
+    }
+
+    .bubble-content {
+      max-width: 78%;
+    }
   }
 }
 </style>

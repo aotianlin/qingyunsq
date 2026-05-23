@@ -75,14 +75,20 @@ tenant:
     ttl: 60s                     # 缓存过期时间（写入后）
 
 # ---------- AI 配置 ----------
+# 注：以下 base-url / api-key / model 仅作为兜底 fallback；
+# 生产实际使用的 AI 配置由各租户在管理台动态配置，存储于 tenants.ai_config 字段，
+# 由 TenantAwareAiService 每次请求时读取并优先生效。
 ai:
   provider: mock  # openai | ollama | mock
-  base-url: https://api.deepseek.com/v1
+  base-url: https://api.deepseek.com
   api-key: ${AI_API_KEY:}
-  model: deepseek-chat
+  model: deepseek-v4-flash
   rate-limit:
     per-user-per-min: 5
     per-tenant-per-day: 1000
+  http:
+    connect-timeout: 8s    # 与上游 LLM 服务建立连接的超时
+    read-timeout: 30s      # 读取完整响应的超时（适配 LLM 长生成）
 
 # ---------- 存储配置 ----------
 storage:

@@ -61,7 +61,11 @@ public class TenantBindingCheckInterceptor implements HandlerInterceptor {
                            String reason, String detail) throws IOException {
         long userId = StpUtil.getLoginIdAsLong();
         long actualTid = TenantContext.getTenantId();
-        auditService.recordViolationAttempt(userId, actualTid, req, reason, detail);
+        // F7: 在拦截器线程提取请求元数据，再调异步审计（避免跨线程持有 req）
+        String uri = req.getRequestURI();
+        String method = req.getMethod();
+        String ipAddress = TenantAuditService.resolveClientIp(req);
+        auditService.recordViolationAttempt(userId, actualTid, uri, method, ipAddress, reason, detail);
         res.setStatus(HttpStatus.FORBIDDEN.value());
         res.setContentType("application/json;charset=UTF-8");
         new ObjectMapper().writeValue(res.getWriter(), R.fail(ErrorCode.TENANT_VIOLATION));

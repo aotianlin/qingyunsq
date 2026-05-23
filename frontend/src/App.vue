@@ -2,7 +2,6 @@
 import { computed } from 'vue';
 import { darkTheme, type GlobalThemeOverrides } from 'naive-ui';
 import AppNotify from '@/components/AppNotify.vue';
-import ThemeToggle from '@/components/ThemeToggle.vue';
 import { useTheme } from '@/composables/useTheme';
 import '@/assets/styles/theme.scss';
 
@@ -125,7 +124,6 @@ const themeOverrides = computed(() => (isDarkTheme.value ? darkThemeOverrides : 
       <NNotificationProvider>
         <AppNotify />
         <router-view />
-        <ThemeToggle />
       </NNotificationProvider>
     </NMessageProvider>
   </NConfigProvider>
