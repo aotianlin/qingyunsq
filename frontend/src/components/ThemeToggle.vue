@@ -14,7 +14,7 @@ const toggleIcon = computed(() => (isDarkTheme.value ? SunnyOutline : MoonOutlin
   <n-tooltip trigger="hover">
     <template #trigger>
       <button
-        class="theme-toggle"
+        class="theme-toggle is-inline"
         type="button"
         :title="toggleLabel"
         :aria-label="toggleLabel"
@@ -34,10 +34,7 @@ const toggleIcon = computed(() => (isDarkTheme.value ? SunnyOutline : MoonOutlin
 
 <style scoped lang="scss">
 .theme-toggle {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 1000;
+  position: relative;
   width: 42px;
   height: 42px;
   border: 1px solid var(--cf-border-glass);
@@ -85,10 +82,10 @@ const toggleIcon = computed(() => (isDarkTheme.value ? SunnyOutline : MoonOutlin
   transform: translateY(0);
 }
 
-@media (max-width: 640px) {
-  .theme-toggle {
-    right: 16px;
-    bottom: 16px;
-  }
+.theme-toggle.is-inline {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
 }
+
 </style>

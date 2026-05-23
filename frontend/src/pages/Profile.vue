@@ -16,12 +16,15 @@ import {
   ShareSocialOutline,
   ThumbsUpOutline,
 } from '@vicons/ionicons5';
+import { changePassword } from '@/api/auth';
 import { getUserAchievements } from '@/api/achievement';
 import { getChallenges } from '@/api/checkin';
 import { getFollowCounts, getUserFollowers, getUserFollowing } from '@/api/follows';
 import { getBalance, getPointsLogs } from '@/api/points';
 import { getPosts } from '@/api/posts';
 import { getMyProfile, updateProfile, uploadProfileAsset } from '@/api/users';
+import { getPasswordStrength, validateConfirmPassword, validateNickname, validatePassword } from '@/utils/authValidation';
+import { copyTextToClipboard } from '@/utils/clipboard';
 import type { AchievementVO } from '@/types/achievement';
 import type { CheckinChallengeVO } from '@/types/checkin';
 import type { PointsLogVO } from '@/types/points';
@@ -63,6 +66,18 @@ const form = ref({
   major: '',
   grade: '',
 });
+const profileNicknameState = ref({ active: false, touched: false, error: '', shaking: false });
+const passwordForm = ref({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+});
+const passwordSaving = ref(false);
+const passwordState = ref({
+  oldPassword: { active: false, touched: false, error: '', shaking: false },
+  newPassword: { active: false, touched: false, error: '', shaking: false },
+  confirmPassword: { active: false, touched: false, error: '', shaking: false },
+});
 
 const tabs = ['动态', '帖子', '打卡', '成就'];
 const pointTypeLabels: Record<string, string> = {
@@ -74,6 +89,7 @@ const pointTypeLabels: Record<string, string> = {
   BOUNTY: '悬赏支出',
 };
 const avatarText = computed(() => user.value?.nickname?.charAt(0)?.toUpperCase() || 'U');
+const profilePasswordStrength = computed(() => getPasswordStrength(passwordForm.value.newPassword));
 const profileTitle = computed(() => {
   if (!user.value) return '校园资料待同步';
   return [user.value.college, user.value.major, user.value.grade].filter(Boolean).join(' · ') || '正在完善学习档案';
@@ -132,12 +148,101 @@ function syncForm(profile = user.value) {
     major: profile.major || '',
     grade: profile.grade || '',
   };
+  profileNicknameState.value = { active: false, touched: false, error: '', shaking: false };
+}
+
+type ProfilePasswordField = keyof typeof passwordState.value;
+
+function shakeState(state: { shaking: boolean }) {
+  state.shaking = false;
+  window.setTimeout(() => {
+    state.shaking = true;
+    window.setTimeout(() => {
+      state.shaking = false;
+    }, 520);
+  }, 0);
+}
+
+function validateProfileNickname() {
+  profileNicknameState.value.error = validateNickname(form.value.nickname);
+}
+
+function focusProfileNickname() {
+  profileNicknameState.value.active = true;
+  validateProfileNickname();
+}
+
+function blurProfileNickname() {
+  const state = profileNicknameState.value;
+  state.active = false;
+  state.touched = true;
+  validateProfileNickname();
+  if (state.error) {
+    shakeState(state);
+  }
+}
+
+function validatePasswordField(field: ProfilePasswordField) {
+  const validators: Record<ProfilePasswordField, () => string> = {
+    oldPassword: () => (passwordForm.value.oldPassword ? '' : '请输入当前密码'),
+    newPassword: () => validatePassword(passwordForm.value.newPassword),
+    confirmPassword: () => validateConfirmPassword(passwordForm.value.confirmPassword, passwordForm.value.newPassword),
+  };
+  passwordState.value[field].error = validators[field]();
+  if (field === 'newPassword' && passwordForm.value.confirmPassword) {
+    passwordState.value.confirmPassword.error = validateConfirmPassword(passwordForm.value.confirmPassword, passwordForm.value.newPassword);
+  }
+}
+
+function focusPasswordField(field: ProfilePasswordField) {
+  passwordState.value[field].active = true;
+  validatePasswordField(field);
+}
+
+function blurPasswordField(field: ProfilePasswordField) {
+  const state = passwordState.value[field];
+  state.active = false;
+  state.touched = true;
+  validatePasswordField(field);
+  if (state.error) {
+    shakeState(state);
+  }
+}
+
+function validatePasswordForm() {
+  (Object.keys(passwordState.value) as ProfilePasswordField[]).forEach((field) => {
+    passwordState.value[field].touched = true;
+    validatePasswordField(field);
+  });
+  return (Object.keys(passwordState.value) as ProfilePasswordField[]).every((field) => !passwordState.value[field].error);
+}
+
+function resetPasswordForm() {
+  passwordForm.value = {
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  };
+  passwordState.value = {
+    oldPassword: { active: false, touched: false, error: '', shaking: false },
+    newPassword: { active: false, touched: false, error: '', shaking: false },
+    confirmPassword: { active: false, touched: false, error: '', shaking: false },
+  };
+}
+
+function cancelProfileEdit() {
+  syncForm();
+  resetPasswordForm();
+  editing.value = false;
 }
 
 async function saveProfile() {
   if (!user.value || saving.value) return;
-  if (!form.value.nickname.trim()) {
-    message.warning('昵称不能为空');
+  profileNicknameState.value.touched = true;
+  validateProfileNickname();
+  if (profileNicknameState.value.error) {
+    shakeState(profileNicknameState.value);
+    message.warning('请按提示修正昵称');
     return;
   }
   saving.value = true;
@@ -158,6 +263,25 @@ async function saveProfile() {
     message.error(error instanceof Error ? error.message : '保存失败');
   } finally {
     saving.value = false;
+  }
+}
+
+async function savePassword() {
+  if (passwordSaving.value) return;
+  if (!validatePasswordForm()) {
+    message.warning('请按提示修正密码');
+    return;
+  }
+  passwordSaving.value = true;
+  try {
+    await changePassword(passwordForm.value.oldPassword, passwordForm.value.newPassword);
+    resetPasswordForm();
+    message.success('密码已更新，请牢记新密码');
+  } catch (error) {
+    resetPasswordForm();
+    message.error(error instanceof Error ? error.message : '密码更新失败');
+  } finally {
+    passwordSaving.value = false;
   }
 }
 
@@ -268,11 +392,10 @@ function goCheckin() {
 
 async function copyProfileLink() {
   if (!profileLink.value) return;
-  try {
-    await navigator.clipboard.writeText(profileLink.value);
+  if (await copyTextToClipboard(profileLink.value)) {
     message.success('主页链接已复制');
-  } catch {
-    message.info(profileLink.value);
+  } else {
+    message.warning(`复制失败，请手动复制：${profileLink.value}`);
   }
 }
 
@@ -503,12 +626,24 @@ onMounted(loadProfile);
             accept="image/png,image/jpeg,image/gif,image/webp"
             @change="handleAssetChange($event, 'cover')"
           />
-          <label>
+          <label
+            class="validated-field"
+            :class="{ invalid: profileNicknameState.touched && profileNicknameState.error, shake: profileNicknameState.shaking }"
+          >
             <span>昵称</span>
             <input
               v-model="form.nickname"
-              maxlength="50"
+              maxlength="12"
+              @focus="focusProfileNickname"
+              @blur="blurProfileNickname"
+              @input="validateProfileNickname"
             />
+            <small
+              v-if="profileNicknameState.touched && profileNicknameState.error"
+              class="field-hint error"
+            >
+              {{ profileNicknameState.error }}
+            </small>
           </label>
           <div class="asset-field">
             <span>头像</span>
@@ -549,11 +684,100 @@ onMounted(loadProfile);
               maxlength="500"
             />
           </label>
+          <div class="password-panel wide">
+            <div class="password-panel-head">
+              <strong>账号安全</strong>
+              <span>修改密码后，下一次登录请使用新密码。</span>
+            </div>
+            <div class="password-grid">
+              <label
+                class="validated-field"
+                :class="{ invalid: passwordState.oldPassword.touched && passwordState.oldPassword.error, shake: passwordState.oldPassword.shaking }"
+              >
+                <span>当前密码</span>
+                <input
+                  v-model="passwordForm.oldPassword"
+                  type="password"
+                  autocomplete="current-password"
+                  @focus="focusPasswordField('oldPassword')"
+                  @blur="blurPasswordField('oldPassword')"
+                  @input="validatePasswordField('oldPassword')"
+                />
+                <small
+                  v-if="passwordState.oldPassword.touched && passwordState.oldPassword.error"
+                  class="field-hint error"
+                >
+                  {{ passwordState.oldPassword.error }}
+                </small>
+              </label>
+              <label
+                class="validated-field"
+                :class="{ invalid: passwordState.newPassword.touched && passwordState.newPassword.error, shake: passwordState.newPassword.shaking }"
+              >
+                <span>新密码</span>
+                <input
+                  v-model="passwordForm.newPassword"
+                  type="password"
+                  maxlength="32"
+                  autocomplete="new-password"
+                  placeholder="8-32 位新密码"
+                  @focus="focusPasswordField('newPassword')"
+                  @blur="blurPasswordField('newPassword')"
+                  @input="validatePasswordField('newPassword')"
+                />
+                <div
+                  v-if="passwordState.newPassword.active || passwordForm.newPassword"
+                  class="password-strength"
+                  :class="profilePasswordStrength.strength"
+                >
+                  <div class="strength-bar">
+                    <span />
+                  </div>
+                  <small>密码强度：{{ profilePasswordStrength.label }}，{{ profilePasswordStrength.hint }}</small>
+                </div>
+                <small
+                  v-if="passwordState.newPassword.touched && passwordState.newPassword.error"
+                  class="field-hint error"
+                >
+                  {{ passwordState.newPassword.error }}
+                </small>
+              </label>
+              <label
+                class="validated-field"
+                :class="{ invalid: passwordState.confirmPassword.touched && passwordState.confirmPassword.error, shake: passwordState.confirmPassword.shaking }"
+              >
+                <span>确认新密码</span>
+                <input
+                  v-model="passwordForm.confirmPassword"
+                  type="password"
+                  maxlength="32"
+                  autocomplete="new-password"
+                  @focus="focusPasswordField('confirmPassword')"
+                  @blur="blurPasswordField('confirmPassword')"
+                  @input="validatePasswordField('confirmPassword')"
+                />
+                <small
+                  v-if="passwordState.confirmPassword.touched && passwordState.confirmPassword.error"
+                  class="field-hint error"
+                >
+                  {{ passwordState.confirmPassword.error }}
+                </small>
+              </label>
+              <button
+                class="outline-btn password-save-btn"
+                type="button"
+                :disabled="passwordSaving"
+                @click="savePassword"
+              >
+                {{ passwordSaving ? '更新中...' : '更新密码' }}
+              </button>
+            </div>
+          </div>
           <div class="edit-actions">
             <button
               class="outline-btn"
               type="button"
-              @click="syncForm(); editing = false"
+              @click="cancelProfileEdit"
             >
               取消
             </button>
@@ -1412,6 +1636,126 @@ onMounted(loadProfile);
   textarea {
     min-height: 96px;
     resize: vertical;
+  }
+
+  .validated-field.invalid {
+    input {
+      border-color: var(--cf-danger);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-danger) 12%, transparent);
+    }
+  }
+
+  .validated-field.shake {
+    animation: field-shake 0.48s ease;
+  }
+}
+
+.field-hint {
+  min-height: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+
+  &.error {
+    color: var(--cf-danger);
+  }
+}
+
+.password-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--cf-border-glass);
+  border-radius: 16px;
+  background: var(--cf-bg-glass-soft);
+}
+
+.password-panel-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+
+  strong {
+    font-size: 15px;
+  }
+
+  span {
+    color: var(--cf-text-muted);
+    font-size: 12px;
+  }
+}
+
+.password-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.password-save-btn {
+  grid-column: 1 / -1;
+  justify-self: flex-end;
+  min-height: 42px;
+  align-self: end;
+}
+
+.password-strength {
+  display: grid;
+  gap: 6px;
+
+  small {
+    color: var(--cf-text-muted);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  &.weak {
+    --strength-color: var(--cf-danger);
+    --strength-width: 33%;
+  }
+
+  &.medium {
+    --strength-color: #d97706;
+    --strength-width: 66%;
+  }
+
+  &.strong {
+    --strength-color: var(--cf-primary);
+    --strength-width: 100%;
+  }
+
+  &.empty {
+    --strength-color: var(--cf-border-strong);
+    --strength-width: 0%;
+  }
+}
+
+.strength-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--cf-bg-glass-soft);
+
+  span {
+    display: block;
+    width: var(--strength-width);
+    height: 100%;
+    border-radius: inherit;
+    background: var(--strength-color);
+    transition: width 0.2s ease, background-color 0.2s ease;
+  }
+}
+
+@keyframes field-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20%, 60% {
+    transform: translateX(-4px);
+  }
+  40%, 80% {
+    transform: translateX(4px);
   }
 }
 

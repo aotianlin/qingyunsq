@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { NCard, NSelect, NInput, NButton, NSpace, useMessage } from 'naive-ui';
+import { ref, computed, onMounted } from 'vue';
+import {
+  NCard, NSelect, NInput, NButton, NSpace, NForm, NFormItem,
+  useMessage,
+  type FormInst, type FormRules,
+} from 'naive-ui';
 import { getTenants, updateTenantAiConfig, getTenantAiConfig } from '@/api/tenants';
 import type { TenantVO } from '@/api/tenants';
 
@@ -11,11 +15,35 @@ const loading = ref(false);
 const saving = ref(false);
 
 const form = ref({ provider: 'mock', baseUrl: '', apiKey: '', model: '' });
+const formRef = ref<FormInst | null>(null);
 
 const providerOptions = [
   { label: 'Mock (模拟AI)', value: 'mock' },
   { label: 'OpenAI 兼容', value: 'openai' },
 ];
+
+// F5: mock 模式不校验；openai 模式 baseUrl/apiKey/model 必填，baseUrl 需 http(s) 前缀
+const rules = computed<FormRules>(() => {
+  if (form.value.provider !== 'openai') {
+    return {} as FormRules;
+  }
+  return {
+    baseUrl: [
+      { required: true, message: '请填写 API Base URL', trigger: ['input', 'blur'] },
+      {
+        validator: (_rule, value: string) => /^https?:\/\/.+/.test(value || ''),
+        message: '必须是 http:// 或 https:// 开头的 URL',
+        trigger: ['input', 'blur'],
+      },
+    ],
+    apiKey: [
+      { required: true, message: '请填写 API Key', trigger: ['input', 'blur'] },
+    ],
+    model: [
+      { required: true, message: '请填写 Model 名称', trigger: ['input', 'blur'] },
+    ],
+  };
+});
 
 onMounted(async () => {
   try {
@@ -42,6 +70,12 @@ async function selectTenant(id: number) {
 
 async function save() {
   if (selectedTenantId.value === null) return;
+  // F5: 调 service 之前先校验，失败时 naive-ui 自动在表单项下方展示错误
+  try {
+    await formRef.value?.validate();
+  } catch {
+    return;
+  }
   saving.value = true;
   try {
     await updateTenantAiConfig(selectedTenantId.value, form.value);
@@ -74,40 +108,51 @@ async function save() {
         v-if="!loading"
         title="AI 服务配置"
       >
-        <NSpace
-          vertical
+        <NForm
+          ref="formRef"
+          :model="form"
+          :rules="rules"
+          label-placement="top"
           style="width: 100%; max-width: 500px;"
         >
-          <div>
-            <label style="display:block; margin-bottom: 4px; font-size: 14px; color: #666;">AI Provider</label>
+          <NFormItem
+            label="AI Provider"
+            path="provider"
+          >
             <NSelect
               v-model:value="form.provider"
               :options="providerOptions"
             />
-          </div>
-          <div>
-            <label style="display:block; margin-bottom: 4px; font-size: 14px; color: #666;">API Base URL</label>
+          </NFormItem>
+          <NFormItem
+            label="API Base URL"
+            path="baseUrl"
+          >
             <NInput
               v-model:value="form.baseUrl"
-              placeholder="https://api.deepseek.com/v1"
+              placeholder="https://api.deepseek.com"
             />
-          </div>
-          <div>
-            <label style="display:block; margin-bottom: 4px; font-size: 14px; color: #666;">API Key</label>
+          </NFormItem>
+          <NFormItem
+            label="API Key"
+            path="apiKey"
+          >
             <NInput
               v-model:value="form.apiKey"
               type="password"
               show-password-on="click"
               placeholder="sk-..."
             />
-          </div>
-          <div>
-            <label style="display:block; margin-bottom: 4px; font-size: 14px; color: #666;">Model</label>
+          </NFormItem>
+          <NFormItem
+            label="Model"
+            path="model"
+          >
             <NInput
               v-model:value="form.model"
-              placeholder="deepseek-chat"
+              placeholder="deepseek-v4-flash"
             />
-          </div>
+          </NFormItem>
           <NButton
             type="primary"
             :loading="saving"
@@ -115,7 +160,7 @@ async function save() {
           >
             保存配置
           </NButton>
-        </NSpace>
+        </NForm>
       </NCard>
       <p v-else>
         加载中...

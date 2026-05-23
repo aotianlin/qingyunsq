@@ -6,6 +6,7 @@ import { getMe, logout as apiLogout } from '@/api/auth';
 import { getUnreadCount as getNotifUnreadCount } from '@/api/notifications';
 import { getUnreadCount as getMsgUnreadCount } from '@/api/messages';
 import { useWebSocket } from '@/composables/useWebSocket';
+import ThemeToggle from '@/components/ThemeToggle.vue';
 import {
   ChatbubblesOutline,
   CheckmarkCircleOutline,
@@ -24,12 +25,15 @@ import {
   BonfireOutline,
   AddOutline,
   TrashOutline,
+  CopyOutline,
 } from '@vicons/ionicons5';
-import { NAvatar, NBadge, NDropdown, NIcon, NInput } from 'naive-ui';
+import { NAvatar, NBadge, NDropdown, NIcon, NInput, useMessage } from 'naive-ui';
 import { aiRagChat } from '@/api/ai';
+import { copyTextToClipboard } from '@/utils/clipboard';
 import type { AiCitation } from '@/types/ai';
 
 type FloatingAiMessage = { role: 'user' | 'assistant'; content: string; citations?: AiCitation[] };
+type FloatingAiPosition = { x: number; y: number };
 type FloatingAiState = {
   version?: number;
   messages: FloatingAiMessage[];
@@ -38,9 +42,19 @@ type FloatingAiState = {
   hidden: boolean;
   bubble: boolean;
   float: boolean;
+  position?: FloatingAiPosition | null;
+};
+type FloatingAiDragState = {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
 };
 
 const FLOATING_AI_STATE_VERSION = 3;
+const FLOATING_AI_DRAG_THRESHOLD = 4;
 const robotBubbleItems = [
   '想快速了解一个帖子？问我就行',
   '资源、帖子、学习圈都可以帮你检索',
@@ -51,6 +65,7 @@ const robotBubbleItems = [
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
+const message = useMessage();
 const searchKeyword = ref('');
 const headerScrolled = ref(false);
 const notifUnread = ref(0);
@@ -91,6 +106,11 @@ const floatingAiContextVisible = ref(false);
 const floatingAiSettingsVisible = ref(false);
 const floatingAiQuestion = ref('');
 const floatingAiLoading = ref(false);
+const floatingAiDragging = ref(false);
+const floatingAiPosition = ref<FloatingAiPosition | null>(null);
+const floatingAiDragState = ref<FloatingAiDragState | null>(null);
+const floatingAiSuppressClick = ref(false);
+const floatingAiRef = ref<HTMLElement | null>(null);
 const floatingAiStreamRef = ref<HTMLElement | null>(null);
 const defaultFloatingAiMessage: FloatingAiMessage = {
   role: 'assistant',
@@ -105,6 +125,15 @@ const floatingAiStorageKey = computed(() => {
 
 const floatingAiLastQuestion = computed(() => [...floatingAiMessages.value].reverse().find((item) => item.role === 'user')?.content || '');
 const floatingAiHasHistory = computed(() => floatingAiMessages.value.some((item) => item.role === 'user'));
+const floatingAiPositionStyle = computed(() => {
+  if (!floatingAiPosition.value || floatingAiHidden.value) return {};
+  return {
+    left: `${floatingAiPosition.value.x}px`,
+    top: `${floatingAiPosition.value.y}px`,
+    right: 'auto',
+    bottom: 'auto',
+  };
+});
 const robotBubbleLoopItems = computed(() => [...robotBubbleItems, ...robotBubbleItems].map((text, index) => ({ key: `${index}-${text}`, text })));
 
 const navLinks = [
@@ -133,6 +162,7 @@ onMounted(async () => {
   updateTopHeaderState();
   restoreFloatingAiState();
   window.addEventListener('scroll', updateTopHeaderState, { passive: true });
+  window.addEventListener('resize', clampFloatingAiPosition);
 
   if (authStore.isLoggedIn && !authStore.user) {
     try {
@@ -158,10 +188,18 @@ onMounted(async () => {
 onUnmounted(() => {
   saveFloatingAiState();
   window.removeEventListener('scroll', updateTopHeaderState);
+  window.removeEventListener('resize', clampFloatingAiPosition);
 });
 
 watch(
-  [floatingAiMessages, floatingAiQuestion, floatingAiOpen, floatingAiHidden, floatingAiBubbleEnabled, floatingAiFloatEnabled],
+  [
+    floatingAiMessages,
+    floatingAiQuestion,
+    floatingAiOpen,
+    floatingAiHidden,
+    floatingAiBubbleEnabled,
+    floatingAiFloatEnabled,
+  ],
   () => saveFloatingAiState(),
   { deep: true },
 );
@@ -169,6 +207,13 @@ watch(
 watch(
   () => floatingAiStorageKey.value,
   () => restoreFloatingAiState(),
+);
+
+watch(
+  [floatingAiOpen, floatingAiHidden, floatingAiBubbleEnabled],
+  () => {
+    void nextTick(clampFloatingAiPosition);
+  },
 );
 
 async function handleDropdownSelect(key: string | number) {
@@ -237,8 +282,128 @@ function closeFloatingAi() {
   floatingAiOpen.value = false;
 }
 
+function parseFloatingAiPosition(value: unknown): FloatingAiPosition | null {
+  if (!value || typeof value !== 'object') return null;
+  const position = value as Partial<FloatingAiPosition>;
+  const x = Number(position.x);
+  const y = Number(position.y);
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+}
+
+function getFloatingAiBounds(width: number, height: number) {
+  const margin = window.innerWidth <= 720 ? 14 : 24;
+  return {
+    minX: margin,
+    minY: margin,
+    maxX: Math.max(margin, window.innerWidth - width - margin),
+    maxY: Math.max(margin, window.innerHeight - height - margin),
+  };
+}
+
+function clampFloatingAiPoint(point: FloatingAiPosition, width?: number, height?: number): FloatingAiPosition {
+  const rect = floatingAiRef.value?.getBoundingClientRect();
+  const currentWidth = width ?? rect?.width ?? (floatingAiOpen.value ? 390 : 214);
+  const currentHeight = height ?? rect?.height ?? (floatingAiOpen.value ? 560 : 202);
+  const bounds = getFloatingAiBounds(currentWidth, currentHeight);
+  return {
+    x: Math.min(Math.max(point.x, bounds.minX), bounds.maxX),
+    y: Math.min(Math.max(point.y, bounds.minY), bounds.maxY),
+  };
+}
+
+function clampFloatingAiPosition() {
+  if (!floatingAiPosition.value || floatingAiHidden.value) return;
+  const nextPosition = clampFloatingAiPoint(floatingAiPosition.value);
+  if (nextPosition.x !== floatingAiPosition.value.x || nextPosition.y !== floatingAiPosition.value.y) {
+    floatingAiPosition.value = nextPosition;
+    saveFloatingAiState();
+  }
+}
+
+// 机器人拖拽使用视口坐标持久化；超过阈值才判定为拖拽，避免轻点打开时被误判成移动。
+function startFloatingAiDrag(event: PointerEvent) {
+  if (floatingAiHidden.value || event.button !== 0) return;
+  const target = event.target as HTMLElement | null;
+  if (floatingAiOpen.value && target?.closest('button, textarea, input, a')) return;
+
+  const rect = floatingAiRef.value?.getBoundingClientRect();
+  if (!rect) return;
+
+  floatingAiContextVisible.value = false;
+  floatingAiSettingsVisible.value = false;
+  floatingAiDragState.value = {
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startX: rect.left,
+    startY: rect.top,
+    moved: false,
+  };
+  floatingAiDragging.value = true;
+  floatingAiPosition.value = clampFloatingAiPoint({ x: rect.left, y: rect.top }, rect.width, rect.height);
+  const dragTarget = event.currentTarget as HTMLElement;
+  if (dragTarget.setPointerCapture) {
+    dragTarget.setPointerCapture(event.pointerId);
+  }
+}
+
+function moveFloatingAiDrag(event: PointerEvent) {
+  const drag = floatingAiDragState.value;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+
+  const deltaX = event.clientX - drag.startClientX;
+  const deltaY = event.clientY - drag.startClientY;
+  const moved = Math.hypot(deltaX, deltaY) > FLOATING_AI_DRAG_THRESHOLD;
+  drag.moved = drag.moved || moved;
+  if (!drag.moved) return;
+
+  event.preventDefault();
+  floatingAiPosition.value = clampFloatingAiPoint({
+    x: drag.startX + deltaX,
+    y: drag.startY + deltaY,
+  });
+}
+
+function endFloatingAiDrag(event: PointerEvent) {
+  const drag = floatingAiDragState.value;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+
+  floatingAiDragState.value = null;
+  floatingAiDragging.value = false;
+  const dragTarget = event.currentTarget as HTMLElement;
+  if (dragTarget.hasPointerCapture?.(event.pointerId)) {
+    dragTarget.releasePointerCapture(event.pointerId);
+  }
+
+  if (drag.moved) {
+    floatingAiSuppressClick.value = true;
+    window.setTimeout(() => {
+      floatingAiSuppressClick.value = false;
+    }, 120);
+    saveFloatingAiState();
+  }
+}
+
+function cancelFloatingAiDrag(event: PointerEvent) {
+  const drag = floatingAiDragState.value;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  floatingAiDragState.value = null;
+  floatingAiDragging.value = false;
+}
+
+function handleFloatingAiRobotClick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('.floating-ai-context-menu, .floating-ai-settings')) return;
+  if (floatingAiSuppressClick.value) {
+    floatingAiSuppressClick.value = false;
+    return;
+  }
+  openFloatingAi();
+}
+
 function showRobotSettingsMenu(event: MouseEvent) {
   event.preventDefault();
+  if (floatingAiDragging.value) return;
   floatingAiOpen.value = false;
   floatingAiContextVisible.value = true;
   floatingAiSettingsVisible.value = false;
@@ -306,6 +471,15 @@ function openCitation(citation: AiCitation) {
   floatingAiSettingsVisible.value = false;
 }
 
+async function copyFloatingAiMessage(content: string) {
+  if (!content) return;
+  if (await copyTextToClipboard(content)) {
+    message.success('已复制');
+  } else {
+    message.warning('复制失败，请手动选中内容复制');
+  }
+}
+
 async function openAiWorkspace() {
   floatingAiOpen.value = false;
   floatingAiContextVisible.value = false;
@@ -344,11 +518,14 @@ function restoreFloatingAiState() {
     floatingAiHidden.value = state.version === FLOATING_AI_STATE_VERSION ? Boolean(state.hidden) : false;
     floatingAiBubbleEnabled.value = state.version === FLOATING_AI_STATE_VERSION ? state.bubble !== false : true;
     floatingAiFloatEnabled.value = state.version === FLOATING_AI_STATE_VERSION ? state.float !== false : true;
+    floatingAiPosition.value = parseFloatingAiPosition(state.position);
+    void nextTick(clampFloatingAiPosition);
   } catch {
     floatingAiMessages.value = [defaultFloatingAiMessage];
     floatingAiHidden.value = false;
     floatingAiBubbleEnabled.value = true;
     floatingAiFloatEnabled.value = true;
+    floatingAiPosition.value = null;
   }
 }
 
@@ -363,6 +540,7 @@ function saveFloatingAiState() {
     hidden: floatingAiHidden.value,
     bubble: floatingAiBubbleEnabled.value,
     float: floatingAiFloatEnabled.value,
+    position: floatingAiPosition.value,
   };
   localStorage.setItem(floatingAiStorageKey.value, JSON.stringify(state));
 }
@@ -473,6 +651,8 @@ async function scrollFloatingAiToBottom() {
           </n-badge>
         </button>
 
+        <ThemeToggle class="header-theme-toggle" />
+
         <n-dropdown
           v-if="authStore.user"
           :options="userDropdownOptions"
@@ -506,8 +686,10 @@ async function scrollFloatingAiToBottom() {
 
     <div
       v-if="authStore.isLoggedIn"
+      ref="floatingAiRef"
       class="floating-ai"
-      :class="{ open: floatingAiOpen, hidden: floatingAiHidden }"
+      :class="{ open: floatingAiOpen, hidden: floatingAiHidden, dragging: floatingAiDragging }"
+      :style="floatingAiPositionStyle"
     >
       <button
         v-if="floatingAiHidden"
@@ -520,7 +702,13 @@ async function scrollFloatingAiToBottom() {
         v-else-if="floatingAiOpen"
         class="floating-ai-panel"
       >
-        <header class="floating-ai-head">
+        <header
+          class="floating-ai-head"
+          @pointerdown="startFloatingAiDrag"
+          @pointermove="moveFloatingAiDrag"
+          @pointerup="endFloatingAiDrag"
+          @pointercancel="cancelFloatingAiDrag"
+        >
           <div>
             <span>RAG Assistant</span>
             <strong>站内智能问答</strong>
@@ -562,6 +750,15 @@ async function scrollFloatingAiToBottom() {
             <div class="floating-message-content">
               {{ item.content }}
             </div>
+            <button
+              v-if="item.role === 'assistant' && item.content"
+              class="floating-message-copy"
+              title="复制回答"
+              @click="copyFloatingAiMessage(item.content)"
+            >
+              <n-icon size="13"><CopyOutline /></n-icon>
+              <span>复制</span>
+            </button>
             <div
               v-if="item.citations?.length"
               class="floating-citations"
@@ -603,6 +800,13 @@ async function scrollFloatingAiToBottom() {
       <div
         v-else
         class="floating-ai-robot-shell"
+        :class="{ dragging: floatingAiDragging }"
+        @pointerdown="startFloatingAiDrag"
+        @pointermove="moveFloatingAiDrag"
+        @pointerup="endFloatingAiDrag"
+        @pointercancel="cancelFloatingAiDrag"
+        @click="handleFloatingAiRobotClick"
+        @contextmenu="showRobotSettingsMenu"
       >
         <div
           v-if="floatingAiBubbleEnabled"
@@ -619,11 +823,10 @@ async function scrollFloatingAiToBottom() {
           </div>
         </div>
         <button
+          type="button"
           class="floating-ai-robot"
           :class="{ floating: floatingAiFloatEnabled }"
           title="打开 AI 问答"
-          @click="openFloatingAi"
-          @contextmenu="showRobotSettingsMenu"
         >
           <span
             class="robot-illustration"
@@ -658,6 +861,8 @@ async function scrollFloatingAiToBottom() {
         <div
           v-if="floatingAiContextVisible"
           class="floating-ai-context-menu"
+          @click.stop
+          @pointerdown.stop
         >
           <button
             title="设置机器人"
@@ -671,6 +876,8 @@ async function scrollFloatingAiToBottom() {
         <section
           v-if="floatingAiSettingsVisible"
           class="floating-ai-settings"
+          @click.stop
+          @pointerdown.stop
         >
           <header>
             <strong>机器人设置</strong>
@@ -867,6 +1074,10 @@ async function scrollFloatingAiToBottom() {
   flex-shrink: 0;
 }
 
+.header-theme-toggle {
+  flex-shrink: 0;
+}
+
 .search-input {
   width: 360px;
 }
@@ -960,19 +1171,24 @@ async function scrollFloatingAiToBottom() {
 .floating-ai {
   position: fixed;
   right: 24px;
-  top: 52%;
-  transform: translateY(-50%);
+  bottom: calc(24px + env(safe-area-inset-bottom));
   z-index: 35;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 12px;
   pointer-events: none;
+  touch-action: none;
+  user-select: none;
 }
 
 .floating-ai.hidden {
   right: 0;
   align-items: flex-end;
+}
+
+.floating-ai.dragging {
+  transition: none;
 }
 
 .floating-ai-panel,
@@ -982,9 +1198,7 @@ async function scrollFloatingAiToBottom() {
 }
 
 .floating-ai.open {
-  top: auto;
-  bottom: 24px;
-  transform: none;
+  bottom: calc(24px + env(safe-area-inset-bottom));
 }
 
 .floating-ai-panel {
@@ -1010,6 +1224,8 @@ async function scrollFloatingAiToBottom() {
   gap: 12px;
   padding: 16px 16px 12px;
   border-bottom: 1px solid var(--cf-border);
+  cursor: move;
+  touch-action: none;
 }
 
 .floating-ai-head span {
@@ -1103,12 +1319,38 @@ async function scrollFloatingAiToBottom() {
   font-size: 13px;
   white-space: pre-wrap;
   word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 .floating-message.user .floating-message-content {
   color: var(--cf-text-inverse);
   background: var(--cf-primary);
   border-color: color-mix(in srgb, var(--cf-primary) 60%, transparent);
+}
+
+.floating-message-copy {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--cf-text-secondary);
+  background: transparent;
+  border: 1px solid var(--cf-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.floating-message-copy:hover {
+  color: var(--cf-primary);
+  border-color: var(--cf-primary);
+  background: color-mix(in srgb, var(--cf-primary) 8%, transparent);
 }
 
 .floating-citations {
@@ -1205,6 +1447,17 @@ async function scrollFloatingAiToBottom() {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  cursor: grab;
+  touch-action: none;
+}
+
+.floating-ai-robot-shell.dragging {
+  cursor: grabbing;
+}
+
+.floating-ai-robot-shell.dragging .floating-ai-robot,
+.floating-ai.dragging .floating-ai-robot {
+  animation: none;
 }
 
 .floating-ai-bubble {
@@ -1263,7 +1516,8 @@ async function scrollFloatingAiToBottom() {
   background: transparent;
   color: var(--cf-primary);
   box-shadow: none;
-  cursor: pointer;
+  cursor: inherit;
+  touch-action: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1766,14 +2020,12 @@ async function scrollFloatingAiToBottom() {
 
   .floating-ai {
     right: 14px;
-    top: 52%;
-    bottom: auto;
+    bottom: calc(14px + env(safe-area-inset-bottom));
   }
 
   .floating-ai.open {
     right: 14px;
-    top: auto;
-    bottom: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
   }
 
   .floating-ai-panel {
