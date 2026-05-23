@@ -3,7 +3,6 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NEmpty, NIcon, NSpin, NTag } from 'naive-ui';
 import {
-  ArrowUpOutline,
   BookmarkOutline,
   ChatbubblesOutline,
   EyeOutline,
@@ -14,18 +13,83 @@ import {
   TimeOutline,
 } from '@vicons/ionicons5';
 import { getPosts } from '@/api/posts';
+import { getPostAiCardsBatch, getPostAiCard } from '@/api/ai';
+import type { PostAiCard } from '@/types/ai';
 import MentionText from '@/components/MentionText.vue';
+import BackToTopButton from '@/components/BackToTopButton.vue';
+import PostAiCardLine from '@/components/PostAiCardLine.vue';
+import { copyTextToClipboard } from '@/utils/clipboard';
 import type { PostVO } from '@/types/post';
 import { useMessage } from 'naive-ui';
 
 const router = useRouter();
 const message = useMessage();
 const posts = ref<PostVO[]>([]);
+const aiCards = ref<Record<string, PostAiCard>>({});
 const loading = ref(false);
 const hasMore = ref(true);
 const sort = ref<'latest' | 'trending' | 'essence' | 'follow'>('latest');
-const showBackToTop = ref(false);
-const squarePageRef = ref<HTMLElement | null>(null);
+const squareScrollRef = ref<HTMLElement | null>(null);
+
+async function loadAiCardsFor(postIds: number[]) {
+  if (postIds.length === 0) return;
+  try {
+    const batch = await getPostAiCardsBatch(postIds);
+    // 合并到 aiCards 而非替换，保证翻页时已有缓存不丢失
+    aiCards.value = { ...aiCards.value, ...batch };
+    // batch 返回中存在的 postId 标记为已请求过（避免 IntersectionObserver 再触发生成）
+    for (const idStr of Object.keys(batch)) {
+      requestedSet.value.add(Number(idStr));
+    }
+  } catch {
+    // 静默：列表卡片是增强信息，失败时不显示即可
+  }
+}
+
+// ===== AI 卡片懒加载请求队列 =====
+// 用户滚动到帖子进入视口时：未缓存 + 未请求过 → 加入候选；单线程逐一调 LLM 生成。
+// 滚动离开视口的未开始项自动跳过；滚动停止 → 没有新进入视口的项 → 队列自然停下。
+const visibleSet = ref(new Set<number>());
+const requestedSet = ref(new Set<number>());     // 已请求成功/失败过（不再重试）
+const requestingSet = ref(new Set<number>());    // 正在请求中
+const aiQueueProcessing = ref(false);
+
+function handleAiCardVisible(postId: number) {
+  visibleSet.value.add(postId);
+  void processAiCardQueue();
+}
+
+function handleAiCardHidden(postId: number) {
+  visibleSet.value.delete(postId);
+}
+
+async function processAiCardQueue() {
+  if (aiQueueProcessing.value) return;
+  // 从当前可见 + 未请求 + 不在请求中 的帖子里取一个
+  const next = [...visibleSet.value].find(
+    (id) => !aiCards.value[String(id)] && !requestedSet.value.has(id) && !requestingSet.value.has(id),
+  );
+  if (next === undefined) return;
+
+  aiQueueProcessing.value = true;
+  requestingSet.value.add(next);
+  try {
+    const card = await getPostAiCard(next); // 默认触发生成
+    if (card) {
+      aiCards.value = { ...aiCards.value, [String(next)]: card };
+    }
+  } catch {
+    // 失败不重试，标记已请求避免反复打 LLM
+  } finally {
+    requestingSet.value.delete(next);
+    requestedSet.value.add(next);
+    aiQueueProcessing.value = false;
+    // 200ms 节流，给后端喘息，并避免一瞬间触发太多
+    if (visibleSet.value.size > 0) {
+      setTimeout(() => void processAiCardQueue(), 200);
+    }
+  }
+}
 
 const sortOptions = [
   { key: 'latest', label: '最新发布', icon: TimeOutline },
@@ -49,11 +113,17 @@ async function loadPosts(reset = false) {
 
     if (reset) {
       posts.value = list;
+      aiCards.value = {}; // 切换 sort/refresh 时清空旧卡片缓存
+      requestedSet.value.clear();
+      visibleSet.value.clear();
     } else {
       posts.value.push(...list);
     }
 
     hasMore.value = sort.value === 'essence' ? false : list.length >= 10;
+
+    // 批量拉取这一批新增帖子的 AI 卡片缓存
+    void loadAiCardsFor(list.map((p) => p.id));
   } catch {
     if (reset) {
       posts.value = [];
@@ -86,16 +156,15 @@ function postLink(id: number) {
 
 async function copyPostLink(id: number) {
   const url = postLink(id);
-  try {
-    await navigator.clipboard.writeText(url);
+  if (await copyTextToClipboard(url)) {
     message.success('帖子链接已复制');
-  } catch {
-    message.info(url);
+  } else {
+    message.warning(`复制失败，请手动复制：${url}`);
   }
 }
 
-function openAiAnalysis(id: number) {
-  router.push({ path: '/ai', query: { mode: 'content', postId: String(id) } });
+function openAiSummary(id: number) {
+  router.push({ path: '/ai', query: { mode: 'summary', postId: String(id) }, hash: '#ai-workspace' });
 }
 
 function stopCardClick(event: MouseEvent) {
@@ -115,15 +184,9 @@ function formatTime(value: string) {
 
 function scrollToListEnd(e: Event) {
   const target = e.target as HTMLElement;
-  // 显示/隐藏回到顶部按钮
-  showBackToTop.value = target.scrollTop > 400;
   if (target.scrollHeight - target.scrollTop - target.clientHeight < 160) {
     loadPosts();
   }
-}
-
-function scrollToTop() {
-  squarePageRef.value?.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 onMounted(() => loadPosts(true));
@@ -131,7 +194,7 @@ onMounted(() => loadPosts(true));
 
 <template>
   <div
-    ref="squarePageRef"
+    ref="squareScrollRef"
     class="square-page"
     @scroll="scrollToListEnd"
   >
@@ -217,8 +280,8 @@ onMounted(() => loadPosts(true));
             </button>
             <button
               class="card-action-btn ai"
-              title="AI 分析"
-              @click.stop="openAiAnalysis(post.id)"
+              title="AI 摘要"
+              @click.stop="openAiSummary(post.id)"
             >
               <n-icon size="16">
                 <SparklesOutline />
@@ -247,6 +310,14 @@ onMounted(() => loadPosts(true));
               class="topic-tag"
             ># {{ topic }}</span>
           </div>
+
+          <PostAiCardLine
+            :post-id="post.id"
+            :card="aiCards[String(post.id)]"
+            :post="post"
+            @visible="handleAiCardVisible"
+            @hidden="handleAiCardHidden"
+          />
 
           <div class="post-footer">
             <span>
@@ -302,19 +373,7 @@ onMounted(() => loadPosts(true));
       </aside>
     </section>
 
-    <!-- 回到顶部按钮 -->
-    <Transition name="fade">
-      <button
-        v-if="showBackToTop"
-        class="back-to-top-btn"
-        title="回到顶部"
-        @click="scrollToTop"
-      >
-        <n-icon size="20">
-          <ArrowUpOutline />
-        </n-icon>
-      </button>
-    </Transition>
+    <BackToTopButton :target="squareScrollRef" />
   </div>
 </template>
 

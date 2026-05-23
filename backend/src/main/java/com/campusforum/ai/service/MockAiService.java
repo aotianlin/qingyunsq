@@ -99,6 +99,67 @@ public class MockAiService implements AiService {
     }
 
     @Override
+    public PostCardResult generatePostCard(String title,
+                                           String content,
+                                           String postType,
+                                           String tags,
+                                           List<String> recentComments) {
+        if ((title == null || title.isBlank()) && (content == null || content.isBlank())) {
+            return null;
+        }
+        String tldrSource = (title != null ? title : "");
+        if (content != null && !content.isBlank()) {
+            String body = content.replaceAll("\\s+", " ").strip();
+            tldrSource = tldrSource.isBlank() ? body : tldrSource + "：" + body;
+        }
+        String tldr = tldrSource.length() <= 60 ? tldrSource : tldrSource.substring(0, 60) + "…";
+
+        String valueType = switch (postType == null ? "" : postType.toLowerCase()) {
+            case "qa", "question" -> "提问";
+            case "resource" -> "资源";
+            case "checkin" -> "打卡";
+            case "experience", "share" -> "经验";
+            default -> "讨论";
+        };
+
+        int chars = (content == null ? 0 : content.length());
+        int readMinutes = Math.max(1, (int) Math.ceil(chars / 400.0));
+
+        String audience = inferAudience(title, content, tags);
+
+        String consensus = null;
+        String disputes = null;
+        if (recentComments != null && recentComments.size() >= 3) {
+            // Mock 模式不做语义聚类，只取一条最长评论摘要替代"共识"
+            String longest = recentComments.stream()
+                    .filter(s -> s != null && !s.isBlank())
+                    .max((a, b) -> Integer.compare(a.length(), b.length()))
+                    .orElse(null);
+            if (longest != null) {
+                consensus = longest.length() <= 120 ? longest : longest.substring(0, 120) + "…";
+            }
+            if (recentComments.size() >= 8) {
+                disputes = "评论较多，可能存在多种观点（mock 模式不做语义聚合）";
+            }
+        }
+
+        return new PostCardResult(tldr, audience, valueType, readMinutes, consensus, disputes,
+                recommendTags(title, content));
+    }
+
+    private String inferAudience(String title, String content, String tags) {
+        String text = (title == null ? "" : title) + " " + (content == null ? "" : content) + " " + (tags == null ? "" : tags);
+        String lower = text.toLowerCase();
+        if (lower.contains("考研") || lower.contains("保研")) return "正在备考升学的同学";
+        if (lower.contains("实习") || lower.contains("校招") || lower.contains("面试")) return "找工作或实习的同学";
+        if (lower.contains("毕设") || lower.contains("毕业设计")) return "正在做毕设的同学";
+        if (lower.contains("入门") || lower.contains("新手") || lower.contains("小白")) return "想入门该方向的同学";
+        if (lower.contains("踩坑") || lower.contains("避坑") || lower.contains("教训")) return "想避开同类问题的同学";
+        if (lower.contains("教程") || lower.contains("笔记")) return "想系统学习该主题的同学";
+        return "对该话题感兴趣的同学";
+    }
+
+    @Override
     public boolean checkRelevance(String theme, String content) {
         if (theme == null || theme.isBlank() || content == null || content.isBlank()) return true;
         String themeLower = theme.toLowerCase();

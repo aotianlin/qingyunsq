@@ -26,3 +26,15 @@ export interface AiResponse {
   reply: string;
   citations?: AiCitation[];
 }
+
+export interface PostAiCard {
+  tldr: string | null;
+  audience: string | null;
+  valueType: string | null;
+  readMinutes: number | null;
+  commentConsensus: string | null;
+  commentDisputes: string | null;
+  hotCommentId: number | null;
+  hotCommentExcerpt: string | null;
+  highlights: string[] | null;
+}
