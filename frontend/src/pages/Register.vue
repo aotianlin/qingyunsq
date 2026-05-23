@@ -4,6 +4,14 @@ import { useRouter } from 'vue-router';
 import { NIcon, NInput, useMessage } from 'naive-ui';
 import { ArrowForwardOutline, IdCardOutline, LockClosedOutline, MailOutline, PersonOutline, SchoolOutline, ShieldCheckmarkOutline } from '@vicons/ionicons5';
 import { register, sendEmailCode } from '@/api/auth';
+import {
+  getPasswordStrength,
+  validateConfirmPassword,
+  validateEmail,
+  validateNickname,
+  validatePassword,
+  validateStudentNo,
+} from '@/utils/authValidation';
 
 const router = useRouter();
 const message = useMessage();
@@ -18,12 +26,24 @@ const loading = ref(false);
 const codeLoading = ref(false);
 const codeCountdown = ref(0);
 let codeTimer: number | undefined;
-
-// 实时校验状态
-const emailError = ref('');
-const passwordError = ref('');
-const confirmError = ref('');
-const nicknameError = ref('');
+const fieldState = ref({
+  nickname: { active: false, touched: false, error: '', shaking: false },
+  studentNo: { active: false, touched: false, error: '', shaking: false },
+  email: { active: false, touched: false, error: '', shaking: false },
+  password: { active: false, touched: false, error: '', shaking: false },
+  confirmPassword: { active: false, touched: false, error: '', shaking: false },
+});
+const passwordStrength = computed(() => getPasswordStrength(password.value));
+const canSubmit = computed(() =>
+  Boolean(
+    email.value.trim() &&
+      password.value &&
+      confirmPassword.value &&
+      nickname.value.trim() &&
+      emailCode.value.trim() &&
+      !Object.values(fieldState.value).some((item) => item.error),
+  ),
+);
 
 const benefits = [
   '在广场记录课程心得与校园见闻',
@@ -31,66 +51,65 @@ const benefits = [
   '开启打卡、积分、成就和 AI 学习辅助能力',
 ];
 
-// 密码强度计算
-const passwordStrength = computed(() => {
-  const pwd = password.value;
-  if (!pwd) return { level: 0, text: '', color: '' };
-  let score = 0;
-  if (pwd.length >= 6) score++;
-  if (pwd.length >= 10) score++;
-  if (/[A-Z]/.test(pwd)) score++;
-  if (/[0-9]/.test(pwd)) score++;
-  if (/[^A-Za-z0-9]/.test(pwd)) score++;
-  if (score <= 1) return { level: 1, text: '弱', color: '#ef4444' };
-  if (score <= 3) return { level: 2, text: '中', color: '#f59e0b' };
-  return { level: 3, text: '强', color: '#10b981' };
-});
+type RegisterField = keyof typeof fieldState.value;
 
-// 实时校验函数（输入框失焦时触发）
-function validateEmail() {
-  if (!email.value.trim()) {
-    emailError.value = '邮箱不能为空';
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) {
-    emailError.value = '邮箱格式不正确';
-  } else {
-    emailError.value = '';
+function runFieldValidation(field: RegisterField) {
+  const validators: Record<RegisterField, () => string> = {
+    nickname: () => validateNickname(nickname.value),
+    studentNo: () => validateStudentNo(studentNo.value),
+    email: () => validateEmail(email.value),
+    password: () => validatePassword(password.value),
+    confirmPassword: () => validateConfirmPassword(confirmPassword.value, password.value),
+  };
+  fieldState.value[field].error = validators[field]();
+  if (field === 'password' && confirmPassword.value) {
+    fieldState.value.confirmPassword.error = validateConfirmPassword(confirmPassword.value, password.value);
   }
 }
 
-function validatePassword() {
-  if (!password.value) {
-    passwordError.value = '密码不能为空';
-  } else if (password.value.length < 8) {
-    passwordError.value = '密码至少 8 位';
-  } else if (password.value.length > 64) {
-    passwordError.value = '密码最长 64 位';
-  } else if (!/(?=.*[A-Za-z])(?=.*\d)/.test(password.value)) {
-    passwordError.value = '密码必须同时包含字母和数字';
-  } else {
-    passwordError.value = '';
-  }
-  // 同步校验确认密码
-  if (confirmPassword.value) validateConfirm();
+function focusField(field: RegisterField) {
+  fieldState.value[field].active = true;
+  runFieldValidation(field);
 }
 
-function validateConfirm() {
-  if (!confirmPassword.value) {
-    confirmError.value = '';
-  } else if (confirmPassword.value !== password.value) {
-    confirmError.value = '两次密码不一致';
-  } else {
-    confirmError.value = '';
+function blurField(field: RegisterField) {
+  const state = fieldState.value[field];
+  state.active = false;
+  state.touched = true;
+  runFieldValidation(field);
+  if (state.error) {
+    state.shaking = false;
+    window.setTimeout(() => {
+      state.shaking = true;
+      window.setTimeout(() => {
+        state.shaking = false;
+      }, 520);
+    }, 0);
   }
 }
 
-function validateNickname() {
-  if (!nickname.value.trim()) {
-    nicknameError.value = '昵称不能为空';
-  } else if (nickname.value.trim().length > 64) {
-    nicknameError.value = '昵称最长 64 位';
-  } else {
-    nicknameError.value = '';
-  }
+function validateForm() {
+  (Object.keys(fieldState.value) as RegisterField[]).forEach((field) => {
+    fieldState.value[field].touched = true;
+    runFieldValidation(field);
+  });
+  return (Object.keys(fieldState.value) as RegisterField[]).every((field) => !fieldState.value[field].error);
+}
+
+function resetRegisterForm() {
+  email.value = '';
+  password.value = '';
+  confirmPassword.value = '';
+  studentNo.value = '';
+  nickname.value = '';
+  emailCode.value = '';
+  fieldState.value = {
+    nickname: { active: false, touched: false, error: '', shaking: false },
+    studentNo: { active: false, touched: false, error: '', shaking: false },
+    email: { active: false, touched: false, error: '', shaking: false },
+    password: { active: false, touched: false, error: '', shaking: false },
+    confirmPassword: { active: false, touched: false, error: '', shaking: false },
+  };
 }
 
 function startCodeCountdown() {
@@ -106,8 +125,11 @@ function startCodeCountdown() {
 }
 
 async function handleSendCode() {
-  if (!email.value.trim()) {
-    message.warning('请先填写邮箱');
+  // 发送前确保邮箱格式正确
+  fieldState.value.email.touched = true;
+  runFieldValidation('email');
+  if (fieldState.value.email.error) {
+    message.warning('请先填写有效的邮箱');
     return;
   }
   codeLoading.value = true;
@@ -123,21 +145,12 @@ async function handleSendCode() {
 }
 
 async function handleRegister() {
-  // 触发全部校验
-  validateEmail();
-  validatePassword();
-  validateConfirm();
-  validateNickname();
-
-  if (emailError.value || passwordError.value || confirmError.value || nicknameError.value) {
+  if (!validateForm()) {
+    message.warning('请按提示修正注册信息');
     return;
   }
-  if (!email.value || !password.value || !nickname.value || !emailCode.value) {
-    message.warning('请填写必填项');
-    return;
-  }
-  if (password.value !== confirmPassword.value) {
-    message.warning('两次密码不一致');
+  if (!emailCode.value.trim()) {
+    message.warning('请填写邮箱验证码');
     return;
   }
 
@@ -168,6 +181,7 @@ async function handleRegister() {
     } else {
       message.error(errMsg);
     }
+    resetRegisterForm();
   } finally {
     loading.value = false;
   }
@@ -188,55 +202,94 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="form-grid two-col">
-          <div class="form-block">
+          <div
+            class="form-block"
+            :class="{ invalid: fieldState.nickname.touched && fieldState.nickname.error, shake: fieldState.nickname.shaking }"
+          >
             <label>昵称</label>
             <n-input
               v-model:value="nickname"
               size="large"
               placeholder="例如：数据结构补完计划"
               maxlength="64"
-              :status="nicknameError ? 'error' : undefined"
-              @blur="validateNickname"
+              show-count
+              :status="fieldState.nickname.touched && fieldState.nickname.error ? 'error' : undefined"
+              @focus="focusField('nickname')"
+              @blur="blurField('nickname')"
+              @input="runFieldValidation('nickname')"
             >
               <template #prefix>
                 <n-icon><PersonOutline /></n-icon>
               </template>
             </n-input>
-            <span v-if="nicknameError" class="field-error">{{ nicknameError }}</span>
+            <small
+              v-if="fieldState.nickname.touched && fieldState.nickname.error"
+              class="field-hint error"
+            >
+              {{ fieldState.nickname.error }}
+            </small>
           </div>
-          <div class="form-block">
+          <div
+            class="form-block"
+            :class="{ invalid: fieldState.studentNo.touched && fieldState.studentNo.error, shake: fieldState.studentNo.shaking }"
+          >
             <label>学号</label>
             <n-input
               v-model:value="studentNo"
               size="large"
-              placeholder="选填"
-              maxlength="32"
+              placeholder="选填，填写则需为 12 位数字"
+              maxlength="12"
+              :allow-input="(value: string) => /^\d*$/.test(value)"
+              :status="fieldState.studentNo.touched && fieldState.studentNo.error ? 'error' : undefined"
+              @focus="focusField('studentNo')"
+              @blur="blurField('studentNo')"
+              @input="runFieldValidation('studentNo')"
             >
               <template #prefix>
                 <n-icon><IdCardOutline /></n-icon>
               </template>
             </n-input>
+            <small
+              v-if="fieldState.studentNo.touched && fieldState.studentNo.error"
+              class="field-hint error"
+            >
+              {{ fieldState.studentNo.error }}
+            </small>
           </div>
         </div>
 
         <div class="form-grid">
-          <div class="form-block">
+          <div
+            class="form-block"
+            :class="{ invalid: fieldState.email.touched && fieldState.email.error, shake: fieldState.email.shaking }"
+          >
             <label>邮箱</label>
             <n-input
               v-model:value="email"
               size="large"
               placeholder="name@college.edu"
-              :status="emailError ? 'error' : undefined"
-              @blur="validateEmail"
+              maxlength="128"
+              :status="fieldState.email.touched && fieldState.email.error ? 'error' : undefined"
+              @focus="focusField('email')"
+              @blur="blurField('email')"
+              @input="runFieldValidation('email')"
             >
               <template #prefix>
                 <n-icon><MailOutline /></n-icon>
               </template>
             </n-input>
-            <span v-if="emailError" class="field-error">{{ emailError }}</span>
+            <small
+              v-if="fieldState.email.touched && fieldState.email.error"
+              class="field-hint error"
+            >
+              {{ fieldState.email.error }}
+            </small>
           </div>
 
-          <div class="form-block">
+          <div
+            class="form-block"
+            :class="{ invalid: fieldState.password.touched && fieldState.password.error, shake: fieldState.password.shaking }"
+          >
             <label>密码</label>
             <n-input
               v-model:value="password"
@@ -245,26 +298,37 @@ onBeforeUnmount(() => {
               placeholder="8-64 位，需包含字母和数字"
               show-password-on="click"
               maxlength="64"
-              :status="passwordError ? 'error' : undefined"
-              @blur="validatePassword"
+              :status="fieldState.password.touched && fieldState.password.error ? 'error' : undefined"
+              @focus="focusField('password')"
+              @blur="blurField('password')"
+              @input="runFieldValidation('password')"
             >
               <template #prefix>
                 <n-icon><LockClosedOutline /></n-icon>
               </template>
             </n-input>
-            <span v-if="passwordError" class="field-error">{{ passwordError }}</span>
-            <div v-if="password && !passwordError" class="password-strength">
+            <div
+              v-if="fieldState.password.active || password"
+              class="password-strength"
+              :class="passwordStrength.strength"
+            >
               <div class="strength-bar">
-                <div
-                  class="strength-fill"
-                  :style="{ width: `${(passwordStrength.level / 3) * 100}%`, background: passwordStrength.color }"
-                />
+                <span />
               </div>
-              <span :style="{ color: passwordStrength.color }">{{ passwordStrength.text }}</span>
+              <small>密码强度：{{ passwordStrength.label }}，{{ passwordStrength.hint }}</small>
             </div>
+            <small
+              v-if="fieldState.password.touched && fieldState.password.error"
+              class="field-hint error"
+            >
+              {{ fieldState.password.error }}
+            </small>
           </div>
 
-          <div class="form-block">
+          <div
+            class="form-block"
+            :class="{ invalid: fieldState.confirmPassword.touched && fieldState.confirmPassword.error, shake: fieldState.confirmPassword.shaking }"
+          >
             <label>确认密码</label>
             <n-input
               v-model:value="confirmPassword"
@@ -273,14 +337,21 @@ onBeforeUnmount(() => {
               placeholder="再次输入密码"
               show-password-on="click"
               maxlength="64"
-              :status="confirmError ? 'error' : undefined"
-              @blur="validateConfirm"
+              :status="fieldState.confirmPassword.touched && fieldState.confirmPassword.error ? 'error' : undefined"
+              @focus="focusField('confirmPassword')"
+              @blur="blurField('confirmPassword')"
+              @input="runFieldValidation('confirmPassword')"
             >
               <template #prefix>
                 <n-icon><LockClosedOutline /></n-icon>
               </template>
             </n-input>
-            <span v-if="confirmError" class="field-error">{{ confirmError }}</span>
+            <small
+              v-if="fieldState.confirmPassword.touched && fieldState.confirmPassword.error"
+              class="field-hint error"
+            >
+              {{ fieldState.confirmPassword.error }}
+            </small>
           </div>
 
           <div class="form-block">
@@ -290,6 +361,7 @@ onBeforeUnmount(() => {
                 v-model:value="emailCode"
                 size="large"
                 placeholder="输入 6 位验证码"
+                maxlength="6"
               >
                 <template #prefix>
                   <n-icon><ShieldCheckmarkOutline /></n-icon>
@@ -308,7 +380,7 @@ onBeforeUnmount(() => {
 
         <button
           class="cf-primary-btn submit-btn"
-          :disabled="loading"
+          :disabled="loading || !canSubmit"
           @click="handleRegister"
         >
           <n-icon size="16">
@@ -438,6 +510,88 @@ onBeforeUnmount(() => {
   label {
     font-size: 14px;
     font-weight: 700;
+  }
+
+  &.invalid {
+    :deep(.n-input) {
+      --n-border: 1px solid var(--cf-danger) !important;
+      --n-border-hover: 1px solid var(--cf-danger) !important;
+      --n-border-focus: 1px solid var(--cf-danger) !important;
+      --n-box-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--cf-danger) 18%, transparent) !important;
+    }
+  }
+
+  &.shake {
+    animation: field-shake 0.48s ease;
+  }
+}
+
+.field-hint {
+  min-height: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+
+  &.error {
+    color: var(--cf-danger);
+  }
+}
+
+.password-strength {
+  display: grid;
+  gap: 6px;
+
+  small {
+    color: var(--cf-text-muted);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  &.weak {
+    --strength-color: var(--cf-danger);
+    --strength-width: 33%;
+  }
+
+  &.medium {
+    --strength-color: #d97706;
+    --strength-width: 66%;
+  }
+
+  &.strong {
+    --strength-color: var(--cf-primary);
+    --strength-width: 100%;
+  }
+
+  &.empty {
+    --strength-color: var(--cf-border-strong);
+    --strength-width: 0%;
+  }
+}
+
+.strength-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--cf-bg-glass-soft);
+
+  span {
+    display: block;
+    width: var(--strength-width);
+    height: 100%;
+    border-radius: inherit;
+    background: var(--strength-color);
+    transition: width 0.2s ease, background-color 0.2s ease;
+  }
+}
+
+@keyframes field-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20%, 60% {
+    transform: translateX(-4px);
+  }
+  40%, 80% {
+    transform: translateX(4px);
   }
 }
 
