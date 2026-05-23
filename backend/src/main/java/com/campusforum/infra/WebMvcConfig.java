@@ -1,5 +1,6 @@
 package com.campusforum.infra;
 
+import com.campusforum.ai.ratelimit.AiRateLimitInterceptor;
 import com.campusforum.infra.ratelimit.RateLimitInterceptor;
 import com.campusforum.tenant.interceptor.TenantBindingCheckInterceptor;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     private final TenantBindingCheckInterceptor tenantBindingCheckInterceptor;
     private final RateLimitInterceptor rateLimitInterceptor;
+    private final AiRateLimitInterceptor aiRateLimitInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -35,5 +37,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/v1/**")
                 .excludePathPatterns("/api/v1/auth/**")
                 .order(1);
+
+        // AI 业务限流（per-user/min + per-tenant/day），仅作用于 /api/v1/ai/**
+        registry.addInterceptor(aiRateLimitInterceptor)
+                .addPathPatterns("/api/v1/ai/**")
+                .order(2);
     }
 }
