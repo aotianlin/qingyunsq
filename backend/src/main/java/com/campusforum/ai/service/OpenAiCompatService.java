@@ -246,11 +246,14 @@ public class OpenAiCompatService implements AiService {
      *
      * <p>失败时抛 {@link BusinessException}(50001)，由 {@code GlobalExceptionHandler.handleBusiness}
      * 转 R.fail(50001) 统一响应；调用方（如 moderate）若需要降级，请自行 catch。
+     *
+     * <p>安全：异常 message 是脱敏的，不向客户端回传上游 HTTP 状态码 / API Key 缺失等敏感细节，
+     * 避免攻击者借响应区分"401 API Key 无效""402 余额不足""429 限流"等。
      */
     private String chatCompletion(List<Map<String, String>> messages) {
         if (apiKey == null || apiKey.isBlank()) {
-            // 不向用户暴露"未配置 API Key"细节，统一脱敏错误
-            return AI_UPSTREAM_ERROR_MESSAGE;
+            throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE.getCode(),
+                    "AI 服务暂不可用：未配置 API Key");
         }
         long startNs = System.nanoTime();
         try {
@@ -284,21 +287,26 @@ public class OpenAiCompatService implements AiService {
             }
             throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE.getCode(),
                     "AI 服务暂不可用：模型服务没有返回有效内容");
+        } catch (BusinessException e) {
+            throw e;
         } catch (RestClientResponseException e) {
-            // 安全加固（缺陷 1.18）：不再向客户端回传上游 HTTP 状态码，
-            // 避免攻击者借响应区分"401 API Key 无效"、"402 余额不足"、"429 限流"等。
+            // 不向客户端回传上游 HTTP 状态码，统一脱敏错误。
             log.warn("OpenAI API call rejected: status={}", e.getStatusCode().value());
-            return AI_UPSTREAM_ERROR_MESSAGE;
+            throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE.getCode(),
+                    "AI 服务暂不可用");
         } catch (ResourceAccessException e) {
             log.warn("OpenAI API connection failed: {}", e.getClass().getSimpleName());
-            return AI_UPSTREAM_ERROR_MESSAGE;
+            throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE.getCode(),
+                    "AI 服务无法连接，请稍后重试");
         } catch (Exception e) {
             log.warn("OpenAI API call failed: {}", e.getClass().getSimpleName());
-            return AI_UPSTREAM_ERROR_MESSAGE;
+            throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE.getCode(),
+                    "AI 服务暂不可用");
         }
     }
 
-    /** 统一的脱敏错误文案，避免泄漏上游具体错误信息。 */
+    /** @deprecated 保留常量仅为向后兼容旧调用方；新代码请直接抛 BusinessException。 */
+    @Deprecated
     private static final String AI_UPSTREAM_ERROR_MESSAGE = "AI 服务暂时不可用，请稍后重试";
 
     @SuppressWarnings("unchecked")

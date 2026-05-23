@@ -1,5 +1,6 @@
 package com.campusforum.tenant.service;
 
+import com.campusforum.infra.security.crypto.CryptoService;
 import com.campusforum.tenant.domain.Tenant;
 import com.campusforum.tenant.mapper.TenantMapper;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -24,6 +26,9 @@ class TenantServiceTest {
 
     @Mock
     private TenantMapper tenantMapper;
+
+    @Mock
+    private CryptoService cryptoService;
 
     @InjectMocks
     private TenantService tenantService;
@@ -57,6 +62,8 @@ class TenantServiceTest {
         t.setAiConfig("{\"provider\":\"openai\",\"baseUrl\":\"https://api.deepseek.com\","
                 + "\"apiKey\":\"OLD_ENCRYPTED_KEY\",\"model\":\"deepseek-v4-pro\"}");
         when(tenantMapper.selectById(1L)).thenReturn(t);
+        // encrypt 必须返回新密文（非明文），断言才能验证「不存明文」
+        when(cryptoService.encrypt(anyString(), anyString())).thenReturn("NEW_ENCRYPTED_KEY");
 
         tenantService.updateAiConfig(1L, null, null, "sk-newrealkey1234567890", null);
 
@@ -66,6 +73,7 @@ class TenantServiceTest {
         // apiKey 已被替换（加密后的密文不会是明文）
         assertThat(saved).doesNotContain("OLD_ENCRYPTED_KEY");
         assertThat(saved).doesNotContain("sk-newrealkey1234567890");  // 必须是加密后的形式
+        assertThat(saved).contains("\"apiKey\":\"NEW_ENCRYPTED_KEY\"");
         // 其它字段保留旧值
         assertThat(saved).contains("\"provider\":\"openai\"");
         assertThat(saved).contains("\"model\":\"deepseek-v4-pro\"");
@@ -78,6 +86,7 @@ class TenantServiceTest {
         t.setId(1L);
         t.setAiConfig("not-a-valid-json{");
         when(tenantMapper.selectById(1L)).thenReturn(t);
+        when(cryptoService.encrypt(anyString(), anyString())).thenReturn("ENC_NEW");
 
         tenantService.updateAiConfig(1L, "openai", "https://api.deepseek.com",
                 "sk-test", "deepseek-v4-flash");

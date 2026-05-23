@@ -46,7 +46,7 @@ class TenantAwareAiServiceTest {
         TenantAwareAiService svc = new TenantAwareAiService(tenantService, mockAiService, httpProperties);
         TenantContext.setTenantId(1L);
 
-        when(tenantService.getAiConfig(1L)).thenReturn(Map.of(
+        when(tenantService.resolveAiCredentials(1L)).thenReturn(Map.of(
                 "provider", "openai",
                 "baseUrl", "https://api.deepseek.com",
                 "apiKey", "sk-test-key",
@@ -59,7 +59,7 @@ class TenantAwareAiServiceTest {
         assertThat(first)
                 .isInstanceOf(OpenAiCompatService.class)
                 .isSameAs(second);
-        verify(tenantService, times(2)).getAiConfig(1L);
+        verify(tenantService, times(2)).resolveAiCredentials(1L);
     }
 
     @Test
@@ -67,7 +67,7 @@ class TenantAwareAiServiceTest {
         TenantAwareAiService svc = new TenantAwareAiService(tenantService, mockAiService, httpProperties);
         TenantContext.setTenantId(1L);
 
-        when(tenantService.getAiConfig(1L))
+        when(tenantService.resolveAiCredentials(1L))
                 .thenReturn(Map.of(
                         "provider", "openai",
                         "baseUrl", "https://api.deepseek.com",
@@ -92,7 +92,7 @@ class TenantAwareAiServiceTest {
         TenantAwareAiService svc = new TenantAwareAiService(tenantService, mockAiService, httpProperties);
         TenantContext.setTenantId(1L);
 
-        when(tenantService.getAiConfig(1L)).thenReturn(Map.of(
+        when(tenantService.resolveAiCredentials(1L)).thenReturn(Map.of(
                 "provider", "openai",
                 "baseUrl", "",            // 缺 baseUrl
                 "apiKey", "sk-test",
@@ -107,7 +107,7 @@ class TenantAwareAiServiceTest {
         TenantAwareAiService svc = new TenantAwareAiService(tenantService, mockAiService, httpProperties);
         TenantContext.setTenantId(1L);
 
-        when(tenantService.getAiConfig(1L)).thenReturn(Map.of(
+        when(tenantService.resolveAiCredentials(1L)).thenReturn(Map.of(
                 "provider", "openai",
                 "baseUrl", "https://api.deepseek.com",
                 "apiKey", "",             // 缺 apiKey

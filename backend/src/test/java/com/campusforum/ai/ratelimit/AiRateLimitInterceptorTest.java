@@ -41,6 +41,9 @@ class AiRateLimitInterceptorTest {
 
     @BeforeEach
     void setUp() {
+        // 防御性清理：上一个测试若异常退出可能残留 ThreadLocal，
+        // surefire 在同 JVM 复用线程时会导致 getTenantId() 返回脏值
+        TenantContext.clear();
         props = new AiRateLimitProperties();  // 默认 5/min, 1000/day
         interceptor = new AiRateLimitInterceptor(rateLimiter, props);
     }
