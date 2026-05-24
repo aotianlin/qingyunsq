@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CampusForum 后端日志配置（对应 bugfix.md 漏洞 31）。
+
+  目标：让 console 日志的 pattern 中带上 [traceId tenantId userId] 三个 MDC 字段，
+  便于按 traceId / tenantId / userId 任意组合检索日志。
+
+  实现要点：
+    1. 继承 Spring Boot 默认的 base.xml（CONSOLE appender + 默认 logger 级别）；
+    2. 仅自定义 CONSOLE_LOG_PATTERN 变量，覆盖默认 pattern；
+    3. 业务包 com.campusforum 默认 DEBUG，便于排查；root 默认 INFO。
+       application-{dev,prod}.yml 中的 logging.level.* 仍可覆盖该默认值。
+-->
+<configuration>
+
+    <!-- 引入 Spring Boot 提供的颜色转换器，支持 %clr(...) 语法 -->
+    <conversionRule conversionWord="clr"
+                    converterClass="org.springframework.boot.logging.logback.ColorConverter"/>
+    <conversionRule conversionWord="wex"
+                    converterClass="org.springframework.boot.logging.logback.WhitespaceThrowableProxyConverter"/>
+    <conversionRule conversionWord="wEx"
+                    converterClass="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter"/>
+
+    <!--
+      自定义 console pattern：
+        - 在 [%thread] 之后插入 [traceId tenantId userId] 三段 MDC 字段；
+        - 使用 :- 默认值语法，MDC 为空时显示连字符占位，避免日志格式错乱。
+    -->
+    <property name="CONSOLE_LOG_PATTERN"
+              value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr([%X{traceId:--} %X{tenantId:--} %X{userId:--}]){magenta} %clr([%thread]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n%wEx"/>
+
+    <!-- 复用 Spring Boot 默认的 console appender，仅替换 pattern -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <!-- 业务包默认 DEBUG，便于本地排查；prod profile 通过 application-prod.yml 覆盖为 INFO -->
+    <logger name="com.campusforum" level="DEBUG"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>

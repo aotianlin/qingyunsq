@@ -28,6 +28,8 @@ public class RegisterRequest {
     private String studentNo;
 
     @NotBlank(message = "昵称不能为空")
-    @Size(max = 64, message = "昵称最长 64 位")
+    @Size(max = 32, message = "昵称最长 32 位")
+    @Pattern(regexp = "^[\\w\\u4e00-\\u9fa5\\- ]{1,32}$",
+            message = "昵称仅允许中英文 / 数字 / 下划线 / 连字符 / 空格")
     private String nickname;
 }

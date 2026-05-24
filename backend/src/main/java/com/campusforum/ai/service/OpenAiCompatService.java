@@ -1,13 +1,13 @@
 package com.campusforum.ai.service;
 
 import com.campusforum.infra.security.SafeHttpClient;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.http.*;
-import org.springframework.stereotype.Service;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
@@ -16,13 +16,36 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * OpenAI 兼容协议（DeepSeek / OpenAI / 其他兼容协议）的 AI 客户端实现。
+ *
+ * <p><b>禁止作为全局 Spring Bean</b>（对应 bugfix.md 漏洞 12）：</p>
+ * <ul>
+ *   <li>历史实现持有从 {@code application.yml} 注入的全局 {@code ai.api-key}，
+ *       多租户场景下所有租户共用同一个 key，且 key 轮换需要重启进程才能生效。</li>
+ *   <li>当前实现把"baseUrl + apiKey + model"作为构造器入参，必须由
+ *       {@link TenantAwareAiService} 在 delegate() 中按租户 new 出实例并按
+ *       (tenantId, fingerprint) 缓存，配置变更时由
+ *       {@code TenantService.updateAiConfig} 主动 evict。</li>
+ *   <li>因此本类<b>不再使用</b> {@code @Service} / {@code @ConditionalOnProperty}
+ *       注解，构造器也收缩为 package-private——只允许同一包下的
+ *       {@code TenantAwareAiService} 实例化，避免任何业务代码再通过
+ *       {@code @Autowired OpenAiCompatService} 拿到一个全局凭证 Bean。</li>
+ * </ul>
+ *
+ * <p>该类内部仍然使用 {@link SafeHttpClient} 创建 RestTemplate，提供 SSRF
+ * 二次校验 + DNS 重绑定防御；超时配置保持与历史一致（连接 8s、读 30s）。</p>
+ */
 @Slf4j
-@Service
-@ConditionalOnProperty(name = "ai.provider", havingValue = "openai")
 public class OpenAiCompatService implements AiService {
 
+    /** 连接超时（毫秒）：避免攻击者通过缓慢 TCP 握手堆积连接耗尽线程。 */
     private static final int CONNECT_TIMEOUT_MS = 8000;
+    /** 读超时（毫秒）：与上游响应慢的体验权衡，避免长尾请求长时间占线程。 */
     private static final int READ_TIMEOUT_MS = 30000;
+
+    /** 统一的脱敏错误文案，避免泄漏上游具体错误信息（漏洞 1.18）。 */
+    private static final String AI_UPSTREAM_ERROR_MESSAGE = "AI 服务暂时不可用，请稍后重试";
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -30,14 +53,25 @@ public class OpenAiCompatService implements AiService {
     private final String apiKey;
     private final String model;
 
-    public OpenAiCompatService(@Value("${ai.base-url}") String baseUrl,
-                               @Value("${ai.api-key}") String apiKey,
-                               @Value("${ai.model:deepseek-chat}") String model) {
+    /**
+     * 构造一个面向特定租户配置的 OpenAI 兼容客户端。
+     *
+     * <p><b>访问性</b>：包级私有，只允许同一包下的 {@link TenantAwareAiService}
+     * 实例化。任何 controller / service 试图直接 {@code new OpenAiCompatService(...)}
+     * 都会编译失败，从而阻断"绕过缓存层、绕过 fail-loud 校验"的回归。</p>
+     *
+     * @param baseUrl 上游 AI 服务的 base URL（必须是公网 https；私网/本机由
+     *                {@link com.campusforum.infra.security.PrivateNetworkValidator}
+     *                在调用前拒绝）
+     * @param apiKey  上游 AI 服务的明文 API Key（已由租户密钥库解密；不会落盘 / 不会进日志）
+     * @param model   模型名（如 {@code deepseek-chat}），为空时回退默认值
+     */
+    OpenAiCompatService(String baseUrl, String apiKey, String model) {
         this.restTemplate = createRestTemplate();
         this.objectMapper = new ObjectMapper();
         this.baseUrl = normalizeBaseUrl(baseUrl);
         this.apiKey = apiKey;
-        this.model = model == null || model.isBlank() ? "deepseek-chat" : model;
+        this.model = (model == null || model.isBlank()) ? "deepseek-chat" : model;
     }
 
     @Override
@@ -99,6 +133,7 @@ public class OpenAiCompatService implements AiService {
         return chatCompletion(messages);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private String chatCompletion(List<Map<String, String>> messages) {
         if (apiKey == null || apiKey.isBlank()) {
             // 不向用户暴露"未配置 API Key"细节，统一脱敏错误
@@ -145,9 +180,6 @@ public class OpenAiCompatService implements AiService {
         }
         return AI_UPSTREAM_ERROR_MESSAGE;
     }
-
-    /** 统一的脱敏错误文案，避免泄漏上游具体错误信息。 */
-    private static final String AI_UPSTREAM_ERROR_MESSAGE = "AI 服务暂时不可用，请稍后重试";
 
     private static RestTemplate createRestTemplate() {
         // 使用 SafeHttpClient 防 SSRF / DNS 重绑定：连接阶段二次校验目标 IP，命中私网即终止

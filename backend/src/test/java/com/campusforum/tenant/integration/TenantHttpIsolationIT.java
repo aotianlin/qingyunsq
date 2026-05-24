@@ -5,6 +5,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.campusforum.admin.domain.AuditLog;
 import com.campusforum.admin.mapper.AuditLogMapper;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.infra.metrics.SecurityMetrics;
 import com.campusforum.tenant.TenantContext;
 import com.campusforum.tenant.TenantProperties;
 import com.campusforum.tenant.audit.TenantAuditService;
@@ -14,6 +15,7 @@ import com.campusforum.tenant.interceptor.TenantBindingCheckInterceptor;
 import com.campusforum.tenant.resolver.MultiTenantResolver;
 import com.campusforum.tenant.resolver.TenantResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -84,16 +86,20 @@ class TenantHttpIsolationIT {
         when(cache.findIdByCode(TENANT_A_CODE)).thenReturn(Optional.of(TENANT_A));
         when(cache.findIdByCode(TENANT_B_CODE)).thenReturn(Optional.of(TENANT_B));
 
+        // 构建 TenantBindingCheckInterceptor 所需的 audit 服务（被 MultiTenantResolver 与
+        // TenantBindingCheckInterceptor 共用，便于测试统一断言 auditLogMapper.insert 调用次数）
+        auditLogMapper = mock(AuditLogMapper.class);
+        when(auditLogMapper.insert(any(AuditLog.class))).thenReturn(1);
+        TenantAuditService auditService = new TenantAuditService(auditLogMapper);
+
         // 构建 MultiTenantResolver
-        TenantResolver resolver = new MultiTenantResolver(props, cache);
+        SecurityMetrics securityMetrics = new SecurityMetrics(new SimpleMeterRegistry());
+        TenantResolver resolver = new MultiTenantResolver(props, cache, auditService, securityMetrics);
 
         // 构建 TenantResolutionFilter
         TenantResolutionFilter filter = new TenantResolutionFilter(resolver, OBJECT_MAPPER);
 
         // 构建 TenantBindingCheckInterceptor
-        auditLogMapper = mock(AuditLogMapper.class);
-        when(auditLogMapper.insert(any(AuditLog.class))).thenReturn(1);
-        TenantAuditService auditService = new TenantAuditService(auditLogMapper);
         TenantBindingCheckInterceptor bindingCheck = new TenantBindingCheckInterceptor(auditService);
 
         // 组装 MockMvc：Filter + Interceptor + 测试 Controller

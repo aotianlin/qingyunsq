@@ -94,13 +94,24 @@ class PostServiceTest {
         req.setContent("测试浏览量递增");
         PostVO created = postService.create(authorId, req);
 
-        StpUtil.login(authorId);
+        // 任务 T5.5 / 漏洞 21：作者本人浏览自己的帖子不再计入 view_count，
+        // 因此这里另外注册一名读者作为浏览方，才能验证 "首次浏览 +1" 的预期。
+        RegisterRequest readerReq = new RegisterRequest();
+        readerReq.setEmail("post-reader" + System.currentTimeMillis() + "@campusforum.com");
+        readerReq.setPassword("Test123456");
+        readerReq.setNickname("帖子读者");
+        prepareRegisterCode(stringRedisTemplate, readerReq);
+        Long readerId = userService.register(readerReq).getId();
+
+        StpUtil.login(readerId);
         StpUtil.getSession().set("role", "USER");
         PostVO detail = postService.viewPost(created.getId());
 
         assertThat(detail.getId()).isEqualTo(created.getId());
-        assertThat(detail.getViewCount()).isEqualTo(1); // 创建时 0，查一次 +1
+        assertThat(detail.getViewCount()).isEqualTo(1); // 创建时 0，读者首次查看 +1
         assertThat(detail.getAuthor().getNickname()).isEqualTo("帖子作者");
+
+        try { StpUtil.logout(readerId); } catch (Exception ignored) {}
     }
 
     @Test

@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.TestPropertySource;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +23,16 @@ import java.util.List;
 import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.*;
 
+/**
+ * 资源服务测试。
+ *
+ * <p>用 {@link TestPropertySource} 只覆盖 MIME 真实探测开关，
+ * 让测试用例采用纯文本字节流伪装为 PDF/DOCX/ZIP 等格式（这是早期写测试时的简化）。
+ * T4.5 严格校验在生产 profile 下会拒绝这种用例；这里关闭 real-mime-check
+ * 跳过 Tika 探测，但保留其他 dev profile 配置（含连接虚拟机的数据库 / Redis）。</p>
+ */
 @SpringBootTest
+@TestPropertySource(properties = "security.upload.real-mime-check=false")
 class ResourceServiceTest {
 
     @Autowired

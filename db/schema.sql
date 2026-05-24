@@ -227,7 +227,7 @@ CREATE TABLE resources (
   file_name     VARCHAR(255) NOT NULL,
   file_size     BIGINT UNSIGNED NOT NULL,
   file_type     VARCHAR(32)  NOT NULL,
-  file_md5      VARCHAR(64)  DEFAULT NULL,
+  file_md5      VARCHAR(64)  DEFAULT NULL COMMENT '@Deprecated - 保留至历史数据 100% 迁移到 file_sha256（spec T8.10）',
   file_sha256   VARCHAR(64)  DEFAULT NULL COMMENT 'SHA-256 hex 指纹',
   storage_key   VARCHAR(255) NOT NULL,
   visibility    VARCHAR(16)  NOT NULL DEFAULT 'PUBLIC' COMMENT 'PUBLIC/SPACE/PRIVATE',
@@ -278,6 +278,7 @@ CREATE TABLE messages (
   receiver_id BIGINT UNSIGNED NOT NULL,
   content     TEXT DEFAULT NULL,
   image_url   VARCHAR(255) DEFAULT NULL,
+  ai_risk_level TINYINT NOT NULL DEFAULT 0 COMMENT '0=安全 1=疑似 2=违规（来自 SensitiveWordService.getRiskLevel，spec T8.10）',
   is_read     TINYINT NOT NULL DEFAULT 0,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_conversation (sender_id, receiver_id, created_at),
@@ -296,9 +297,11 @@ CREATE TABLE audit_logs (
   target_id    BIGINT UNSIGNED DEFAULT NULL,
   detail       JSON DEFAULT NULL COMMENT '操作详情',
   ip_address   VARCHAR(64)  DEFAULT NULL,
+  user_agent   VARCHAR(255) DEFAULT NULL COMMENT '客户端 UA（含异步线程上下文，T9.2）',
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_tenant_time (tenant_id, created_at),
-  KEY idx_operator (operator_id)
+  KEY idx_operator (operator_id),
+  KEY idx_audit_log_action_created (action, created_at)
 ) ENGINE=InnoDB COMMENT='审计日志';
 
 -- ============================================================
@@ -328,6 +331,7 @@ CREATE TABLE sensitive_words (
   tenant_id   BIGINT UNSIGNED NOT NULL,
   word        VARCHAR(64) NOT NULL,
   level       TINYINT NOT NULL DEFAULT 1 COMMENT '1低 2中 3高',
+  is_regex    TINYINT NOT NULL DEFAULT 0 COMMENT '0=普通词 1=正则表达式（漏洞 27 / T8.5）',
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_tenant_word (tenant_id, word)
 ) ENGINE=InnoDB COMMENT='敏感词';

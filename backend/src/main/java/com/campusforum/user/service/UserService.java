@@ -5,7 +5,10 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.infra.audit.AuditContext;
+import com.campusforum.infra.audit.AuditLogService;
 import com.campusforum.infra.email.EmailCodeScene;
+import com.campusforum.infra.metrics.SecurityMetrics;
 import com.campusforum.infra.security.LoginLockoutService;
 import com.campusforum.infra.security.SecurityProperties;
 import com.campusforum.infra.security.TrustedProxyResolver;
@@ -65,6 +68,10 @@ public class UserService {
     private final TrustedProxyResolver trustedProxyResolver;
     private final HttpServletRequest httpRequest;
     private final SecurityProperties securityProperties;
+    /** 审计日志服务（敏感凭证变更必须落审计）。 */
+    private final AuditLogService auditLogService;
+    /** 安全监控埋点（敏感凭证变更后强制踢下线计数）。 */
+    private final SecurityMetrics securityMetrics;
 
     /**
      * 固定 BCrypt hash，仅用于用户不存在时消耗等量 CPU 时间，防止时序攻击。
@@ -229,6 +236,9 @@ public class UserService {
         }
         user.setPasswordHash(BCrypt.hashpw(newPwd, BCrypt.gensalt(10)));
         userMapper.updateById(user);
+        // 安全加固（缺陷 5）：密码变更后注销该用户的所有活跃 Sa-Token，
+        // 防止旧 token 在 7 天总有效期内继续被攻击者持用。
+        invalidateAllSessions(userId, "PASSWORD_CHANGE");
     }
 
     /**
@@ -252,6 +262,9 @@ public class UserService {
         user.setResetToken(null);
         user.setResetTokenExpires(null);
         userMapper.updateById(user);
+        // 安全加固（缺陷 5）：邮箱验证码重置密码后，注销该用户的所有活跃 Sa-Token，
+        // 与 changePassword 行为对齐，避免旧 token 在 reset 后仍可继续访问。
+        invalidateAllSessions(user.getId(), "PASSWORD_RESET");
         log.info("Password reset for user {}", user.getId());
     }
 
@@ -291,28 +304,93 @@ public class UserService {
     }
 
     /**
-     * 校验头像 / 封面 URL 域名是否在白名单内（缺陷 1.20）。
-     * 白名单为空时跳过（开发环境便利），生产应通过 ENV 强制配置。
-     * 空字符串视为"清空"，直接放行。
+     * 校验头像 / 封面 URL 域名是否在白名单内（对应 bugfix.md 漏洞 15，T4.6 加固）。
+     *
+     * <p>语义反转：早期实现"{@code allowedAssetHosts} 为空 → 全放行"，
+     * 让运维忘配前缀的开发环境直接对外暴露 Open Redirect / SSRF 攻击面。
+     * T4.6 改为"{@code allowedAssetHosts ∪ selfHosts} 为空 → 直接抛错"，
+     * 提示运维必须显式配置允许域名。</p>
+     *
+     * <p>名单合并策略（与 design.md 主题 4 对齐）：</p>
+     * <ul>
+     *   <li>{@link SecurityProperties.Upload#getAllowedAssetHosts()}：运维显式配置的资产 CDN / OSS 域名；</li>
+     *   <li>{@link SecurityProperties.Upload#getSelfHosts()}：从 storage 端点推导出的本站存储域名，
+     *       让 MinIO 自身颁发的 presigned URL 永远在白名单内，无需运维额外维护。</li>
+     * </ul>
+     *
+     * <p>三类放行场景：</p>
+     * <ol>
+     *   <li>{@code url == null || url.isBlank()}：视为"清空"操作，保留现状；</li>
+     *   <li>站内相对路径（{@code uri.getHost() == null} 且以 {@code /} 开头）：
+     *       例如 {@code LocalStorageService#issuePublicGetUrl} 返回的
+     *       {@code /api/v1/local-storage/<key>}，本站资源天然可信；</li>
+     *   <li>{@code host} 命中合并白名单（大小写无关，且 {@code selfHosts} 元素允许是
+     *       完整 URL 形式如 {@code http://192.168.x.x:9000}）。</li>
+     * </ol>
+     *
+     * <p>{@code selfHosts} 元素之所以可能是完整 URL，是因为
+     * {@code application.yml} 中通过 {@code ${STORAGE_MINIO_ENDPOINT:}} 注入；
+     * 若运维直接把 endpoint 字符串作为 self-host 配置，必须支持解析其 host 部分。</p>
      */
     private void assertHostAllowed(String url) {
         if (url == null || url.isBlank()) return;
-        var hosts = securityProperties.getUpload().getAllowedAssetHosts();
-        if (hosts == null || hosts.isEmpty()) return;
+        // 合并白名单：allowedAssetHosts ∪ selfHosts
+        Set<String> allowed = new HashSet<>();
+        var assetHosts = securityProperties.getUpload().getAllowedAssetHosts();
+        if (assetHosts != null) allowed.addAll(assetHosts);
+        var selfHosts = securityProperties.getUpload().getSelfHosts();
+        if (selfHosts != null) allowed.addAll(selfHosts);
+        // 移除占位符（dev 模式下 STORAGE_MINIO_ENDPOINT 可能为空字符串导致 hosts 集合含 ""）
+        allowed.removeIf(h -> h == null || h.isBlank());
+        if (allowed.isEmpty()) {
+            // 漏洞 15 修复：空白名单语义不再"全放行"，而是"未配置 → 拒绝"
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "未配置允许的资产域名");
+        }
+        URI uri;
         try {
-            String host = URI.create(url).getHost();
-            if (host == null) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "URL 解析失败");
-            }
-            if (!hosts.contains(host)) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(),
-                        "URL 域名不在允许列表内：" + host);
-            }
-        } catch (BusinessException e) {
-            throw e;
+            uri = URI.create(url);
         } catch (IllegalArgumentException e) {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "URL 格式非法");
         }
+        String host = uri.getHost();
+        if (host == null) {
+            // 站内相对路径（如 LocalStorageService 颁发的 /api/v1/local-storage/<key>）放行
+            if (url.startsWith("/")) return;
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "URL 解析失败");
+        }
+        if (!hostMatches(host, allowed)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(),
+                    "URL 域名不在允许列表内：" + host);
+        }
+    }
+
+    /**
+     * 判断实际请求 host 是否匹配白名单中的任一项。
+     *
+     * <p>白名单元素允许两种形式：</p>
+     * <ul>
+     *   <li>裸 host：直接做大小写无关的字符串比对；</li>
+     *   <li>完整 URL（如 {@code http://192.168.150.130:9000}）：先 {@link URI#getHost()}
+     *       提取 host 部分再比对。</li>
+     * </ul>
+     */
+    private static boolean hostMatches(String host, Set<String> allowed) {
+        for (String item : allowed) {
+            // 优先尝试按"完整 URL"解析
+            try {
+                URI maybeUri = URI.create(item);
+                String allowedHost = maybeUri.getHost();
+                if (allowedHost != null && allowedHost.equalsIgnoreCase(host)) {
+                    return true;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // 非合法 URI，按裸 host 走下一个分支
+            }
+            if (item.equalsIgnoreCase(host)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Transactional
@@ -508,6 +586,47 @@ public class UserService {
             } catch (JsonProcessingException ignored) {}
         }
         return result;
+    }
+
+    /**
+     * 敏感凭证变更后统一处理：踢下线该用户的全部活跃 token，写入审计日志，
+     * 并在监控系统埋点。
+     *
+     * <p>对应 bugfix.md 漏洞 5（密码变更 / 重置后旧 Sa-Token 仍可用）。
+     * 通过 {@link StpUtil#logoutByLoginId(Object)} 让 Redis 中所有该 loginId 的
+     * token 立刻失效，与已有的 {@code banUser} / {@code changeRole} 中的
+     * {@link StpUtil#kickout(Object)} 行为对齐，使密码 / 重置 / 角色 / 封禁
+     * 这四类敏感变更的"踢下线"覆盖一致，不再出现"改密码后旧 token 仍能用 7 天"的会话残留。</p>
+     *
+     * <p>异常处理策略：</p>
+     * <ul>
+     *   <li>{@code logoutByLoginId} 失败仅记 WARN 日志，不向上抛出，避免 Sa-Token / Redis
+     *       临时不可用时把"修改密码"主业务带挂；</li>
+     *   <li>审计日志使用 {@link AuditContext#from(HttpServletRequest, TrustedProxyResolver, Long, Long)}
+     *       显式构造上下文，与 {@link AuditLogService#log(AuditContext, String, String, Long, String)}
+     *       的 5 参重载配套，避免在异步 / 测试场景下依赖 RequestContextHolder 抛
+     *       {@link IllegalStateException}（漏洞 26 已加固）。</li>
+     * </ul>
+     *
+     * @param userId 被强制下线的用户 ID
+     * @param action 业务动作标识，作为审计 action 与监控 tag，例如
+     *               {@code PASSWORD_CHANGE} / {@code PASSWORD_RESET}
+     */
+    private void invalidateAllSessions(Long userId, String action) {
+        try {
+            // 注销该 loginId 在 Sa-Token / Redis 内的所有 token，等同于"踢全部活跃会话"
+            // 注：本项目使用 sa-token-spring-boot3-starter，对应 API 为 StpUtil.logout(Object loginId)，
+            // 与 design.md 中"logoutByLoginId"的语义等价（按账号 id 注销其所有活跃 token）。
+            StpUtil.logout(userId);
+        } catch (Exception e) {
+            // 仅 WARN，不抛出：避免 Sa-Token / Redis 暂时不可用时影响主业务
+            log.warn("StpUtil.logout 失败 userId={}, action={}: {}", userId, action, e.getMessage());
+        }
+        // 显式快照 AuditContext，避免异步线程下 request-scope 代理抛 IllegalStateException
+        AuditContext ctx = AuditContext.from(httpRequest, trustedProxyResolver, userId, TenantContext.getTenantId());
+        auditLogService.log(ctx, action, "user", userId, "all sessions invalidated");
+        // 监控埋点：按 action tag 分桶累加 session_forced_logout_total
+        securityMetrics.sessionForcedLogout(action);
     }
 
     private User findTenantUser(long tenantId, String email) {

@@ -2,6 +2,7 @@ package com.campusforum.common;
 
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
+import com.campusforum.tenant.TenantContextMissingException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,9 +31,10 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void shouldMapTenantContextMissingTo503() {
-        // 安全加固后：TenantContext 缺失场景返回 503，避免攻击者通过任意路径触发 5xx
-        ResponseEntity<R<?>> response = handler.handleIllegalState(
-                new IllegalStateException("TenantContext is null"));
+        // 任务 T9.4：TenantContext 缺失场景必须改抛 TenantContextMissingException，
+        // 由专门 handler 翻译为 503；普通 IllegalStateException 不再做字符串匹配特化。
+        ResponseEntity<R<?>> response = handler.handleTenantContextMissing(
+                new TenantContextMissingException("legacy fallback"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(response.getBody()).isNotNull();

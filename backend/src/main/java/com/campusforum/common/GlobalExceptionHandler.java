@@ -6,6 +6,7 @@ import cn.dev33.satoken.exception.NotRoleException;
 import com.campusforum.infra.security.CryptoException;
 import com.campusforum.infra.security.MimeMismatchException;
 import com.campusforum.infra.security.SSRFBlockedException;
+import com.campusforum.tenant.TenantContextMissingException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -74,14 +75,27 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<R<?>> handleIllegalState(IllegalStateException e) {
-        // TenantContext 缺失等基础设施异常映射为 503，避免攻击者通过任意路径触发 5xx
+        // 任务 T9.4 / 漏洞 28：移除原 "TenantContext is null" 字符串匹配特化，
+        // 该路径已改抛专门的 TenantContextMissingException（见下方 handler）。
+        // 这里仅作为通用 IllegalStateException 兜底，统一返回 500。
         log.error("IllegalStateException caught: {}", e.getMessage(), e);
-        if (e.getMessage() != null && e.getMessage().contains("TenantContext is null")) {
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(R.fail(ErrorCode.SERVICE_UNAVAILABLE));
-        }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(R.fail(ErrorCode.INTERNAL_ERROR.getCode(), "服务器内部错误"));
+    }
+
+    /**
+     * 租户上下文缺失（任务 T9.4 / 漏洞 28）。
+     *
+     * <p>典型场景：异步线程 / 定时任务 / WebSocket handler 在未显式
+     * {@code TenantContext.setTenantId(...)} 的情况下访问租户表，导致
+     * {@code MyBatisPlusConfig#getTenantId} 抛 {@link TenantContextMissingException}。
+     * 这种情况属于"基础设施未就绪"，向前端返回 503 让其重试或降级展示。</p>
+     */
+    @ExceptionHandler(TenantContextMissingException.class)
+    public ResponseEntity<R<?>> handleTenantContextMissing(TenantContextMissingException e) {
+        log.error("TenantContext missing: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(R.fail(ErrorCode.SERVICE_UNAVAILABLE));
     }
 
     @ExceptionHandler(Exception.class)

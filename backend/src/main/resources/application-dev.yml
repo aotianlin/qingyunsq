@@ -48,3 +48,31 @@ management:
   health:
     mail:
       enabled: false
+
+# ===== 开发环境安全密钥默认值（仅 dev profile 生效） =====
+# 这两个值必须 ≥ 32 字节，且必须包含 `dev-only-change-me` 前缀：
+#   - SecurityStartupValidator 在 dev profile 下命中该 token 仅 WARN，不阻断启动；
+#   - 同样的值若被复制到 prod，则会因命中 forbidden token 直接抛错阻止启动，
+#     形成"dev 零摩擦 + prod 严格"的双重保障。
+# 生产部署必须通过 SIGNED_URL_SECRET / CRYPTO_MASTER_KEY 环境变量覆盖（见 application-prod.yml）。
+security:
+  signed-url-secret: ${SIGNED_URL_SECRET:dev-only-change-me-signed-url-secret-32bytes-padding!!}
+  crypto:
+    master-key: ${CRYPTO_MASTER_KEY:dev-only-change-me-master-key-32bytes-padding!!}
+    # dev profile 给一个远未来的 cutover 日期，避免本地测试因日期已过期触发
+    # SecurityStartupValidator 的 legacy-mode cutover 路径；
+    # prod 仍走 application.yml 中的 2026-09-01。
+    legacy-cutover-date: 2030-01-01
+  ws-ticket:
+    # 同理：dev 远未来日期，避免本地起服务踩到 ws-ticket cutover 抛错路径。
+    enforced-cutover-date: 2030-01-01
+
+# ===== API 文档暴露开关（对应 bugfix.md 漏洞 2 / T2.3） =====
+# 开发环境默认开启 swagger UI 便于本地调试；
+# DocAccessFilter 仍会校验来源 IP，外部请求仍被 404，因此安全。
+# 如本地 IDE 调试不希望加载 swagger，可通过 ENV SPRINGDOC_ENABLED=false 关闭。
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:true}

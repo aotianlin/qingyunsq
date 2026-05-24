@@ -37,11 +37,27 @@ class UserServiceTest {
     void setUp() {
         // login() 现在从 TenantContext 读取 tenantId，测试前必须设置
         TenantContext.setTenantId(1L);
+        // 安全加固（T5.4 / 缺陷 1.15）后登录锁定按 IP + 账号双维度计数。
+        // 同一类内多个用例共享 Redis bucket，前一个 shouldRejectWrongPassword 会在 IP/账号
+        // 维度累加失败计数，导致后续 shouldLoginWithCorrectPassword 被锁定返回 RATE_LIMITED。
+        // 这里在每个用例前清空相关 Redis 键，恢复测试隔离性。
+        clearLoginLockoutKeys();
     }
 
     @AfterEach
     void tearDown() {
+        clearLoginLockoutKeys();
         TenantContext.clear();
+    }
+
+    /** 清理 LoginLockoutService 在 Redis 中维护的所有失败计数与锁定标记。 */
+    private void clearLoginLockoutKeys() {
+        for (String prefix : new String[]{"login_fail:", "login_lock:", "login_fail_ip:", "login_lock_ip:"}) {
+            var keys = stringRedisTemplate.keys(prefix + "*");
+            if (keys != null && !keys.isEmpty()) {
+                stringRedisTemplate.delete(keys);
+            }
+        }
     }
 
     @Test

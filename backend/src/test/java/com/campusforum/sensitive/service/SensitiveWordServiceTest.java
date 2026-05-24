@@ -1,6 +1,9 @@
 package com.campusforum.sensitive.service;
 
 import com.campusforum.sensitive.domain.SensitiveWord;
+import com.campusforum.tenant.TenantContext;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,11 +12,31 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 
+/**
+ * 敏感词服务测试。
+ *
+ * <p>2026-06-01 spec security-audit-hardening：原 {@code sensitive_words} 表
+ * 在 {@code TENANT_IGNORE_TABLES} 中，故测试线程不需要租户上下文。
+ * T6.1 / T8.5 把它移出忽略名单后，MyBatis-Plus 拦截器会强制注入 tenant_id，
+ * 测试线程需要在每个 {@code @BeforeEach} 显式设置 TenantContext，
+ * {@code @AfterEach} 清理避免线程污染。</p>
+ */
 @SpringBootTest
 class SensitiveWordServiceTest {
 
     @Autowired
     private SensitiveWordService service;
+
+    @BeforeEach
+    void setUpTenantContext() {
+        // 默认租户 1（与 application-dev/test 保持一致）
+        TenantContext.setTenantId(1L);
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
 
     @Test
     void shouldAddAndList() {

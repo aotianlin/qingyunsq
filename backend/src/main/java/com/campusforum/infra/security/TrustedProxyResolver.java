@@ -16,6 +16,12 @@ import java.util.List;
  * <p>仅当请求 remoteAddr 命中 {@link SecurityProperties#getTrustedProxies()} 时，
  * 才采信 X-Forwarded-For / X-Real-IP；否则一律使用 {@link HttpServletRequest#getRemoteAddr()}，
  * 避免攻击者通过伪造头绕过 IP 维度限流。</p>
+ *
+ * <p><b>统一入口约定：</b>本组件是 IP 解析与"来源是否可信"判断的统一入口；
+ * 所有需要判断"请求来源是否来自可信反向代理"的过滤器 / 拦截器
+ * （例如 {@code DocAccessFilter}、{@link com.campusforum.infra.ratelimit.RateLimitInterceptor}、
+ * 审计 {@code AuditContext} 等）都应通过 {@link #isFromTrustedProxy(String)}
+ * 进行判断，而不要各自重复实现一份 CIDR / IPv6 解析逻辑——避免出现策略漂移。</p>
  */
 @Slf4j
 @Component
@@ -66,7 +72,23 @@ public class TrustedProxyResolver {
         return remoteAddr;
     }
 
-    private boolean isFromTrustedProxy(String addr) {
+    /**
+     * 判断给定 IP 是否命中 {@link SecurityProperties#getTrustedProxies()} 配置的可信代理白名单。
+     *
+     * <p>命中即视为可信反向代理（如内部 nginx / 网关），后续逻辑可以采信
+     * 该请求附带的 X-Forwarded-For / X-Real-IP 等代理头部；未命中则一律以
+     * {@link HttpServletRequest#getRemoteAddr()} 为准，避免外部攻击者通过
+     * 伪造代理头绕过 IP 维度的限流 / 文档暴露面控制 / 审计日志取证等安全策略。</p>
+     *
+     * <p>为了让其他需要"来源是否可信"判断的过滤器 / 拦截器
+     * （例如 {@code DocAccessFilter}）能够直接复用本方法，方法可见性
+     * 保持为 public；所有 CIDR / IPv6 / 单 IP 解析逻辑统一在本组件内维护，
+     * 调用方无需关心解析细节。</p>
+     *
+     * @param addr 待判断的 IP 字面值（IPv4 或 IPv6），允许为空 / 空白
+     * @return 命中可信代理白名单返回 true；为空、非法或未命中均返回 false
+     */
+    public boolean isFromTrustedProxy(String addr) {
         if (addr == null || addr.isBlank()) return false;
         try {
             InetAddress inet = InetAddress.getByName(addr);

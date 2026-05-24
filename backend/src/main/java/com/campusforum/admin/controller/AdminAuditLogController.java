@@ -2,7 +2,7 @@ package com.campusforum.admin.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.campusforum.admin.dto.AuditLogVO;
-import com.campusforum.admin.service.AuditLogService;
+import com.campusforum.infra.audit.AuditLogService;
 import com.campusforum.common.R;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;

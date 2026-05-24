@@ -6,6 +6,8 @@ import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
 import com.campusforum.achievement.service.AchievementService;
 import com.campusforum.follow.service.FollowService;
+import com.campusforum.infra.sanitize.HtmlSanitizerService;
+import com.campusforum.infra.security.TrustedProxyResolver;
 import com.campusforum.notify.service.NotifyService;
 import com.campusforum.points.service.PointsService;
 import com.campusforum.post.domain.Post;
@@ -29,6 +31,7 @@ import com.campusforum.user.mapper.UserMapper;
 import com.campusforum.user.service.UserService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -59,6 +62,17 @@ public class PostService {
     private final FollowService followService;
     private final UserService userService;
     private final SpaceMemberMapper spaceMemberMapper;
+    /** 浏览计数去重器（任务 T5.5 / 漏洞 21）：避免单 user/ip 在 30 分钟窗口内反复刷计数。 */
+    private final PostViewDeduper postViewDeduper;
+    /** 真实 IP 解析器（与限流 / 审计共用），用于浏览计数 IP 维度去重 key。 */
+    private final TrustedProxyResolver trustedProxyResolver;
+    /** 当前请求上下文（漏洞 21 修复需要客户端 IP 作为去重维度）。 */
+    private final HttpServletRequest httpRequest;
+    /**
+     * HTML 净化服务（任务 T8.3 / 漏洞 18）：写库前剥离 {@code <script>} / 事件处理属性 /
+     * {@code javascript:} 协议 URL，避免存储型 XSS。
+     */
+    private final HtmlSanitizerService htmlSanitizerService;
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
@@ -87,15 +101,26 @@ public class PostService {
                 throw new BusinessException(ErrorCode.POST_NOT_FOUND);
             }
             User quotedAuthor = userMapper.selectById(quoted.getAuthorId());
-            String quotedName = quotedAuthor != null ? quotedAuthor.getNickname() : "未知用户";
-            content = "> **" + quotedName + "** 的原帖：\n> " +
-                    (quoted.getTitle() != null ? "**" + quoted.getTitle() + "**\n> " : "") +
-                    quoted.getContent().replace("\n", "\n> ") +
-                    "\n\n" + (content != null ? content : "");
+            // 漏洞 20 修复：拼接引用块前对 nickname / title / content 做 Markdown 转义，
+            // 避免恶意昵称 / 标题（如 "**X**\n# H1\n>"）破出引用块边界，伪造他人发言或
+            // 注入伪造的标题 / 列表 / 代码块到当前帖子渲染流。
+            String quotedName = MarkdownEscaper.escape(
+                    quotedAuthor != null ? quotedAuthor.getNickname() : "未知用户");
+            String quotedTitle = MarkdownEscaper.escape(quoted.getTitle());
+            String quotedBody = MarkdownEscaper.escape(quoted.getContent()).replace("\n", "\n> ");
+            content = "> **" + quotedName + "** 的原帖：\n> "
+                    + (quotedTitle != null && !quotedTitle.isEmpty()
+                            ? "**" + quotedTitle + "**\n> "
+                            : "")
+                    + quotedBody
+                    + "\n\n" + (content != null ? content : "");
             post.setType("QUOTE");
         }
         post.setTitle(req.getTitle());
-        post.setContent(content);
+        // 漏洞 18 修复：写库前调用 OWASP HTML Sanitizer，移除 <script> 标签 /
+        // 事件处理属性（onerror / onclick 等）/ javascript: 协议 URL，
+        // 防止存储型 XSS。POST_POLICY 仍保留 Markdown 渲染所需的常见块级 / 行内标签。
+        post.setContent(htmlSanitizerService.sanitizePost(content));
         post.setViewCount(0);
         post.setLikeCount(0);
         post.setCommentCount(0);
@@ -170,7 +195,8 @@ public class PostService {
 
         // 更新字段
         if (req.getTitle() != null) post.setTitle(req.getTitle());
-        post.setContent(req.getContent());
+        // 漏洞 18 修复：编辑帖子时同样必须经 HTML 净化，避免攻击者通过 PUT 接口绕过创建侧的过滤。
+        post.setContent(htmlSanitizerService.sanitizePost(req.getContent()));
 
         try {
             if (req.getTopics() != null) post.setTopics(objectMapper.writeValueAsString(req.getTopics()));
@@ -210,7 +236,21 @@ public class PostService {
         return toVO(post, currentUserId);
     }
 
-    // Bug fix 1.8: 仅对终端用户显式查看递增 viewCount
+    /**
+     * 帖子详情读取 + 浏览计数递增（任务 T5.5 / 漏洞 21）。
+     *
+     * <p>原实现每次 GET 都直接 {@code incrementViewCount}，攻击者刷新即可线性放大
+     * {@code view_count}，污染热度排序 / 精华推荐。当前修复语义：</p>
+     * <ul>
+     *   <li>未登录访客：保留 "不计数" 现状（避免匿名 IP 维度刷数被滥用）；</li>
+     *   <li>管理员（TENANT_ADMIN / SUPER_ADMIN）：保留 "不计数" 现状（管理员浏览不应污染业务热度）；</li>
+     *   <li>作者本人浏览自己的帖子：不计数（避免作者自己刷数据）；</li>
+     *   <li>其他普通已登录用户：交给 {@link PostViewDeduper} 做 30 分钟窗口去重，
+     *       仅当 SETNX 成功才递增一次。</li>
+     * </ul>
+     * IP 维度 key 必须基于 {@link TrustedProxyResolver#resolve(HttpServletRequest)} 解析，
+     * 否则攻击者可通过伪造 {@code X-Forwarded-For} 让每次请求落入不同桶绕过去重。</p>
+     */
     public PostVO viewPost(Long id) {
         Post post = postMapper.selectById(id);
         if (post == null || post.getDeleted() == 1) {
@@ -218,13 +258,19 @@ public class PostService {
         }
 
         Long currentUserId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
-        if (currentUserId != null) {
-            String role = (String) StpUtil.getSession().get("role");
-            if (!"TENANT_ADMIN".equals(role) && !"SUPER_ADMIN".equals(role)) {
-                if (postMapper.incrementViewCount(id) > 0) {
-                    post.setViewCount((post.getViewCount() == null ? 0 : post.getViewCount()) + 1);
-                }
-            }
+        String role = currentUserId == null ? null : (String) StpUtil.getSession().get("role");
+        // 通过统一的 TrustedProxyResolver 解析真实 IP，避免伪造代理头绕过去重
+        String ip = trustedProxyResolver.resolve(httpRequest);
+
+        // 仅普通已登录用户、且非作者本人浏览，且通过去重窗口校验，才计入 view_count
+        boolean shouldCount = currentUserId != null
+                && !"TENANT_ADMIN".equals(role)
+                && !"SUPER_ADMIN".equals(role)
+                && !post.getAuthorId().equals(currentUserId)
+                && postViewDeduper.shouldCount(id, currentUserId, ip);
+
+        if (shouldCount && postMapper.incrementViewCount(id) > 0) {
+            post.setViewCount((post.getViewCount() == null ? 0 : post.getViewCount()) + 1);
         }
         return toVO(post, currentUserId);
     }

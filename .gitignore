@@ -44,3 +44,9 @@ storage/
 
 # ===== Claude =====
 .claude/
+
+
+# 测试运行时副产物 — 不应入库
+backend/.jqwik-database
+backend/.full-test.log
+backend/_ust.log

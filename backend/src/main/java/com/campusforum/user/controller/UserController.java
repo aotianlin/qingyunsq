@@ -13,7 +13,6 @@ import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,9 +32,6 @@ public class UserController {
     private final FavoriteService favoriteService;
     private final com.campusforum.infra.security.MimeTypeValidator mimeTypeValidator;
 
-    @Value("${storage.type:local}")
-    private String storageType;
-
     @GetMapping("/me")
     public R<UserVO> getMe() {
         long userId = StpUtil.getLoginIdAsLong();
@@ -48,12 +44,36 @@ public class UserController {
         return R.ok(userService.updateProfile(userId, req));
     }
 
+    /**
+     * 上传当前登录用户的头像 / 封面等公开访问素材，并返回公开访问 URL。
+     *
+     * <p>本方法在 T4.4 阶段重写，关联以下安全修复：</p>
+     * <ul>
+     *   <li><b>漏洞 6（MinIO available 截断）</b>：必须把 {@link MultipartFile#getSize()}
+     *       作为显式 size 传给 4 参版本的 {@link StorageService#upload}，禁止再走旧 3 参 default
+     *       兼容路径（后者以 {@code -1} 透传，MinIO 实现会直接拒绝）。
+     *       这样 MinIO SDK 可使用 {@code stream(in, size, -1)} 精确读取并在上传完成后用
+     *       {@code statObject} 回查 size，杜绝因 {@code InputStream#available()} 误读 buffer
+     *       大小（约 8KB）导致的"大文件被截断"问题。</li>
+     *   <li><b>漏洞 15（profile asset URL 错误）</b>：早期实现按 {@code storage.type=local}
+     *       拼接 {@code /uploads/<key>}，在 minio / oss 模式下直接返回 storageKey 字面量，
+     *       前端无法访问。统一改为调用 {@link StorageService#issuePublicGetUrl(String)}
+     *       由各实现自行颁发可用的访问 URL（MinIO/OSS 走 presigned，Local 走站内代理签名）。</li>
+     * </ul>
+     */
     @PostMapping("/me/assets")
     public R<UserAssetUploadVO> uploadProfileAsset(@RequestParam("file") MultipartFile file) throws IOException {
         StpUtil.checkLogin();
         validateProfileImage(file);
-        String storageKey = storageService.upload(file.getInputStream(), file.getOriginalFilename(), file.getContentType());
-        String url = "local".equalsIgnoreCase(storageType) ? "/uploads/" + storageKey : storageKey;
+        // 漏洞 6 修复：必须传 file.getSize() 而非 inputStream.available()
+        String storageKey = storageService.upload(
+                file.getInputStream(),
+                file.getOriginalFilename(),
+                file.getContentType(),
+                file.getSize());
+        // 漏洞 15 修复：统一通过 StorageService 颁发公开访问 URL，
+        // 不再按 storage.type 走分支拼接 /uploads/ 路径或直接回显 storageKey
+        String url = storageService.issuePublicGetUrl(storageKey);
         return R.ok(UserAssetUploadVO.builder()
                 .url(url)
                 .storageKey(storageKey)

@@ -2,8 +2,11 @@ package com.campusforum.tenant.resolver;
 
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
+import com.campusforum.infra.metrics.SecurityMetrics;
 import com.campusforum.tenant.TenantProperties;
+import com.campusforum.tenant.audit.TenantAuditService;
 import com.campusforum.tenant.cache.ActiveTenantCache;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +40,9 @@ class MultiTenantResolverTest {
     @Mock
     private SaSession session;
 
+    @Mock
+    private TenantAuditService tenantAuditService;
+
     private MockedStatic<StpUtil> stpUtilMock;
 
     @BeforeEach
@@ -44,7 +50,8 @@ class MultiTenantResolverTest {
         TenantProperties props = new TenantProperties();
         props.setRootDomain("campusforum.com");
         props.setAllowHeaderFallback(true);
-        resolver = new MultiTenantResolver(props, cache);
+        SecurityMetrics securityMetrics = new SecurityMetrics(new SimpleMeterRegistry());
+        resolver = new MultiTenantResolver(props, cache, tenantAuditService, securityMetrics);
 
         stpUtilMock = mockStatic(StpUtil.class);
     }
@@ -179,7 +186,9 @@ class MultiTenantResolverTest {
         TenantProperties noFallbackProps = new TenantProperties();
         noFallbackProps.setRootDomain("campusforum.com");
         noFallbackProps.setAllowHeaderFallback(false);
-        MultiTenantResolver noFallbackResolver = new MultiTenantResolver(noFallbackProps, cache);
+        SecurityMetrics securityMetrics = new SecurityMetrics(new SimpleMeterRegistry());
+        MultiTenantResolver noFallbackResolver = new MultiTenantResolver(
+                noFallbackProps, cache, tenantAuditService, securityMetrics);
 
         stpUtilMock.when(StpUtil::isLogin).thenReturn(false);
         when(request.getServerName()).thenReturn("localhost");

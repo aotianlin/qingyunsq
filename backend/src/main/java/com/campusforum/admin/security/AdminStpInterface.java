@@ -18,6 +18,15 @@ public class AdminStpInterface implements StpInterface {
 
     private final UserMapper userMapper;
 
+    /**
+     * 租户管理员权限清单。
+     *
+     * <p>导出权限拆分（任务 T8.6 / 漏洞 13）：原先所有导出端点共用 {@code tenant:dashboard}
+     * 这一笼统权限，导致只要能进后台的任意管理员都能拉走全量用户/审计/举报数据。
+     * 拆为 4 个细粒度权限后，运维可以按需授权（例如只给数据分析岗 {@code tenant:export:posts}，
+     * 不给 {@code tenant:export:audit}）。完整 PII（不脱敏）需要 SUPER_ADMIN 才能调用，
+     * 由 {@code ExportController} 在路径内部做二次校验。</p>
+     */
     private static final List<String> TENANT_ADMIN_PERMISSIONS = List.of(
             "tenant:dashboard",
             "tenant:user:list",
@@ -27,7 +36,12 @@ public class AdminStpInterface implements StpInterface {
             "tenant:space:manage",
             "tenant:audit:log",
             "tenant:report:manage",
-            "tenant:sensitive:manage"
+            "tenant:sensitive:manage",
+            // === 导出端点细粒度权限（T8.6） ===
+            "tenant:export:users",
+            "tenant:export:posts",
+            "tenant:export:audit",
+            "tenant:export:reports"
     );
 
     private static final List<String> SUPER_ADMIN_PERMISSIONS;

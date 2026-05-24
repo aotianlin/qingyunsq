@@ -192,12 +192,37 @@ public class SearchService {
         try { return LocalDateTime.parse(val.toString().replace("Z", "")); } catch (Exception e) { return null; }
     }
 
+    /**
+     * 用户搜索：仅按 {@code nickname} 模糊匹配。
+     *
+     * <p>对应 bugfix.md 漏洞 9 / T8.4 收紧：</p>
+     * <ul>
+     *   <li>移除原有的 {@code email} / {@code studentNo} LIKE 分支 ——
+     *       即便结果 VO 已经脱敏，LIKE 命中本身就构成"邮箱后缀 / 学号前缀确认"的副信道，
+     *       让攻击者搜索 {@code @163.com} 即可批量枚举该域用户列表；</li>
+     *   <li>关键字长度 &lt; 2 直接返回空列表，避免单字符搜出全表；</li>
+     *   <li>关键字疑似邮箱（含 {@code @}）或全数字 ≥ 8 位（疑似学号）时返回空，
+     *       让公共搜索完全无法以 PII 维度反向枚举用户。管理员需要按 email/studentNo
+     *       精确定位用户时，请走 {@code /api/v1/admin/users} 后台路径。</li>
+     * </ul>
+     *
+     * <p>同时 {@link SearchResultVO#getAuthor()} 仍使用 {@link PublicUserVO}（仅含
+     * {@code id/nickname/avatarUrl/bio}），不再回传 email / studentNo 字段。</p>
+     */
     private List<SearchResultVO> searchUsers(String keyword, Long cursor, int limit) {
+        // 漏洞 9：长度 < 2 一律拒绝，避免单字符搜出整张表
+        if (keyword == null || keyword.length() < 2) {
+            return List.of();
+        }
+        // 漏洞 9：疑似邮箱（含 @）或纯数字 ≥ 8 位（疑似学号）一律拒绝
+        if (keyword.contains("@") || keyword.matches("^\\d{8,}$")) {
+            return List.of();
+        }
+
         LambdaQueryWrapper<User> qw = new LambdaQueryWrapper<>();
         qw.eq(User::getStatus, 1);
-        qw.and(w -> w.like(User::getNickname, keyword)
-                .or().like(User::getEmail, keyword)
-                .or().like(User::getStudentNo, keyword));
+        // 漏洞 9：仅保留 nickname LIKE，禁止按 email / studentNo 模糊匹配
+        qw.like(User::getNickname, keyword);
         if (cursor != null) {
             qw.lt(User::getId, cursor);
         }

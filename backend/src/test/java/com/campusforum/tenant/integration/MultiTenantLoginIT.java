@@ -1,15 +1,19 @@
 package com.campusforum.tenant.integration;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.campusforum.admin.mapper.AuditLogMapper;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.infra.metrics.SecurityMetrics;
 import com.campusforum.tenant.TenantContext;
 import com.campusforum.tenant.TenantMode;
 import com.campusforum.tenant.TenantProperties;
+import com.campusforum.tenant.audit.TenantAuditService;
 import com.campusforum.tenant.cache.ActiveTenantCache;
 import com.campusforum.tenant.filter.TenantResolutionFilter;
 import com.campusforum.tenant.resolver.MultiTenantResolver;
 import com.campusforum.tenant.resolver.TenantResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,8 +55,8 @@ class MultiTenantLoginIT {
 
     private static final long TENANT_A = 1L;
     private static final long TENANT_B = 2L;
-    private static final String TENANT_A_CODE = "tenantA";
-    private static final String TENANT_B_CODE = "tenantB";
+    private static final String TENANT_A_CODE = "tenanta";
+    private static final String TENANT_B_CODE = "tenantb";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @BeforeEach
@@ -79,7 +83,9 @@ class MultiTenantLoginIT {
         when(cache.findIdByCode("unknown")).thenReturn(Optional.empty());
 
         // 构建 MultiTenantResolver
-        TenantResolver resolver = new MultiTenantResolver(props, cache);
+        TenantAuditService tenantAuditService = new TenantAuditService(mock(AuditLogMapper.class));
+        SecurityMetrics securityMetrics = new SecurityMetrics(new SimpleMeterRegistry());
+        TenantResolver resolver = new MultiTenantResolver(props, cache, tenantAuditService, securityMetrics);
 
         // 构建 TenantResolutionFilter
         TenantResolutionFilter filter = new TenantResolutionFilter(resolver, OBJECT_MAPPER);
@@ -103,25 +109,25 @@ class MultiTenantLoginIT {
     // ========== AC-2.1: 子域名解析到正确租户 ==========
 
     @Test
-    @DisplayName("AC-2.1: 子域名 tenantA.test.local 解析到 TENANT_A，请求通过 filter")
+    @DisplayName("AC-2.1: 子域名 tenanta.test.local 解析到 TENANT_A，请求通过 filter")
     void subdomainResolvesToCorrectTenant() throws Exception {
         mvc.perform(post("/api/v1/auth/login")
-                        .header("Host", "tenantA.test.local")
+                        .header("Host", "tenanta.test.local")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"user@a.com\",\"password\":\"pass123\"}"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("login-ok:tenantA:1"));
+                .andExpect(content().string("login-ok:tenanta:1"));
     }
 
     @Test
-    @DisplayName("AC-2.1: 子域名 tenantB.test.local 解析到 TENANT_B，请求通过 filter")
+    @DisplayName("AC-2.1: 子域名 tenantb.test.local 解析到 TENANT_B，请求通过 filter")
     void subdomainResolvesToCorrectTenantB() throws Exception {
         mvc.perform(post("/api/v1/auth/login")
-                        .header("Host", "tenantB.test.local")
+                        .header("Host", "tenantb.test.local")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"user@b.com\",\"password\":\"pass123\"}"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("login-ok:tenantB:2"));
+                .andExpect(content().string("login-ok:tenantb:2"));
     }
 
     @Test
@@ -146,7 +152,7 @@ class MultiTenantLoginIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"user@a.com\",\"password\":\"pass123\"}"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("login-ok:tenantA:1"));
+                .andExpect(content().string("login-ok:tenanta:1"));
     }
 
     @Test
@@ -208,15 +214,15 @@ class MultiTenantLoginIT {
     @Test
     @DisplayName("AC-2.4 前置: 子域名解析成功后 TenantContext 持有正确 tenantId（跨租户 email 由 UserService 拒绝）")
     void subdomainResolutionSetsTenantContext() throws Exception {
-        // 用 tenantA 的子域名发起登录请求，controller 返回当前 TenantContext 的 tenantId
-        // 如果 email 属于 tenantB，UserService 会因 (tenant_id, email) 查不到而返回 INVALID_CREDENTIALS
+        // 用 tenanta 的子域名发起登录请求，controller 返回当前 TenantContext 的 tenantId
+        // 如果 email 属于 tenantb，UserService 会因 (tenant_id, email) 查不到而返回 INVALID_CREDENTIALS
         // 此处验证 filter 层正确设置了 TenantContext
         mvc.perform(post("/api/v1/auth/login")
-                        .header("Host", "tenantA.test.local")
+                        .header("Host", "tenanta.test.local")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"user-of-b@x.com\",\"password\":\"correct-pwd-in-b\"}"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("login-ok:tenantA:1"));
+                .andExpect(content().string("login-ok:tenanta:1"));
         // 在真实场景中，UserService.login 会查 (tenant_id=1, email='user-of-b@x.com')
         // 查不到 → 抛 INVALID_CREDENTIALS。此处 controller 是 mock，仅验证 filter 层行为。
     }
