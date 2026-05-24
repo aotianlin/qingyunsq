@@ -5,6 +5,7 @@ import { useMessage } from 'naive-ui';
 import { CopyOutline, DocumentTextOutline, LinkOutline, RefreshOutline, SearchOutline, SendOutline, ShieldCheckmarkOutline } from '@vicons/ionicons5';
 import { aiModerate, aiRagChat } from '@/api/ai';
 import { getPostById } from '@/api/posts';
+import { copyTextToClipboard } from '@/utils/clipboard';
 import type { AiCitation } from '@/types/ai';
 import type { PostVO } from '@/types/post';
 
@@ -87,6 +88,11 @@ function parsePostId(value: string) {
   const match = link.match(/\/posts\/(\d+)/);
   if (match?.[1]) return Number(match[1]);
   return /^\d+$/.test(link) ? Number(link) : null;
+}
+
+function postLinkFromId(postId: number) {
+  if (typeof window === 'undefined') return `/posts/${postId}`;
+  return `${window.location.origin}/posts/${postId}`;
 }
 
 function postContentForAi(post: PostVO) {
@@ -197,8 +203,11 @@ async function generateSummary() {
 
 async function copySummary() {
   if (!summaryResult.value) return;
-  await navigator.clipboard.writeText(summaryResult.value);
-  message.success('已复制到剪贴板');
+  if (await copyTextToClipboard(summaryResult.value)) {
+    message.success('已复制到剪贴板');
+  } else {
+    message.warning('复制失败，请手动选择摘要内容复制');
+  }
 }
 
 function switchDetectionMode(mode: 'post' | 'text') {
@@ -264,8 +273,11 @@ async function copyDetectionReport() {
     '优化建议：',
     ...detectionAssessment.value.suggestions.map((item, index) => `${index + 1}. ${item}`),
   ].join('\n');
-  await navigator.clipboard.writeText(report);
-  message.success('检测报告已复制');
+  if (await copyTextToClipboard(report)) {
+    message.success('检测报告已复制');
+  } else {
+    message.warning('复制失败，请手动选择检测报告复制');
+  }
 }
 
 function currentQaContext() {
@@ -355,8 +367,11 @@ function clearQaChat() {
 async function copyLastQaAnswer() {
   const answer = [...qaMessages.value].reverse().find((item) => item.role === 'assistant')?.content;
   if (!answer) return;
-  await navigator.clipboard.writeText(answer);
-  message.success('回答已复制');
+  if (await copyTextToClipboard(answer)) {
+    message.success('回答已复制');
+  } else {
+    message.warning('复制失败，请手动选择回答内容复制');
+  }
 }
 
 function openCitation(citation: AiCitation) {
@@ -378,6 +393,14 @@ function applyRoutePreset() {
 
   const postIdRaw = route.query.postId;
   const postId = typeof postIdRaw === 'string' ? Number(postIdRaw) : Number(Array.isArray(postIdRaw) ? postIdRaw[0] : NaN);
+  if (activeMenu.value === 'summary' && Number.isFinite(postId) && postId > 0) {
+    const nextLink = postLinkFromId(postId);
+    if (inputLink.value !== nextLink) {
+      inputLink.value = nextLink;
+      summaryResult.value = '';
+      targetPost.value = null;
+    }
+  }
   if (activeMenu.value === 'content' && Number.isFinite(postId) && postId > 0) {
     detectionMode.value = 'post';
     detectionLink.value = String(postId);

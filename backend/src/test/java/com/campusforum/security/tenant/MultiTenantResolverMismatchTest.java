@@ -131,8 +131,10 @@ class MultiTenantResolverMismatchTest {
         // 审计日志写入一次，且参数匹配 — userId / actualTenantId / reason / detail
         ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> detailCaptor = ArgumentCaptor.forClass(String.class);
+        // main 分支扩展后 recordViolationAttempt 拆分了 request → uri / method / ipAddress 三个独立参数
         verify(tenantAuditService, times(1)).recordViolationAttempt(
-                eq(USER_ID), eq(TENANT_A), eq(request),
+                eq(USER_ID), eq(TENANT_A),
+                any(), any(), any(),
                 reasonCaptor.capture(), detailCaptor.capture());
         assertThat(reasonCaptor.getValue()).isEqualTo("session_subdomain_mismatch");
         assertThat(detailCaptor.getValue())
@@ -169,7 +171,7 @@ class MultiTenantResolverMismatchTest {
 
         // 不写审计 / 不埋点
         verify(tenantAuditService, never())
-                .recordViolationAttempt(anyLong(), anyLong(), any(), any(), any());
+                .recordViolationAttempt(anyLong(), anyLong(), any(), any(), any(), any(), any());
         assertThat(meterRegistry.find("tenant_violation").counter()).isNull();
     }
 
@@ -196,7 +198,7 @@ class MultiTenantResolverMismatchTest {
         assertThat(result.tenantCode()).isEqualTo(CODE_A);
 
         verify(tenantAuditService, never())
-                .recordViolationAttempt(anyLong(), anyLong(), any(), any(), any());
+                .recordViolationAttempt(anyLong(), anyLong(), any(), any(), any(), any(), any());
         assertThat(meterRegistry.find("tenant_violation").counter()).isNull();
     }
 
@@ -218,7 +220,7 @@ class MultiTenantResolverMismatchTest {
         assertThat(result.tenantCode()).isEqualTo(CODE_A);
 
         verify(tenantAuditService, never())
-                .recordViolationAttempt(anyLong(), anyLong(), any(), any(), any());
+                .recordViolationAttempt(anyLong(), anyLong(), any(), any(), any(), any(), any());
     }
 
     /**

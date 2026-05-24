@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NButton, NCard, NEmpty, NIcon, NInput, NModal, NSelect, NSpin, NTag, useMessage } from 'naive-ui';
 import { acceptAnswer, getQaInfo } from '@/api/qa';
-import { aiChat, aiModerate, aiRecommendTags, aiSummarize } from '@/api/ai';
+import { aiChat, aiModerate, aiRecommendTags, aiSummarize, getPostAiCard } from '@/api/ai';
 import { deleteComment, createComment, getComments, toggleCommentReaction, updateComment } from '@/api/comments';
 import { deletePost, getPostById, toggleReaction } from '@/api/posts';
 import { createReport } from '@/api/report';
 import { useAuthStore } from '@/stores/auth';
 import { useWebSocket } from '@/composables/useWebSocket';
 import MentionText from '@/components/MentionText.vue';
+import BackToTopButton from '@/components/BackToTopButton.vue';
 import type { CommentVO, PostVO } from '@/types/post';
 import type { QaQuestionVO } from '@/types/qa';
-import { ArrowBackOutline, ChatbubblesOutline, CreateOutline, HeartOutline, LinkOutline, MegaphoneOutline, PricetagOutline, ShieldCheckmarkOutline, TrashOutline, PersonOutline, SendOutline, SparklesOutline } from '@vicons/ionicons5';
+import { ArrowBackOutline, ChatbubblesOutline, CreateOutline, DocumentTextOutline, HeartOutline, LinkOutline, MegaphoneOutline, PricetagOutline, ShieldCheckmarkOutline, TrashOutline, PersonOutline, SendOutline, SparklesOutline } from '@vicons/ionicons5';
 
 const route = useRoute();
 const router = useRouter();
@@ -23,6 +24,7 @@ const post = ref<PostVO | null>(null);
 const qa = ref<QaQuestionVO | null>(null);
 const comments = ref<CommentVO[]>([]);
 const loading = ref(true);
+const highlightedCommentId = ref<number | null>(null);
 const commentText = ref('');
 const submitting = ref(false);
 const replyModalShow = ref(false);
@@ -87,6 +89,11 @@ function openReport(targetType: 'POST' | 'COMMENT', targetId: number) {
   reportReason.value = 'SPAM';
   reportDesc.value = '';
   reportModalShow.value = true;
+}
+
+function openAiSummary() {
+  if (!post.value) return;
+  router.push({ path: '/ai', query: { mode: 'summary', postId: String(post.value.id) }, hash: '#ai-workspace' });
 }
 
 async function openAiAnalysis() {
@@ -200,6 +207,9 @@ async function loadPost() {
     message.error('评论加载失败，请稍后重试');
   }
 
+  // fire-and-forget：触发后台生成/刷新 AI 卡片，结果落库，列表页下次浏览自动取到
+  void getPostAiCard(post.value.id).catch(() => {});
+
   if (post.value.type === 'QA') {
     try {
       qa.value = await getQaInfo(post.value.id);
@@ -207,6 +217,27 @@ async function loadPost() {
       qa.value = null;
       message.error('问答信息加载失败，请稍后重试');
     }
+  }
+
+  // 处理来自列表「热门评论」跳转的 hash，例如 /posts/12#comment-345
+  void scrollToHashComment();
+}
+
+async function scrollToHashComment() {
+  const hash = route.hash;
+  if (!hash || !hash.startsWith('#comment-')) return;
+  const id = Number(hash.slice('#comment-'.length));
+  if (!Number.isFinite(id) || id <= 0) return;
+  // 等 DOM 渲染完成
+  await nextTick();
+  // 评论可能在第二页：未命中时，简单滚到评论区底部提示用户
+  const target = document.getElementById(`comment-${id}`);
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    highlightedCommentId.value = id;
+    window.setTimeout(() => {
+      if (highlightedCommentId.value === id) highlightedCommentId.value = null;
+    }, 2500);
   }
 }
 
@@ -529,6 +560,10 @@ onMounted(loadPost);
                 <n-icon size="16"><MegaphoneOutline /></n-icon>
                 举报
               </button>
+              <button class="action-btn ai-action" @click="openAiSummary">
+                <n-icon size="16"><DocumentTextOutline /></n-icon>
+                AI 摘要
+              </button>
               <button class="action-btn ai-action" @click="openAiAnalysis">
                 <n-icon size="16"><SparklesOutline /></n-icon>
                 AI 分析
@@ -567,7 +602,13 @@ onMounted(loadPost);
             </div>
 
             <div v-else class="comment-list">
-              <article v-for="comment in comments" :key="comment.id" class="comment-item">
+              <article
+                v-for="comment in comments"
+                :id="`comment-${comment.id}`"
+                :key="comment.id"
+                class="comment-item"
+                :class="{ highlighted: highlightedCommentId === comment.id }"
+              >
                 <div class="comment-line" />
                 <div class="comment-body">
                   <div class="comment-header">
@@ -800,6 +841,8 @@ onMounted(loadPost);
         </div>
       </div>
     </n-modal>
+
+    <BackToTopButton />
   </div>
 </template>
 
@@ -1051,6 +1094,13 @@ onMounted(loadPost);
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr);
   gap: 14px;
+  border-radius: 10px;
+  transition: background 0.4s ease;
+}
+
+.comment-item.highlighted {
+  background: color-mix(in srgb, #f59e0b 14%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, #f59e0b 35%, transparent);
 }
 
 .comment-line {

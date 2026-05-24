@@ -74,12 +74,15 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER}}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
       - STORAGE_MINIO_ENDPOINT=${STORAGE_MINIO_ENDPOINT:-http://minio:9000}
       - SEARCH_MEILISEARCH_HOST=${SEARCH_MEILISEARCH_HOST:-http://meilisearch:7700}
       # 资源签名 URL 的 HMAC 密钥（必填，无默认值，缺失则后端启动失败）
       - SIGNED_URL_SECRET=${SIGNED_URL_SECRET}
       # AES-GCM 主密钥（缺陷 1.1，必填，无默认值，长度 ≥ 32 字节）
       - CRYPTO_MASTER_KEY=${CRYPTO_MASTER_KEY}
+      # CryptoUtils 旧版兼容密钥（用于解密 encVersion=1 历史密文，必填）
+      - APP_CRYPTO_KEY=${APP_CRYPTO_KEY}
       # 紧急回滚开关，默认 false；遇到 v1 ECB 旧密文解密链路问题时可临时设为 true
       - CRYPTO_LEGACY_MODE=${CRYPTO_LEGACY_MODE:-false}
       # CORS 允许的前端来源（缺陷 1.30，必填，逗号分隔）
@@ -93,15 +96,14 @@ services:
       - UPLOAD_REAL_MIME_CHECK=${UPLOAD_REAL_MIME_CHECK:-true}
       # WebSocket 允许的来源（生产必填，CSWSH 防御）
       - WS_ALLOWED_ORIGINS=${WS_ALLOWED_ORIGINS}
-      - EMAIL_FROM=${EMAIL_FROM:-noreply@campusforum.com}
-      - RESET_LINK_BASE=${RESET_LINK_BASE:-https://localhost/reset-password}
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USERNAME=${SMTP_USERNAME:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - OFFICE_PREVIEW_URL=${OFFICE_PREVIEW_URL:-http://localhost:8012/onlinePreview}
+      - MANAGEMENT_HEALTH_MAIL_ENABLED=false
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       mysql:
         condition: service_healthy
@@ -147,6 +149,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
     restart: always

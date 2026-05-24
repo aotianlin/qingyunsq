@@ -31,6 +31,12 @@ import { getUserAchievements } from '@/api/achievement';
 import { getNotifications, getUnreadCount, markRead } from '@/api/notifications';
 import { getBalance, getPointsLogs } from '@/api/points';
 import { acceptAnswer, getQaInfo } from '@/api/qa';
+import { validateNickname } from '@/utils/authValidation';
+import { copyTextToClipboard } from '@/utils/clipboard';
+import BackToTopButton from '@/components/BackToTopButton.vue';
+import PostAiCardLine from '@/components/PostAiCardLine.vue';
+import { getPostAiCardsBatch, getPostAiCard } from '@/api/ai';
+import type { PostAiCard } from '@/types/ai';
 import type { SpaceVO, SpaceMemberVO } from '@/types/space';
 import type { CommentVO, PostVO } from '@/types/post';
 import type { ResourceVO } from '@/types/resource';
@@ -49,6 +55,61 @@ const message = useMessage();
 const space = ref<SpaceVO | null>(null);
 const members = ref<SpaceMemberVO[]>([]);
 const posts = ref<PostVO[]>([]);
+const aiCards = ref<Record<string, PostAiCard>>({});
+
+async function loadSpaceAiCards(postIds: number[]) {
+  if (!postIds || postIds.length === 0) return;
+  try {
+    const batch = await getPostAiCardsBatch(postIds);
+    aiCards.value = { ...aiCards.value, ...batch };
+    for (const idStr of Object.keys(batch)) {
+      aiRequestedSet.value.add(Number(idStr));
+    }
+  } catch {
+    // 静默：列表卡片是增强信息，失败时不显示即可
+  }
+}
+
+// ===== AI 卡片懒加载请求队列（与 Square.vue 同样的模式）=====
+const aiVisibleSet = ref(new Set<number>());
+const aiRequestedSet = ref(new Set<number>());
+const aiRequestingSet = ref(new Set<number>());
+const aiQueueProcessing = ref(false);
+
+function handleAiCardVisible(postId: number) {
+  aiVisibleSet.value.add(postId);
+  void processAiCardQueue();
+}
+
+function handleAiCardHidden(postId: number) {
+  aiVisibleSet.value.delete(postId);
+}
+
+async function processAiCardQueue() {
+  if (aiQueueProcessing.value) return;
+  const next = [...aiVisibleSet.value].find(
+    (id) => !aiCards.value[String(id)] && !aiRequestedSet.value.has(id) && !aiRequestingSet.value.has(id),
+  );
+  if (next === undefined) return;
+
+  aiQueueProcessing.value = true;
+  aiRequestingSet.value.add(next);
+  try {
+    const card = await getPostAiCard(next);
+    if (card) {
+      aiCards.value = { ...aiCards.value, [String(next)]: card };
+    }
+  } catch {
+    // 失败不重试
+  } finally {
+    aiRequestingSet.value.delete(next);
+    aiRequestedSet.value.add(next);
+    aiQueueProcessing.value = false;
+    if (aiVisibleSet.value.size > 0) {
+      setTimeout(() => void processAiCardQueue(), 200);
+    }
+  }
+}
 const spaceResources = ref<ResourceVO[]>([]);
 const checkinChallenges = ref<CheckinChallengeVO[]>([]);
 const notifications = ref<NotificationVO[]>([]);
@@ -59,6 +120,7 @@ const profileAchievements = ref<AchievementVO[]>([]);
 const loading = ref(true);
 const searchKeyword = ref('');
 const searchResultsRef = ref<HTMLElement | null>(null);
+const contentScrollRef = ref<HTMLElement | null>(null);
 const memberKeyword = ref('');
 const postSort = ref<'latest' | 'hot' | 'essence'>('latest');
 const composeVisible = ref(false);
@@ -101,6 +163,7 @@ const profileForm = ref({
   major: '',
   grade: '',
 });
+const profileNicknameState = ref({ active: false, touched: false, error: '', shaking: false });
 const profileFollowsVisible = ref(false);
 const profileFollowsTab = ref<'followers' | 'following'>('following');
 const profileFollowsLoading = ref(false);
@@ -504,11 +567,17 @@ async function loadSpace() {
     space.value = spaceResult;
     members.value = memberResult;
     posts.value = postResult;
+    aiCards.value = {};
+    aiRequestedSet.value.clear();
+    aiVisibleSet.value.clear();
+    void loadSpaceAiCards(postResult.map((p) => p.id));
     myProfile.value = profileResult;
     spaceResources.value = resourceResult;
     checkinChallenges.value = challengeResult;
     syncSettingForm();
     syncProfileForm();
+    // 批量拉取这些帖子的 AI 卡片
+    void loadSpaceAiCards(postResult.map((p) => p.id));
     if (profileResult?.id) {
       await loadProfileExtras(profileResult.id);
     }
@@ -566,6 +635,40 @@ function syncProfileForm() {
     major: profile.major || '',
     grade: profile.grade || '',
   };
+  profileNicknameState.value = { active: false, touched: false, error: '', shaking: false };
+}
+
+function shakeProfileNickname() {
+  profileNicknameState.value.shaking = false;
+  window.setTimeout(() => {
+    profileNicknameState.value.shaking = true;
+    window.setTimeout(() => {
+      profileNicknameState.value.shaking = false;
+    }, 520);
+  }, 0);
+}
+
+function validateProfileNickname() {
+  profileNicknameState.value.error = validateNickname(profileForm.value.nickname);
+}
+
+function focusProfileNickname() {
+  profileNicknameState.value.active = true;
+  validateProfileNickname();
+}
+
+function blurProfileNickname() {
+  profileNicknameState.value.active = false;
+  profileNicknameState.value.touched = true;
+  validateProfileNickname();
+  if (profileNicknameState.value.error) {
+    shakeProfileNickname();
+  }
+}
+
+function closeProfileEditor() {
+  syncProfileForm();
+  profileEditVisible.value = false;
 }
 
 // 圈内随笔草稿保存/恢复
@@ -1364,8 +1467,11 @@ async function handleProfileAssetChange(event: Event, target: 'avatar' | 'cover'
 
 async function submitProfileEdit() {
   if (!myProfile.value || profileSaving.value) return;
-  if (!profileForm.value.nickname.trim()) {
-    message.warning('昵称不能为空');
+  profileNicknameState.value.touched = true;
+  validateProfileNickname();
+  if (profileNicknameState.value.error) {
+    shakeProfileNickname();
+    message.warning('请按提示修正昵称');
     return;
   }
 
@@ -1445,25 +1551,10 @@ async function refreshSpaceData() {
 }
 
 async function copySpaceLink() {
-  try {
-    // navigator.clipboard 仅在 HTTPS 或 localhost 下可用
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(spaceLink.value);
-      message.success('圈子链接已复制');
-    } else {
-      // HTTP 环境下使用 execCommand 兜底
-      const textarea = document.createElement('textarea');
-      textarea.value = spaceLink.value;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      message.success('圈子链接已复制');
-    }
-  } catch {
-    message.info(`请手动复制：${spaceLink.value}`);
+  if (await copyTextToClipboard(spaceLink.value)) {
+    message.success('圈子链接已复制');
+  } else {
+    message.warning(`复制失败，请手动复制：${spaceLink.value}`);
   }
 }
 
@@ -1542,14 +1633,18 @@ function openPostShare(post: PostVO) {
   postActionVisible.value = false;
 }
 
+function openPostAiSummary(post?: PostVO | null) {
+  if (!post) return;
+  router.push({ path: '/ai', query: { mode: 'summary', postId: String(post.id) }, hash: '#ai-workspace' });
+}
+
 async function copyPostLink(post?: PostVO | null) {
   const url = postShareUrl(post?.id);
   if (!url) return;
-  try {
-    await navigator.clipboard.writeText(url);
+  if (await copyTextToClipboard(url)) {
     message.success('帖子链接已复制');
-  } catch {
-    message.info(url);
+  } else {
+    message.warning(`复制失败，请手动复制：${url}`);
   }
 }
 
@@ -1906,12 +2001,24 @@ watch(() => route.params.id, () => loadSpace());
             @change="handleProfileAssetChange($event, 'cover')"
           />
           <div class="profile-edit-grid">
-            <label class="settings-field">
+            <label
+              class="settings-field validated-field"
+              :class="{ invalid: profileNicknameState.touched && profileNicknameState.error, shake: profileNicknameState.shaking }"
+            >
               <span>昵称</span>
               <input
                 v-model="profileForm.nickname"
-                maxlength="64"
+                maxlength="12"
+                @focus="focusProfileNickname"
+                @blur="blurProfileNickname"
+                @input="validateProfileNickname"
               />
+              <small
+                v-if="profileNicknameState.touched && profileNicknameState.error"
+                class="field-hint error"
+              >
+                {{ profileNicknameState.error }}
+              </small>
             </label>
             <div class="settings-field profile-upload-field">
               <span>头像</span>
@@ -1967,7 +2074,7 @@ watch(() => route.params.id, () => loadSpace());
             <button
               class="outline-action"
               type="button"
-              @click="profileEditVisible = false"
+              @click="closeProfileEditor"
             >
               取消
             </button>
@@ -2342,6 +2449,13 @@ watch(() => route.params.id, () => loadSpace());
                   <n-icon><ChatboxOutline /></n-icon>
                   评论 {{ postDetail.commentCount }}
                 </button>
+                <button
+                  type="button"
+                  @click="openPostAiSummary(postDetail)"
+                >
+                  <n-icon><DocumentTextOutline /></n-icon>
+                  AI 摘要
+                </button>
               </div>
             </article>
 
@@ -2533,6 +2647,15 @@ watch(() => route.params.id, () => loadSpace());
               <ShareSocialOutline />
             </n-icon>
             分享帖子
+          </button>
+          <button
+            :disabled="!postActionTarget"
+            @click="openPostAiSummary(postActionTarget)"
+          >
+            <n-icon>
+              <DocumentTextOutline />
+            </n-icon>
+            AI 摘要
           </button>
           <button
             :disabled="!postActionTarget"
@@ -2923,7 +3046,10 @@ watch(() => route.params.id, () => loadSpace());
         </div>
       </NModal>
 
-      <div class="content-scroll">
+      <div
+        ref="contentScrollRef"
+        class="content-scroll"
+      >
         <template v-if="loading">
           <div class="loading">
             <n-spin size="large" />
@@ -3373,6 +3499,13 @@ watch(() => route.params.id, () => loadSpace());
                   <p class="post-preview">
                     {{ postPreview(post.content) }}
                   </p>
+                  <PostAiCardLine
+                    :post-id="post.id"
+                    :card="aiCards[String(post.id)]"
+                    :post="post"
+                    @visible="handleAiCardVisible"
+                    @hidden="handleAiCardHidden"
+                  />
                   <div
                     class="post-actions"
                     @click.stop
@@ -3402,6 +3535,13 @@ watch(() => route.params.id, () => loadSpace());
                       @click.stop="openPostShare(post)"
                     >
                       <n-icon><ShareSocialOutline /></n-icon> 分享
+                    </button>
+                    <button
+                      class="action right"
+                      type="button"
+                      @click.stop="openPostAiSummary(post)"
+                    >
+                      <n-icon><DocumentTextOutline /></n-icon> 摘要
                     </button>
                   </div>
                 </div>
@@ -3924,6 +4064,8 @@ watch(() => route.params.id, () => loadSpace());
           </div>
         </template>
       </div>
+
+      <BackToTopButton :target="contentScrollRef" />
     </div>
   </div>
 </template>
@@ -6174,9 +6316,42 @@ watch(() => route.params.id, () => loadSpace());
     }
   }
 
+  &.validated-field.invalid {
+    input {
+      border-color: var(--cf-danger);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-danger) 12%, transparent);
+    }
+  }
+
+  &.validated-field.shake {
+    animation: field-shake 0.48s ease;
+  }
+
   textarea {
     min-height: 96px;
     resize: vertical;
+  }
+}
+
+.field-hint {
+  min-height: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+
+  &.error {
+    color: var(--cf-danger);
+  }
+}
+
+@keyframes field-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20%, 60% {
+    transform: translateX(-4px);
+  }
+  40%, 80% {
+    transform: translateX(4px);
   }
 }
 

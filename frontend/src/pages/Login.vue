@@ -5,6 +5,7 @@ import { NIcon, NInput, NTabPane, NTabs, useMessage } from 'naive-ui';
 import { ArrowForwardOutline, LockClosedOutline, MailOutline, ShieldCheckmarkOutline, SparklesOutline } from '@vicons/ionicons5';
 import { login, loginWithEmailCode, sendEmailCode } from '@/api/auth';
 import { useAuthStore } from '@/stores/auth';
+import { validateEmail, validatePassword } from '@/utils/authValidation';
 
 const router = useRouter();
 const message = useMessage();
@@ -18,6 +19,10 @@ const loading = ref(false);
 const codeLoading = ref(false);
 const codeCountdown = ref(0);
 let codeTimer: number | undefined;
+const fieldState = ref({
+  email: { active: false, touched: false, error: '', shaking: false },
+  password: { active: false, touched: false, error: '', shaking: false },
+});
 
 const featureList = [
   '加入多校学习圈，追踪热门课程讨论',
@@ -26,9 +31,59 @@ const featureList = [
 ];
 
 const canSubmit = computed(() => {
-  if (!email.value.trim()) return false;
-  return loginMode.value === 'password' ? password.value.trim() : emailCode.value.trim();
+  if (!email.value.trim() || fieldState.value.email.error) return false;
+  if (loginMode.value === 'password') {
+    return password.value.trim() && !fieldState.value.password.error;
+  }
+  return emailCode.value.trim();
 });
+
+function runFieldValidation(field: 'email' | 'password') {
+  fieldState.value[field].error = field === 'email'
+    ? validateEmail(email.value)
+    : validatePassword(password.value);
+}
+
+function focusField(field: 'email' | 'password') {
+  fieldState.value[field].active = true;
+  runFieldValidation(field);
+}
+
+function blurField(field: 'email' | 'password') {
+  const state = fieldState.value[field];
+  state.active = false;
+  state.touched = true;
+  runFieldValidation(field);
+  if (state.error) {
+    state.shaking = false;
+    window.setTimeout(() => {
+      state.shaking = true;
+      window.setTimeout(() => {
+        state.shaking = false;
+      }, 520);
+    }, 0);
+  }
+}
+
+function validateForm() {
+  // 验证码登录模式只需要校验邮箱
+  const fields = loginMode.value === 'password' ? (['email', 'password'] as const) : (['email'] as const);
+  fields.forEach((field) => {
+    fieldState.value[field].touched = true;
+    runFieldValidation(field);
+  });
+  return fields.every((field) => !fieldState.value[field].error);
+}
+
+function resetLoginForm() {
+  email.value = '';
+  password.value = '';
+  emailCode.value = '';
+  fieldState.value = {
+    email: { active: false, touched: false, error: '', shaking: false },
+    password: { active: false, touched: false, error: '', shaking: false },
+  };
+}
 
 function startCodeCountdown() {
   codeCountdown.value = 60;
@@ -43,8 +98,11 @@ function startCodeCountdown() {
 }
 
 async function handleSendCode() {
-  if (!email.value.trim()) {
-    message.warning('请先填写邮箱');
+  // 发送验证码前确保邮箱格式正确
+  fieldState.value.email.touched = true;
+  runFieldValidation('email');
+  if (fieldState.value.email.error) {
+    message.warning('请先填写有效的邮箱');
     return;
   }
   codeLoading.value = true;
@@ -60,8 +118,8 @@ async function handleSendCode() {
 }
 
 async function handleLogin() {
-  if (!canSubmit.value) {
-    message.warning(loginMode.value === 'password' ? '请填写邮箱和密码' : '请填写邮箱和验证码');
+  if (!validateForm()) {
+    message.warning(loginMode.value === 'password' ? '请按提示修正邮箱和密码' : '请填写邮箱和验证码');
     return;
   }
 
@@ -78,7 +136,9 @@ async function handleLogin() {
     message.success('登录成功');
     router.push('/square');
   } catch {
+    // 后端统一返回 INVALID_CREDENTIALS(40101)，前端不区分具体失败原因
     message.error(loginMode.value === 'password' ? '邮箱或密码错误' : '邮箱或验证码错误');
+    resetLoginForm();
   } finally {
     loading.value = false;
   }
@@ -154,22 +214,36 @@ onBeforeUnmount(() => {
           />
         </n-tabs>
 
-        <div class="form-block">
+        <div
+          class="form-block"
+          :class="{ invalid: fieldState.email.touched && fieldState.email.error, shake: fieldState.email.shaking }"
+        >
           <label>邮箱</label>
           <n-input
             v-model:value="email"
             size="large"
             placeholder="name@college.edu"
+            :status="fieldState.email.touched && fieldState.email.error ? 'error' : undefined"
+            @focus="focusField('email')"
+            @blur="blurField('email')"
+            @input="runFieldValidation('email')"
           >
             <template #prefix>
               <n-icon><MailOutline /></n-icon>
             </template>
           </n-input>
+          <small
+            v-if="fieldState.email.touched && fieldState.email.error"
+            class="field-hint error"
+          >
+            {{ fieldState.email.error }}
+          </small>
         </div>
 
         <div
           v-if="loginMode === 'password'"
           class="form-block"
+          :class="{ invalid: fieldState.password.touched && fieldState.password.error, shake: fieldState.password.shaking }"
         >
           <div class="label-row">
             <label>密码</label>
@@ -186,11 +260,21 @@ onBeforeUnmount(() => {
             size="large"
             placeholder="请输入密码"
             show-password-on="click"
+            :status="fieldState.password.touched && fieldState.password.error ? 'error' : undefined"
+            @focus="focusField('password')"
+            @blur="blurField('password')"
+            @input="runFieldValidation('password')"
           >
             <template #prefix>
               <n-icon><LockClosedOutline /></n-icon>
             </template>
           </n-input>
+          <small
+            v-if="fieldState.password.touched && fieldState.password.error"
+            class="field-hint error"
+          >
+            {{ fieldState.password.error }}
+          </small>
         </div>
 
         <div
@@ -220,7 +304,7 @@ onBeforeUnmount(() => {
 
         <button
           class="cf-primary-btn submit-btn"
-          :disabled="loading"
+          :disabled="loading || !canSubmit"
           @click="handleLogin"
         >
           <n-icon size="16">
@@ -400,6 +484,41 @@ onBeforeUnmount(() => {
     font-size: 14px;
     font-weight: 700;
     color: var(--cf-text-primary);
+  }
+
+  &.invalid {
+    :deep(.n-input) {
+      --n-border: 1px solid var(--cf-danger) !important;
+      --n-border-hover: 1px solid var(--cf-danger) !important;
+      --n-border-focus: 1px solid var(--cf-danger) !important;
+      --n-box-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--cf-danger) 18%, transparent) !important;
+    }
+  }
+
+  &.shake {
+    animation: field-shake 0.48s ease;
+  }
+}
+
+.field-hint {
+  min-height: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+
+  &.error {
+    color: var(--cf-danger);
+  }
+}
+
+@keyframes field-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20%, 60% {
+    transform: translateX(-4px);
+  }
+  40%, 80% {
+    transform: translateX(4px);
   }
 }
 

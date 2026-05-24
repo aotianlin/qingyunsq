@@ -236,6 +236,17 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- CryptoUtils 静态初始化要求 app.crypto.key 必须存在；
+                         测试用固定的 32 字节 base64 key（仅用于测试，绝不要用于生产）。 -->
+                    <systemPropertyVariables>
+                        <app.crypto.key>AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=</app.crypto.key>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

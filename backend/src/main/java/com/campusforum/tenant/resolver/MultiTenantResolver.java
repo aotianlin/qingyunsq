@@ -70,8 +70,13 @@ public class MultiTenantResolver implements TenantResolver {
                 long userId = StpUtil.getLoginIdAsLong();
                 String detail = "session=" + sessionTenantId
                         + " subdomain=" + subdomain.tenantId();
+                // 适配 main 分支扩展后的 7 参签名（uri / method / ipAddress 由调用方提取）：
+                String uri = request.getRequestURI();
+                String method = request.getMethod();
+                String ipAddress = com.campusforum.tenant.audit.TenantAuditService.resolveClientIp(request);
                 tenantAuditService.recordViolationAttempt(
-                        userId, sessionTenantId, request,
+                        userId, sessionTenantId,
+                        uri, method, ipAddress,
                         "session_subdomain_mismatch", detail);
                 securityMetrics.tenantViolation("session_subdomain_mismatch");
                 throw new TenantNotResolvedException(
