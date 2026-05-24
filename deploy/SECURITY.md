@@ -17,6 +17,7 @@
 | `MEILI_MASTER_KEY` | MeiliSearch 主密钥 | 32+ 位随机串 |
 | `SIGNED_URL_SECRET` | 资源下载/预览签名 URL 的 HMAC 密钥（高强度） | 64+ 位随机串 |
 | `WS_ALLOWED_ORIGINS` | 允许连接 WebSocket 的来源（CSWSH 防御） | `https://campus.example.edu` |
+| `SPRINGDOC_ENABLED` | Knife4j / OpenAPI 文档开关，**生产必须设置为 `false`**（默认即 false） | `false` |
 
 可选但强烈建议设置：
 
@@ -26,10 +27,37 @@
 | `EMAIL_FROM` / `RESET_LINK_BASE` | localhost https | 改为本校真实域名（https） |
 | `OFFICE_PREVIEW_URL` | `http://localhost:8012/onlinePreview` | 内网 kkfileview 地址 |
 
+> **配置之外的运维约定**：
+> - **Token 持久化 = Redis（Sa-Token tik 风格 token）**，**并非 JWT 模式**——历史 `JWT_SECRET` / `SA_TOKEN_JWT_SECRET_KEY` 是死配置，已从 `docker-compose.yml` 移除；详见 §1.1。
+> - 实际守护 token → loginId 映射的密钥是 `REDIS_PASSWORD`，请按 §1.1 中的运维操作清单执行检查与轮转。
+> - **Knife4j / OpenAPI 文档双重屏蔽（漏洞 2，security-audit-hardening T2.2/T2.4）**：生产部署必须保证 `SPRINGDOC_ENABLED=false`（应用层默认即 `false`，由 `application.yml` 的 `springdoc.api-docs.enabled` / `springdoc.swagger-ui.enabled` 共同控制）；同时 `deploy/nginx/nginx.conf` 已在 `server` 块内对 `/swagger-ui|v3/api-docs|swagger-resources|doc.html|webjars` 路径返回 404，作为边缘纵深防御。即便运维误开启应用层开关，外部仍无法读取接口契约。
+
+### 1.1 Token 持久化方式说明（澄清 Sa-Token 当前并非 JWT 模式）
+
+为了避免运维基于"用了 Sa-Token = 必然有 JWT"的惯性误判而产生**虚假安全感**，特别澄清：
+
+| 项 | 当前实现 | 备注 |
+|---|---|---|
+| Sa-Token 模式 | Redis 持久化 + `token-style: tik` 风格随机串 | 详见 `application.yml#sa-token` 块顶部注释 |
+| 是否使用 JWT | **否**，未引入 `sa-token-jwt` 依赖 | 见 `backend/pom.xml`，`application.yml` 中也无 `sa-token.jwt-secret-key` 配置 |
+| token → loginId 映射存放位置 | Redis（key 前缀 `satoken:*`） | 由 `sa-token-redis-jackson` 序列化 |
+| 实际守护 token 不被伪造的密钥 | `REDIS_PASSWORD` | Redis 凭证泄漏即等同于全站会话窃取 |
+| 历史 ENV `SA_TOKEN_JWT_SECRET_KEY` / `JWT_SECRET` | **死配置**，已从 `deploy/docker-compose.yml` 与 `deploy/.env.example` 中移除 | Sa-Token 在未引入 jwt 模块时不会读取这两个变量 |
+
+**对应运维操作**：
+
+1. 检查现存 `.env` / Secret Manager 中是否仍有 `JWT_SECRET=` 或 `SA_TOKEN_JWT_SECRET_KEY=`，若存在请直接删除——保留它会让自动化巡检工具误判"密钥在管"。
+2. 重点轮转 `REDIS_PASSWORD`：满足 ≥ 16 字节随机串、定期轮转，并限制 Redis 仅监听 docker 内网。
+3. 若未来计划切换为 Sa-Token JWT 模式（即引入 `sa-token-jwt` 依赖并填写 `sa-token.jwt-secret-key`），**必须先做密钥轮转计划**：
+   - 至少准备一对新旧密钥的灰度切换窗口；
+   - 在 `SecurityStartupValidator` 中追加对 `jwt-secret-key` 的长度（≥ 32 字节）与默认值校验；
+   - 在切换日通过 `StpUtil.logoutByLoginId` 强制全员重新登录，避免新旧 token 混用。
+
 ## 2. 安全相关默认值速查
 
 | 项 | 默认 | 修改入口 |
 |---|---|---|
+| Sa-Token Token 持久化 | Redis（Sa-Token tik 风格 token，非 JWT 模式） | `sa-token.token-style` + `sa-token-redis-jackson`；详见 §1.1 |
 | Sa-Token token 总有效期 | 7 天（604800s） | `sa-token.timeout` |
 | Sa-Token 闲置过期 | 4 小时（14400s） | `sa-token.active-timeout` |
 | 登录失败锁定 | 5 次 / 15 分钟窗口，锁 15 分钟 | `security.login-lockout.*` |
@@ -229,3 +257,121 @@ UPLOAD_REAL_MIME_CHECK=false docker compose up -d app
 - `ws_ticket_issued_total` / `ws_legacy_token_used_total`：用于决定何时切 `WS_TICKET_ENFORCED=true`
 
 > 完整审计与设计细节参见 [`.kiro/specs/security-hardening/`](../.kiro/specs/security-hardening/)（包含 bugfix.md 缺陷清单、design.md 设计文档、tasks.md 实施记录）。
+
+
+---
+
+## 9. 2026-06-01 安全加固（security-audit-hardening spec）
+
+> 本节记录第三轮安全审计后实施的 32 项加固变更，覆盖凭证管理、文档暴露、会话生命周期、文件存储一致性、限流暴力破解、多租户隔离、AI/SSRF、XSS / 输入净化、监控审计 9 个主题。spec 文件：[`.kiro/specs/security-audit-hardening/`](../.kiro/specs/security-audit-hardening/)。
+
+### 9.1 部署前必读清单
+
+按以下顺序执行：
+
+#### 步骤 1：应用本轮新增的数据库迁移
+
+```bash
+mysql -u $MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE \
+  < db/migrations/V20260601_02__messages_ai_risk_level.sql
+mysql -u $MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE \
+  < db/migrations/V20260601_04__audit_log_extend.sql
+mysql -u $MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE \
+  < db/migrations/V20260601_05__resources_legacy_md5.sql
+mysql -u $MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE \
+  < db/migrations/V20260601_06__sensitive_word_regex.sql
+```
+
+⚠️ 业务影响：
+- `V20260601_02`（messages.ai_risk_level）默认 0，对存量私信无影响
+- `V20260601_04`（audit_logs.user_agent + 索引）仅新增字段
+- `V20260601_05`（resources.file_md5 标 deprecated）仅注释变更
+- `V20260601_06`（sensitive_words 增加 regex 列）仅新增字段
+
+#### 步骤 2：补齐本轮"新必填 / 推荐"环境变量
+
+| 变量 | 说明 | 推荐生成 |
+|---|---|---|
+| `SPRINGDOC_ENABLED` | Knife4j / OpenAPI 文档开关，**生产必须 `false`** | `false` |
+| `WS_TICKET_ENFORCED` | WS 票据强制；先按 false 部署一周观察，再切 true | `false`（灰度后 → `true`） |
+
+可选但强烈建议：
+
+| 变量 | 默认 | 建议 |
+|---|---|---|
+| `CRYPTO_LEGACY_CUTOVER_DATE` | `2026-09-01` | 旧 ECB 密文清理截止；过期 + 仍有遗留即抛 |
+| `WS_TICKET_ENFORCED_CUTOVER_DATE` | `2026-07-01` | WS legacy token 清理截止；过期 + enforced=false 即抛 |
+
+#### 步骤 3：边缘冒烟
+
+```bash
+BASE_URL=https://your-campus.edu deploy/scripts/security-smoke.sh
+```
+
+期望：所有用例 PASS。WS legacy token query 用例需 `TEST_WS_LEGACY_TOKEN=1` 才执行（仅在 `WS_TICKET_ENFORCED=true` 灰度生效后启用）。
+
+### 9.2 主要加固项速查
+
+| 主题 | 加固内容 | 配置入口 / 关键代码 |
+|---|---|---|
+| 凭证 | `CryptoUtils` 收缩为 package-private `EcbCryptoUtils`，仅 `decrypt`，禁回退原文 | `infra.security.crypto.legacy` |
+| 凭证 | `SecurityStartupValidator` prod 严格阻断（master-key / signed-url-secret / Redis 强度 + ws/crypto cutover 校验） | `security.crypto.*` `security.ws-ticket.*` |
+| 凭证 | `application*.yml` 删除 `signed-url-secret` / `master-key` 字面默认 | `application.yml` |
+| 文档 | `DocAccessFilter` 应用层 + nginx 边缘双重屏蔽 swagger / api-docs / webjars | `infra.security.DocAccessFilter`、`deploy/nginx/nginx.conf` |
+| 会话 | `changePassword` / `resetPassword` 调用 `invalidateAllSessions` 全踢下线 | `user.service.UserService` |
+| 会话 | WS query 参数 URL decode + legacy token metrics + 限频 WARN | `tenant.websocket.TenantHandshakeInterceptor` |
+| 文件 | `StorageService` 接口签名扩 `size` + `issuePublicGetUrl`；MinIO 用 `statObject` 回查 size | `infra.StorageService*` |
+| 文件 | `MimeTypeValidator` 严格化（黑名单 + 拒绝未注册扩展名 + 不传 Tika 文件名 hint） | `resource.service.MimeTypeValidator` |
+| 文件 | `assertHostAllowed` 默认从 `self-hosts` 推导，空名单语义反转为"仅本站存储域名" | `user.service.UserService#assertHostAllowed` |
+| 限流 | `RouteTemplateExtractor` + `RateLimitInterceptor` 改用路由模板，模板缺失兜底减半 | `infra.ratelimit.*` |
+| 限流 | overrides 配置高成本端点配额（messages/posts-detail/preview/download/export） | `application.yml#rate-limit.overrides` |
+| 限流 | `EmailVerificationCodeService` Redis 异常 fail-closed + 常量时间比较 + IP 维度计数 | `user.service.EmailVerificationCodeService` |
+| 限流 | `PostViewDeduper` 浏览计数 SETNX 去重，30 分钟 TTL | `post.service.PostViewDeduper` |
+| 多租户 | `TenantStartupValidator` 校验 `ignore-tables` schema 一致性 | `tenant.TenantStartupValidator` |
+| 多租户 | `MeiliSearchClient.search` 强制 tenantId filter；session vs subdomain 一致性校验 | `infra.search.*`、`tenant.MultiTenantResolver` |
+| AI / SSRF | `OpenAiCompatService` 解 Bean 化 + `TenantAwareAiService` 客户端缓存 + fail-loud | `ai.service.*` |
+| AI / SSRF | `SafeHttpClient` 禁用自动 redirect + connect 阶段二次校验 host | `infra.security.SafeHttpClient` |
+| XSS | `HtmlSanitizerService` + `TextNormalizer` + `MarkdownEscaper` 三件套；业务侧接入帖子/评论/私信/引用 | `infra.sanitize.*` |
+| XSS | `SearchService.searchUsers` 字段收紧 + `PublicUserVO` 字段审计 | `search.service.SearchService` |
+| XSS | `SensitiveWordService.getRiskLevel` 接入归一化 + 正则 | `sensitive.service.SensitiveWordService` |
+| 数据 | 私信 `messages.ai_risk_level` 风险等级落库 | `message.service.MessageService` |
+| 数据 | 导出权限拆分 4 端点 + PII 脱敏 + `MAX_ROWS=50_000`；`fullPii=true` 仅 SUPER_ADMIN | `admin.export.ExportController` / `ExportService` |
+| 数据 | Admin DTO 化（`ChangeRoleRequest` / `BatchUpdateUserStatusRequest` / `SendMessageRequest`） | `admin.dto.*` |
+| 数据 | Nickname 字符白名单（DTO 层） | `user.dto.*` |
+| 监控 | `SecurityMetrics` 集中埋点 9 个 Counter；prometheus exposure + nginx 仅内网放行 `/actuator/prometheus` | `infra.metrics.SecurityMetrics`、`deploy/nginx/nginx.conf` |
+| 审计 | `AuditContext` + 5 参重载，异步线程不再依赖 RequestContextHolder | `infra.audit.*` |
+| 审计 | `MdcTraceIdFilter` + logback pattern `[traceId tenantId userId]` | `infra.web.MdcTraceIdFilter` |
+| 异常 | `TenantContextMissingException` 替代字符串匹配；`ErrorCode` 扩展 `TENANT_MISMATCH` / `DOC_ACCESS_DENIED` / `EXPORT_FORBIDDEN` / `WEAK_CONFIG` | `tenant.TenantContextMissingException`、`common.ErrorCode` |
+
+
+### 9.3 灰度日历与紧急回滚
+
+| 名称 | Cutover 默认日期 | 行为 |
+|---|---|---|
+| `crypto.legacy-cutover-date` | `2026-09-01` | 过期且仍有 v1 ECB 密文 → 启动期校验抛错 |
+| `ws-ticket.enforced-cutover-date` | `2026-07-01` | 过期且 `WS_TICKET_ENFORCED=false` → 启动期校验抛错 |
+
+紧急回滚开关（已有，仍然支持）：
+
+```bash
+# 旧 ECB 加密密文解密链路出问题
+CRYPTO_LEGACY_MODE=true docker compose up -d app
+# Tika MIME 检测误伤合法上传
+UPLOAD_REAL_MIME_CHECK=false docker compose up -d app
+# Springdoc 必须临时打开（仅运维内网调试）
+SPRINGDOC_ENABLED=true docker compose up -d app
+```
+
+### 9.4 监控指标（SecurityMetrics）
+
+| 指标 | 含义 | 告警阈值建议 |
+|---|---|---|
+| `crypto_decrypt_legacy_total{tenantId=...}` | 旧 ECB 解密计数 | 持续递减；cutover 日前应 = 0 |
+| `crypto_decrypt_failed_total` | 解密失败 | > 0 即告警 |
+| `ssrf_blocked_total{stage=...}` | SSRF 拦截 | 出现非 0 即告警（潜在攻击） |
+| `mime_mismatch_total{ext=...,detected=...}` | MIME 不一致 | 趋势观察，突发尖峰即告警 |
+| `login_lockout_503_total` | 登录 fail-closed 503 | = Redis 异常次数；持续非 0 即基础设施告警 |
+| `ws_legacy_token_used_total` | WS 旧 token 使用 | 灰度收尾后应 = 0，再切 `WS_TICKET_ENFORCED=true` |
+| `tenant_violation_total{reason=...}` | 跨租户违规 | 出现非 0 即告警（潜在越权） |
+| `rate_limit_429_total{routeTemplate=...}` | 限流命中 | 趋势观察 |
+| `session_forced_logout_total{action=...}` | 敏感凭证变更后强制下线 | 与 PASSWORD_CHANGE / RESET 业务量对账 |

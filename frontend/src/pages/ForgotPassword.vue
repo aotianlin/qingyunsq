@@ -103,9 +103,10 @@ async function handleReset() {
   }
   loading.value = true;
   try {
+    // 重置密码：成功后由 auth.ts 内部 helper 自动 logout + 跳转 /login，
+    // 这里仅保留 toast 提示，避免与 helper 内的 router.push 重复跳转
     await resetPassword(email.value.trim(), emailCode.value.trim(), newPassword.value);
     message.success('密码重置成功，请重新登录');
-    router.push('/login');
   } catch (error) {
     message.error(getErrorMessage(error));
     resetPasswordFields();

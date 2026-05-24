@@ -3,7 +3,9 @@ package com.campusforum.message.controller;
 import cn.dev33.satoken.stp.StpUtil;
 import com.campusforum.common.R;
 import com.campusforum.message.dto.MessageVO;
+import com.campusforum.message.dto.SendMessageRequest;
 import com.campusforum.message.service.MessageService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,13 +19,18 @@ public class MessageController {
 
     private final MessageService messageService;
 
+    /**
+     * 发送私信。
+     *
+     * <p>对应 bugfix.md 漏洞 17 / T8.7：改用 {@link SendMessageRequest} + {@code @Valid}
+     * 替代原 {@code Map<String, String>} 接收方式，receiverId 缺失 / content 超长 /
+     * imageUrl 非 http(s) 协议在 controller 层就被 Bean Validation 拦截。</p>
+     */
     @PostMapping
-    public R<MessageVO> send(@RequestBody Map<String, String> body) {
+    public R<MessageVO> send(@Valid @RequestBody SendMessageRequest req) {
         long senderId = StpUtil.getLoginIdAsLong();
-        long receiverId = Long.parseLong(body.get("receiverId"));
-        String content = body.get("content");
-        String imageUrl = body.get("imageUrl");
-        return R.ok(messageService.send(senderId, receiverId, content, imageUrl));
+        return R.ok(messageService.send(
+                senderId, req.getReceiverId(), req.getContent(), req.getImageUrl()));
     }
 
     @GetMapping("/conversations")

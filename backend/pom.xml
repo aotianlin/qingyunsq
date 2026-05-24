@@ -47,6 +47,15 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!--
+            Micrometer Prometheus Registry：用于将 SecurityMetrics 中的安全
+            Counter 指标通过 /actuator/prometheus 端点暴露给监控系统
+            （bugfix.md 漏洞 32：监控埋点缺失）。
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
@@ -173,6 +182,15 @@
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>1.19.8</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Property-Based Testing：jqwik 提供 @Property + @ForAll，
+             用于 security-audit-hardening 的 TPBT.1（Sanitizer 安全 + 幂等）。
+             jqwik 自带独立的 JUnit Platform engine，与 jupiter 并存运行。 -->
+        <dependency>
+            <groupId>net.jqwik</groupId>
+            <artifactId>jqwik</artifactId>
+            <version>1.8.5</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -1,4 +1,17 @@
 # ===== 生产环境配置 (Docker) =====
+# ⚠️ 本文件不允许任何字面密钥默认值：所有密钥（signed-url-secret、crypto.master-key、
+#    redis password、minio access/secret、meilisearch master-key 等）必须通过
+#    ENV / Secret Manager 注入，禁止以 "${VAR:default}" 形式提供任何兜底字面量。
+#    一旦发现 ":default" 兜底密钥即视为代码评审违规。
+#
+# ⚠️ API 文档暴露（漏洞 2 / T2.3）：本文件刻意 *不* 声明 springdoc 配置，
+#    继承 application.yml 的默认值（springdoc.api-docs.enabled / swagger-ui.enabled
+#    由 SPRINGDOC_ENABLED 控制，缺省 false）。**切勿在 prod 环境通过设置
+#    ENV `SPRINGDOC_ENABLED=true` 暴露 swagger / api-docs**：即便误开启，
+#    DocAccessFilter 仍会基于 active profile 与来源 IP 静默 404 兜底，
+#    nginx 层也会 return 404，但这种"靠 Filter 拦截"的姿势属于配置弱点，
+#    一旦同时绕过两层防线即直接泄漏全量 API 契约。
+#
 # 注意：以下凭证必须通过环境变量提供。一旦留空（默认值为空），Spring 启动会因占位符无法解析而失败，
 # 强制运维不得使用任何弱默认值。以下变量都没有 ":default" 兜底。
 #

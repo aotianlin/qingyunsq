@@ -100,10 +100,17 @@ class WebSocketHandshakeIT {
         }
 
         @Bean
+        public com.campusforum.infra.metrics.SecurityMetrics securityMetrics() {
+            return new com.campusforum.infra.metrics.SecurityMetrics(
+                    new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+        }
+
+        @Bean
         public TenantHandshakeInterceptor tenantHandshakeInterceptor(
                 com.campusforum.infra.security.WsTicketService wsTicketService,
-                com.campusforum.infra.security.SecurityProperties props) {
-            return new TenantHandshakeInterceptor(wsTicketService, props);
+                com.campusforum.infra.security.SecurityProperties props,
+                com.campusforum.infra.metrics.SecurityMetrics securityMetrics) {
+            return new TenantHandshakeInterceptor(wsTicketService, props, securityMetrics);
         }
 
         @Bean
@@ -118,10 +125,17 @@ class WebSocketHandshakeIT {
 
         @Override
         public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-            // 由 Spring 注入的 interceptor bean 通过 ApplicationContextAware 获取，
-            // 这里走 lookup-by-type 风格在 registry 中注册
+            // 修复：原来通过 context.getBean(...) 获取 interceptor，
+            // 但 registerWebSocketHandlers() 在 Spring 容器 refresh 阶段被调用，
+            // 此时 @BeforeAll 的 app.run() 尚未返回，static context 仍为 null，
+            // 直接 NPE。改为复用上面已经定义的 @Bean 链路：手动构造一份
+            // SecurityProperties + WsTicketService + SecurityMetrics 即可。
+            com.campusforum.infra.security.SecurityProperties p = securityProperties();
+            com.campusforum.infra.security.SignedUrlService sus = signedUrlService(p);
+            com.campusforum.infra.security.WsTicketService wts = wsTicketService(sus, p);
+            com.campusforum.infra.metrics.SecurityMetrics sm = securityMetrics();
             registry.addHandler(testHandler(), "/ws/notify")
-                    .addInterceptors(context.getBean(TenantHandshakeInterceptor.class))
+                    .addInterceptors(new TenantHandshakeInterceptor(wts, p, sm))
                     .setAllowedOrigins("*");
         }
     }

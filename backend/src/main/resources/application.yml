@@ -51,6 +51,18 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
 
+# ===== Sa-Token 配置 =====
+# 当前模式：Redis 持久化 + tik 风格随机 token，未启用 JWT
+# token-style: tik，token 由服务端生成的随机串（非 JWT），
+# 通过 sa-token-redis-jackson 持久化到 Redis（key 前缀 satoken:*）。
+# token 强度依赖 Sa-Token UUID 风格随机串（128 bit），不依赖任何对称密钥；
+# 实际守护 token → loginId 映射不被伪造的密钥是 Redis 凭证（REDIS_PASSWORD）。
+# 因此环境变量 SA_TOKEN_JWT_SECRET_KEY 在当前版本是死配置，已从 deploy/docker-compose.yml 移除；
+# 详见 deploy/SECURITY.md §1.1。
+# 如未来切换 JWT，需要：
+#   1. 引入 sa-token-jwt 依赖
+#   2. 设置 sa-token.jwt-secret-key 并通过 SecurityStartupValidator 校验长度 ≥ 32 字节
+#   3. 制定密钥轮转计划（旧 token 在轮转期需要继续可被验证一段时间，避免新旧 token 混用）
 sa-token:
   token-name: Authorization
   # 7 天总有效期（原 30 天 + active-timeout=-1 在 token 泄漏后影响过大）
@@ -182,6 +194,36 @@ rate-limit:
     "[POST /api/v1/resources]":
       max-requests: 10
       window-seconds: 60
+    # ===== 高成本端点（T5.3，对应 bugfix.md 漏洞 7 / 13 / 16） =====
+    # 私信端点（漏洞 16）：单用户每分钟 30 条，避免被滥用做骚扰 / 群发
+    "[POST /api/v1/messages]":
+      max-requests: 30
+      window-seconds: 60
+    # 帖子详情（漏洞 7）：T5.2 切换到路由模板共享桶后，单端点配额 120/min
+    "[GET /api/v1/posts/{id}]":
+      max-requests: 120
+      window-seconds: 60
+    # 资源下载（漏洞 7）：path variable 端点 + 流量较大，限制 30/min
+    "[GET /api/v1/resources/{id}/download]":
+      max-requests: 30
+      window-seconds: 60
+    # 资源预览（漏洞 7）：30/min，与下载保持一致避免预览成为绕过通道
+    "[GET /api/v1/resources/{id}/preview]":
+      max-requests: 30
+      window-seconds: 60
+    # 后台导出端点（漏洞 13，与 T8.6 拆分后的 4 个权限端点一一对应）：1/min
+    "[POST /api/v1/admin/export/users]":
+      max-requests: 1
+      window-seconds: 60
+    "[POST /api/v1/admin/export/posts]":
+      max-requests: 1
+      window-seconds: 60
+    "[POST /api/v1/admin/export/audit]":
+      max-requests: 1
+      window-seconds: 60
+    "[POST /api/v1/admin/export/reports]":
+      max-requests: 1
+      window-seconds: 60
 
 # ---------- 邮件配置 ----------
 email:
@@ -201,7 +243,10 @@ security:
     - 10.0.0.0/8
     - 172.16.0.0/12
     - 192.168.0.0/16
-  signed-url-secret: ${SIGNED_URL_SECRET:campus-forum-default-signed-url-secret-please-override}
+  # 签名 URL HMAC 密钥（≥ 32 字节随机串），无字面默认值；
+  # dev profile 由 application-dev.yml 提供 dev-only 默认值；
+  # prod 必须通过 SIGNED_URL_SECRET 环境变量覆盖，否则 SecurityStartupValidator 阻止启动（漏洞 3）。
+  signed-url-secret: ${SIGNED_URL_SECRET:}
   signed-url-ttl-seconds: 60
   ai-base-url-block-private-network: true
   login-lockout:
@@ -211,10 +256,16 @@ security:
     lockout-seconds: 300
     ip-max-failures: 20
     ip-lockout-seconds: 900
-  # AES-GCM 主密钥；开发环境提供一个 64 字节默认占位，生产必须通过 ENV 覆盖
+  # AES-GCM 主密钥（≥ 32 字节随机串），无字面默认值；
+  # dev profile 由 application-dev.yml 提供 dev-only 默认值；
+  # prod 必须通过 CRYPTO_MASTER_KEY 环境变量覆盖，否则 SecurityStartupValidator 阻止启动（漏洞 1/3）。
   crypto:
-    master-key: ${CRYPTO_MASTER_KEY:dev-only-change-me-please-32bytes-minimum-aes-gcm-master-key-1234}
+    master-key: ${CRYPTO_MASTER_KEY:}
     legacy-mode: false
+    # v1 ECB 兼容期截止日期（漏洞 1）：到期后 SecurityStartupValidator 在 prod profile
+    # 强制要求关闭 legacy-mode（CRYPTO_LEGACY_MODE=false），否则拒绝启动；
+    # dev profile 由 application-dev.yml 覆盖为远未来日期，避免本地复现 cutover 路径。
+    legacy-cutover-date: 2026-09-01
   # CORS 允许的前端来源，生产必填
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
@@ -227,11 +278,55 @@ security:
   upload:
     real-mime-check: true
     blocked-extensions: []
+    # 全局 MIME 黑名单（漏洞 24）：Tika 实测出的真实 MIME 命中即拒绝上传，
+    # 优先于扩展名白名单生效，防御 "PHP 木马改名 .png" 等绕过路径。
+    # 列表覆盖常见可执行 / 脚本类型；如需扩展由运维在 ENV 或 application-prod.yml 追加。
+    blocked-mime-types:
+      - application/x-php           # PHP 源码
+      - application/x-msdownload    # Windows PE 可执行
+      - application/x-msdos-program # DOS / .com 可执行
+      - application/x-bat           # Windows 批处理
+      - application/x-sh            # Unix shell 脚本
+      - text/x-php                  # PHP 文本变体
+      - text/x-script.python        # Python 脚本
+      - application/x-executable    # Linux ELF / 通用可执行
     # 头像 / 封面 URL 域名白名单，缺省允许本站存储域名（开发空，生产必填）
     allowed-asset-hosts: ${ALLOWED_ASSET_HOSTS:}
+    # 本站对象存储域名（漏洞 15）：从 storage.minio.endpoint 推导，
+    # 与 allowed-asset-hosts 合并作为头像/封面 URL 白名单；
+    # 此处仅放占位，dev/prod 各自通过 STORAGE_MINIO_ENDPOINT 实际覆盖。
+    self-hosts:
+      - ${STORAGE_MINIO_ENDPOINT:}
   ws-ticket:
     ttl-seconds: 30
     enforced: false
+    # WS legacy token 强制 cutover 日期（漏洞 8）：到期后 prod profile 拒绝以 enforced=false 启动，
+    # SecurityStartupValidator 抛 IllegalStateException 强制运维设置 WS_TICKET_ENFORCED=true；
+    # dev profile 由 application-dev.yml 覆盖为远未来日期，避免本地测试因日期触发任何路径。
+    enforced-cutover-date: 2026-07-01
+
+  # API 文档（Swagger / Knife4j / api-docs）暴露策略（漏洞 2）：
+  # 声明哪些 profile 允许暴露 swagger / api-docs；prod 不在列表内即被
+  # DocAccessFilter 静默 404，与 springdoc.api-docs.enabled / springdoc.swagger-ui.enabled
+  # 形成双重防御（运维误覆盖 SPRINGDOC_ENABLED=true 时仍由 Filter 兜底）。
+  docs:
+    enabled-profiles:
+      - dev
+      - test
+
+# ===== API 文档暴露开关（对应 bugfix.md 漏洞 2 / T2.3） =====
+# 双重防御策略（与 DocAccessFilter / nginx 配合）：
+#   1. springdoc.api-docs.enabled / swagger-ui.enabled 由 ENV SPRINGDOC_ENABLED 控制，
+#      默认 false：生产环境 ApplicationContext 根本不创建 swagger / api-docs endpoints；
+#   2. DocAccessFilter 在 Spring 层兜底：即使运维误开 SPRINGDOC_ENABLED=true，
+#      只要 active profile 不在 security.docs.enabled-profiles（默认 [dev, test]），
+#      或来源 IP 不在 trusted-proxies，请求都会被静默 404；
+#   3. nginx 层 location 配置 return 404 作为最外层兜底（详见 deploy/nginx/nginx.conf 与 TDEPLOY.1）。
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
 
 # ---------- WebSocket 跨域来源（生产用环境变量覆盖为前端域名） ----------
 ws:
@@ -242,7 +337,9 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        # 暴露 health 与 prometheus 端点；prometheus 用于 SecurityMetrics 安全
+        # 指标采集（bugfix.md 漏洞 32），由 nginx 仅对内网开放。
+        include: health,prometheus
   endpoint:
     health:
       show-details: never

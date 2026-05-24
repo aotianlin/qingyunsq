@@ -1,8 +1,9 @@
 package com.campusforum.infra.security.crypto;
 
-import com.campusforum.common.CryptoUtils;
+import com.campusforum.infra.metrics.SecurityMetrics;
 import com.campusforum.infra.security.CryptoException;
 import com.campusforum.infra.security.SecurityProperties;
+import com.campusforum.infra.security.crypto.legacy.LegacyEcbAccessor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -25,7 +26,8 @@ import java.util.Base64;
  *
  * <p>解密失败一律抛 {@link CryptoException}，绝不回退原文，避免攻击者借此探测明文残留。</p>
  *
- * <p>提供 {@link #decryptLegacyEcb(String)} 用于解密旧 {@link CryptoUtils} ECB 密文，
+ * <p>提供 {@link #decryptLegacyEcb(String, long)} 用于解密旧 ECB 密文（通过
+ * {@link LegacyEcbAccessor} 转发到包私有的 {@code EcbCryptoUtils}），
  * 仅在租户 AI 配置灰度迁移阶段调用，迁移完成后该方法将被删除。</p>
  */
 @Slf4j
@@ -47,10 +49,26 @@ public class CryptoService {
     /** HKDF salt 固定值，用于实现密钥分域；不同 purpose 派生不同子密钥。 */
     private static final byte[] HKDF_SALT = "campusforum-hkdf-salt".getBytes(StandardCharsets.UTF_8);
 
+    /**
+     * 旧 ECB 解密链路在调用方未提供 tenantId 时使用的占位值。
+     *
+     * <p>对应仅在 {@link #decryptLegacyEcb(String)} 兼容签名内部转发时使用，
+     * 监控 tag 上标记为 0 表示"未明确租户"，便于运维识别尚未迁移到新签名的
+     * 调用方并在 grafana 上单独排查。</p>
+     */
+    private static final long TENANT_UNSPECIFIED = 0L;
+
     private final SecretKeySpec masterKey;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public CryptoService(SecurityProperties props) {
+    /**
+     * 安全监控埋点组件（T9.1）。旧 ECB 解密入口在每次进入 legacy 分支时累加
+     * {@code crypto_decrypt_legacy_total} 计数，并在解密失败时累加
+     * {@code crypto_decrypt_failed_total}，便于评估迁移完成度。
+     */
+    private final SecurityMetrics securityMetrics;
+
+    public CryptoService(SecurityProperties props, SecurityMetrics securityMetrics) {
         String key = props.getCrypto().getMasterKey();
         if (key == null || key.isBlank()) {
             // SecurityStartupValidator 已经做了拦截，这里再防御一次以防有人直接 new
@@ -62,6 +80,7 @@ public class CryptoService {
         }
         // 仅取前 32 字节作为 AES-256 主密钥；HKDF 派生时使用全量字节作为 IKM
         this.masterKey = new SecretKeySpec(Arrays.copyOf(bytes, SUB_KEY_LENGTH), "AES");
+        this.securityMetrics = securityMetrics;
     }
 
     /**
@@ -132,15 +151,52 @@ public class CryptoService {
     }
 
     /**
-     * 兼容旧版 ECB 密文解密入口。仅供历史数据灰度迁移使用，迁移完成后删除。
+     * 兼容旧版 ECB 密文解密入口（带租户 tag 的主 API）。
+     *
+     * <p>对应 bugfix.md 漏洞 1 + 漏洞 32 的修复：</p>
+     * <ul>
+     *   <li>转发到包私有的 {@code EcbCryptoUtils}（通过 {@link LegacyEcbAccessor}
+     *       公开桥接），业务代码不再能直接看到旧密钥实现；</li>
+     *   <li>每次进入分支即累加 {@code crypto_decrypt_legacy_total{tenant_id=X}}
+     *       计数，运维可按租户评估迁移完成度，连续 N 天为 0 即视为可清理；</li>
+     *   <li>解密失败先累加 {@code crypto_decrypt_failed_total} 再抛出
+     *       {@link CryptoException}，绝不再回退原始密文。</li>
+     * </ul>
+     *
+     * @param ciphertext base64 编码的旧 ECB 密文
+     * @param tenantId   触发解密的租户 ID（用于 metrics tag 分桶）
+     * @return 解密后的明文
+     * @throws CryptoException 解密失败
      */
-    public String decryptLegacyEcb(String ciphertext) {
+    public String decryptLegacyEcb(String ciphertext, long tenantId) {
+        // 进入 legacy 分支即埋点，无论后续成功或失败都会被记录
+        securityMetrics.cryptoDecryptLegacy(tenantId);
         try {
-            return CryptoUtils.decrypt(ciphertext);
-        } catch (Exception e) {
-            log.error("Legacy ECB decrypt failed: {}", e.getClass().getSimpleName());
-            throw new CryptoException("旧密文解密失败");
+            return LegacyEcbAccessor.decrypt(ciphertext);
+        } catch (CryptoException e) {
+            // 失败统计独立 Counter，运维可基于失败率识别"密钥配置异常 / 历史
+            // 数据格式损坏 / 攻击者投毒"等异常情况
+            securityMetrics.cryptoDecryptFailed();
+            throw e;
         }
+    }
+
+    /**
+     * 兼容旧签名：未携带 tenantId 的解密入口。
+     *
+     * <p>本方法仅供尚未迁移到新签名的历史调用方临时使用，内部以
+     * {@link #TENANT_UNSPECIFIED}（0）作为占位 tag 转发到主 API，
+     * 并在每次调用时打印 WARN 日志提示调用方升级。</p>
+     *
+     * <p>新代码应直接调用 {@link #decryptLegacyEcb(String, long)} 并显式
+     * 传入 tenantId，便于运维在 grafana 上按租户维度评估迁移进度。</p>
+     *
+     * @deprecated 请改用 {@link #decryptLegacyEcb(String, long)} 并显式传入租户 ID
+     */
+    @Deprecated(forRemoval = true)
+    public String decryptLegacyEcb(String ciphertext) {
+        log.warn("decryptLegacyEcb 旧签名被调用：调用方未提供 tenantId，请尽快迁移到带 tenantId 的新签名");
+        return decryptLegacyEcb(ciphertext, TENANT_UNSPECIFIED);
     }
 
     /**

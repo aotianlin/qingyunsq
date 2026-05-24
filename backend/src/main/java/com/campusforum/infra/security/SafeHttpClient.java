@@ -22,6 +22,15 @@ import java.net.UnknownHostException;
  *
  * <p>注意：该方案不能 100% 杜绝 DNS 重绑定（连接阶段的解析与 prepareConnection 中的
  * 解析仍有微秒级时间差），但攻击窗口极小，对绝大多数实际攻击是有效防御。</p>
+ *
+ * <p><b>漏洞 23 修复（T7.4）：禁用自动 redirect</b>。原实现 RestTemplate 默认会自动
+ * 跟随 3xx 重定向，攻击者可借合法公网 host 返回 302 让客户端再请求私网地址
+ * （如 {@code Location: http://169.254.169.254/latest/meta-data/}），绕过
+ * {@code prepareConnection} 阶段的 host 校验。本工厂在每个连接上调用
+ * {@link HttpURLConnection#setInstanceFollowRedirects(boolean) setInstanceFollowRedirects(false)}，
+ * 让上层业务代码遇到 3xx 时立即得到 304/302 响应而不是跨主机自动跳转。
+ * 若某个合法外联确实需要跟随 redirect，可使用 {@link RedirectFollower}
+ * 工具手动 follow，每一跳都会重新走 host 校验。</p>
  */
 @Slf4j
 public final class SafeHttpClient {
@@ -40,6 +49,11 @@ public final class SafeHttpClient {
             protected void prepareConnection(HttpURLConnection connection, String httpMethod)
                     throws IOException {
                 super.prepareConnection(connection, httpMethod);
+                // 漏洞 23 修复：连接维度禁用自动 redirect，
+                // 避免 302 被攻击者借来跳到私网（云元数据地址 / DNS 重绑定后的内网 IP）。
+                // 本设置作用于每个连接实例，不影响 JVM 全局 HttpURLConnection.setFollowRedirects 的状态，
+                // 因此其他依赖默认 redirect 的代码路径不受波及。
+                connection.setInstanceFollowRedirects(false);
                 String host = connection.getURL().getHost();
                 assertHostNotPrivate(host);
             }

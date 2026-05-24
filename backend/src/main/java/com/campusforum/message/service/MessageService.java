@@ -3,10 +3,12 @@ package com.campusforum.message.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.infra.sanitize.HtmlSanitizerService;
 import com.campusforum.message.domain.Message;
 import com.campusforum.message.dto.MessageVO;
 import com.campusforum.message.mapper.MessageMapper;
 import com.campusforum.notify.websocket.SessionRegistry;
+import com.campusforum.sensitive.service.SensitiveWordService;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.mapper.UserMapper;
@@ -27,6 +29,20 @@ public class MessageService {
     private final UserMapper userMapper;
     private final SessionRegistry sessionRegistry;
     private final ObjectMapper objectMapper;
+    /**
+     * HTML 净化服务（任务 T8.3 / 漏洞 18）：私信内容写库前剥离 {@code <script>} /
+     * 事件处理属性 / {@code javascript:} 协议 URL，避免私信成为存储型 XSS 载体。
+     * 私信沿用与评论相同的 COMMENT_POLICY（仅格式化 + 链接）。
+     */
+    private final HtmlSanitizerService htmlSanitizerService;
+    /**
+     * 敏感词风险评级服务（任务 T8.10 / 漏洞 16）：私信写库前调用
+     * {@link SensitiveWordService#getRiskLevel(String)} 取 0/1/2 级别，
+     * 持久化为 {@code messages.ai_risk_level} 供后台风控筛选与统计。
+     * 注意：该等级不影响"是否拒绝写入"的策略决策（已由 sanitizer 兜底），
+     * 仅作为审计 / 处置维度。
+     */
+    private final SensitiveWordService sensitiveWordService;
 
     @Transactional
     public MessageVO send(Long senderId, Long receiverId, String content, String imageUrl) {
@@ -41,8 +57,16 @@ public class MessageService {
         Message msg = new Message();
         msg.setSenderId(senderId);
         msg.setReceiverId(receiverId);
-        msg.setContent(content);
+        // 漏洞 18 修复：私信写库前必须经 HTML 净化，避免攻击者通过私信投递 XSS 载荷
+        // 给目标用户（接收方在 IM 弹窗 / 通知面板渲染时也会触发同样风险）。
+        String sanitized = htmlSanitizerService.sanitizeMessage(content);
+        msg.setContent(sanitized);
         msg.setImageUrl(imageUrl);
+        // 任务 T8.10 / 漏洞 16：基于"已净化后的内容"评估风险等级，避免攻击者通过
+        // <script> 等危险 token 自带的字符触发误评（净化后 token 已被剥离）。
+        // getRiskLevel 内部已对原文做归一化（漏洞 27），同时对 null 做容错。
+        int riskLevel = sensitiveWordService.getRiskLevel(sanitized);
+        msg.setAiRiskLevel(riskLevel);
         msg.setIsRead(0);
         messageMapper.insert(msg);
 

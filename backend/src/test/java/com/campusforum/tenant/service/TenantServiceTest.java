@@ -1,5 +1,6 @@
 package com.campusforum.tenant.service;
 
+import com.campusforum.ai.service.TenantAwareAiService;
 import com.campusforum.infra.security.crypto.CryptoService;
 import com.campusforum.tenant.domain.Tenant;
 import com.campusforum.tenant.mapper.TenantMapper;
@@ -29,6 +30,14 @@ class TenantServiceTest {
 
     @Mock
     private CryptoService cryptoService;
+
+    /**
+     * security-audit-hardening T7.3 / 漏洞 12 引入：updateAiConfig 在写库后调用
+     * {@code tenantAwareAiService.evict(tenantId)} 主动清缓存。本测试 mock 之，
+     * 保证调用不会因为 null 引用 NPE。
+     */
+    @Mock
+    private TenantAwareAiService tenantAwareAiService;
 
     @InjectMocks
     private TenantService tenantService;

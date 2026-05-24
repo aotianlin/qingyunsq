@@ -18,7 +18,9 @@ import lombok.Data;
 @Data
 public class UpdateProfileRequest {
 
-    @Size(max = 64, message = "昵称最长 64 位")
+    @Size(max = 32, message = "昵称最长 32 位")
+    @Pattern(regexp = "^$|^[\\w\\u4e00-\\u9fa5\\- ]{1,32}$",
+            message = "昵称仅允许中英文 / 数字 / 下划线 / 连字符 / 空格")
     private String nickname;
 
     @Size(max = 500, message = "头像 URL 最长 500 位")

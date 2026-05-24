@@ -27,6 +27,13 @@ public enum ErrorCode {
     BATCH_SIZE_EXCEEDED(40008, "单次最多处理 100 条"),
     TENANT_NOT_RESOLVED(40010, "无法识别租户"),
     TENANT_NOT_FOUND(40011, "租户不存在或已停用"),
+    // === 安全加固扩展（任务 T9.5 / 漏洞 12、13、25） ===
+    /** 租户上下文不一致：例如 session 解析的 tenantId 与子域名解析不符。 */
+    TENANT_MISMATCH(40012, "租户上下文不一致"),
+    /** 接口文档不可访问：DocAccessFilter 拒绝外部访问 swagger / api-docs。 */
+    DOC_ACCESS_DENIED(40013, "接口文档不可访问"),
+    /** 无导出权限：ExportController 对 fullPii 等敏感导出做二次校验。 */
+    EXPORT_FORBIDDEN(40014, "无导出权限"),
     UNAUTHORIZED(40100, "未登录"),
     INVALID_CREDENTIALS(40101, "邮箱或密码错误"),
     FORBIDDEN(40300, "无权限"),
@@ -39,6 +46,8 @@ public enum ErrorCode {
     SEARCH_UNAVAILABLE(50002, "搜索服务暂不可用"),
     STORAGE_ERROR(50003, "文件存储异常"),
     CRYPTO_FAILURE(50010, "加密服务异常"),
+    /** 服务器配置不安全：SecurityStartupValidator 在 prod profile 命中弱默认值时使用。 */
+    WEAK_CONFIG(50011, "服务器配置不安全，请联系运维"),
     SERVICE_UNAVAILABLE(50301, "服务暂时不可用，请稍后重试"),
     TENANT_VIOLATION(51001, "租户数据隔离异常");
 

@@ -45,6 +45,11 @@ storage/
 # ===== Claude =====
 .claude/
 
+# 测试运行时副产物 — 不应入库
+backend/.jqwik-database
+backend/.full-test.log
+backend/_ust.log
+
 # ===== Misc =====
 # 误放在仓库根目录的 npm 锁文件（真正的锁文件在 frontend/）
 /package-lock.json

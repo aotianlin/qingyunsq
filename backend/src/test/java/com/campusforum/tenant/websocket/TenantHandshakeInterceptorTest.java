@@ -40,6 +40,7 @@ class TenantHandshakeInterceptorTest {
     private TenantHandshakeInterceptor interceptor;
     private WsTicketService wsTicketService;
     private SecurityProperties securityProperties;
+    private com.campusforum.infra.metrics.SecurityMetrics securityMetrics;
     private ServerHttpRequest request;
     private ServerHttpResponse response;
     private WebSocketHandler wsHandler;
@@ -57,7 +58,9 @@ class TenantHandshakeInterceptorTest {
         securityProperties = new SecurityProperties();
         // 默认未强制 ticket，允许兼容旧 token 路径
         securityProperties.getWsTicket().setEnforced(false);
-        interceptor = new TenantHandshakeInterceptor(wsTicketService, securityProperties);
+        securityMetrics = new com.campusforum.infra.metrics.SecurityMetrics(
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+        interceptor = new TenantHandshakeInterceptor(wsTicketService, securityProperties, securityMetrics);
         request = mock(ServerHttpRequest.class);
         response = mock(ServerHttpResponse.class);
         wsHandler = mock(WebSocketHandler.class);

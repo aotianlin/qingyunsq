@@ -30,7 +30,28 @@ fi
 if [ ! -f .env ]; then
     echo "[INFO] 未找到 .env 文件，正在从 .env.example 复制..."
     cp .env.example .env
-    echo "[WARN] 请编辑 .env 文件，按 deploy/SECURITY.md 修改默认密码和密钥后重新运行本脚本"
+
+    # ===== TDEPLOY.3：自动生成 SIGNED_URL_SECRET / CRYPTO_MASTER_KEY =====
+    # 仅当占位值仍含 "ChangeMe" / "please-generate" 时才覆盖；运维已手填的值不动。
+    if command -v openssl &>/dev/null; then
+        AUTO_SIGNED_URL_SECRET=$(openssl rand -base64 48 | tr -d '\n')
+        AUTO_CRYPTO_MASTER_KEY=$(openssl rand -base64 48 | tr -d '\n')
+        # 用 sed 替换"包含 ChangeMe 的行"，避免覆盖运维的真实配置
+        if grep -qE '^SIGNED_URL_SECRET=.*ChangeMe|^SIGNED_URL_SECRET=.*please-generate' .env; then
+            sed -i.bak "s|^SIGNED_URL_SECRET=.*$|SIGNED_URL_SECRET=${AUTO_SIGNED_URL_SECRET}|" .env
+            echo "[INFO] 已自动生成 SIGNED_URL_SECRET（48 字节随机串）"
+        fi
+        if grep -qE '^CRYPTO_MASTER_KEY=.*ChangeMe|^CRYPTO_MASTER_KEY=.*please-generate' .env; then
+            sed -i.bak "s|^CRYPTO_MASTER_KEY=.*$|CRYPTO_MASTER_KEY=${AUTO_CRYPTO_MASTER_KEY}|" .env
+            echo "[INFO] 已自动生成 CRYPTO_MASTER_KEY（48 字节随机串）"
+        fi
+        rm -f .env.bak
+    else
+        echo "[WARN] 未检测到 openssl，无法自动生成 SIGNED_URL_SECRET / CRYPTO_MASTER_KEY"
+        echo "        请手动生成并写入 .env 后再次运行：openssl rand -base64 48"
+    fi
+
+    echo "[WARN] 请编辑 .env 文件，按 deploy/SECURITY.md 修改其它默认密码（MySQL / Redis / MinIO / MeiliSearch 等）后重新运行本脚本"
     exit 0
 fi
 

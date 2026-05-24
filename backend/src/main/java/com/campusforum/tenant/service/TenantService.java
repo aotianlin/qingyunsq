@@ -1,13 +1,18 @@
 package com.campusforum.tenant.service;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.campusforum.ai.service.TenantAwareAiService;
 import com.campusforum.common.BusinessException;
-import com.campusforum.common.CryptoUtils;
 import com.campusforum.infra.security.crypto.CryptoService;
+import com.campusforum.tenant.cache.ActiveTenantCache;
 import com.campusforum.tenant.domain.Tenant;
 import com.campusforum.tenant.mapper.TenantMapper;
+import com.campusforum.user.domain.User;
+import com.campusforum.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +38,33 @@ public class TenantService {
 
     private final TenantMapper tenantMapper;
     private final CryptoService cryptoService;
+    /**
+     * 活跃租户缓存：toggleStatus 改写 status 后必须主动 evict，
+     * 否则本地 Caffeine 缓存仍持有旧记录，TenantResolutionFilter / MultiTenantResolver
+     * 会在 TTL 内继续把已停用租户当作"活跃"放行（对应 bugfix.md 漏洞 19）。
+     */
+    private final ActiveTenantCache activeTenantCache;
+    /**
+     * 用于在停用租户时枚举该租户全部活跃用户并逐个 kickout，
+     * 保证已经握在手里的 Sa-Token 立刻失效，不会在缓存 TTL 与 Sa-Token 总有效期内
+     * 形成"租户已停用 + token 仍可用"的会话残留窗口。
+     */
+    private final UserMapper userMapper;
+    /**
+     * 多租户感知的 AI 服务（持有按租户缓存的 OpenAI 客户端）。
+     *
+     * <p>{@link TenantAwareAiService} 内部又依赖 {@link TenantService}（用于
+     * {@code resolveAiCredentials}），如果走默认构造器注入会形成 Spring Bean
+     * 循环依赖。这里通过 {@link Lazy} 让 Spring 注入一个延迟代理，仅在第一次
+     * 真正调用方法（{@code updateAiConfig} 内部 evict）时才解析目标 Bean，
+     * 从而打破构造期循环。</p>
+     *
+     * <p>用途：在 {@link #updateAiConfig(Long, String, String, String, String)}
+     * 完成 DB 写入后立即调用 {@code evict(tenantId)}，确保下次 AI 调用
+     * 不会再使用旧配置缓存（对应 bugfix.md 漏洞 12 修复链路 T7.3）。</p>
+     */
+    @Lazy
+    private final TenantAwareAiService tenantAwareAiService;
 
     public List<Tenant> listAll(String keyword, Long cursor, int limit) {
         int size = Math.min(limit, 50);
@@ -80,15 +112,79 @@ public class TenantService {
         return tenant;
     }
 
+    /**
+     * 切换租户启用 / 停用状态。
+     *
+     * <p>对应 bugfix.md 漏洞 19（租户停用缓存未失效 + 已停用租户的活跃用户仍能继续访问）。
+     * 关键时序：<b>先 evict 缓存，再 kickout 用户</b> —— 这样即使 kickout 过程中
+     * 有用户正好发起请求，TenantResolutionFilter 也已经看到最新的 status=0
+     * 并直接拒绝，不会再放行任何调用进入业务层。</p>
+     *
+     * <ol>
+     *   <li>更新 DB 中 {@code tenants.status}（1 ↔ 0）；</li>
+     *   <li>立即调用 {@link ActiveTenantCache#evict(long, String)} 让 id / code
+     *       两个维度的本地缓存条目都失效，避免后续解析仍走旧数据；</li>
+     *   <li>仅当切换为停用（status=0）时枚举该租户全部活跃用户并调用
+     *       {@link StpUtil#kickout(Object)} 让其手中的 token 立即失效。
+     *       单个用户 kickout 失败不会影响其他用户与整体流程。</li>
+     * </ol>
+     */
     @Transactional
     public void toggleStatus(Long id) {
         Tenant tenant = tenantMapper.selectById(id);
         if (tenant == null) {
             throw new BusinessException(40000, "租户不存在");
         }
-        tenant.setStatus(tenant.getStatus() == 1 ? 0 : 1);
+        // 先在内存对象上算出新的状态，避免 evict 时 tenant.code 已被并发改写
+        int newStatus = tenant.getStatus() != null && tenant.getStatus() == 1 ? 0 : 1;
+        tenant.setStatus(newStatus);
         tenantMapper.updateById(tenant);
-        log.info("Tenant {} status changed to {}", id, tenant.getStatus());
+
+        // 漏洞 19 修复 step 1：状态变更后立即让缓存失效，
+        // 保证后续 resolve 不会再放行该租户（无论是停用还是重新启用都需要 evict，
+        // 启用场景下旧的"未命中"占位也需要清掉，让下一次解析重新加载）
+        activeTenantCache.evict(id, tenant.getCode());
+
+        // 漏洞 19 修复 step 2：仅在停用时把该租户全部活跃用户踢下线
+        if (newStatus == 0) {
+            kickoutTenantUsers(id);
+        }
+        log.info("Tenant {} status changed to {}", id, newStatus);
+    }
+
+    /**
+     * 枚举指定租户的活跃用户并逐个 kickout。
+     *
+     * <p>查询条件：{@code status=1 AND tenant_id=?}。
+     * 这里直接用显式 LambdaQueryWrapper 而不是依赖 MyBatis-Plus 的全局租户拦截器，
+     * 是因为 toggleStatus 的调用方通常是 SUPER_ADMIN 跨租户操作，
+     * 当前 TenantContext 不一定指向被停用的目标租户。</p>
+     *
+     * <p>单个 user 的 {@link StpUtil#kickout(Object)} 调用以 try-catch 包裹：
+     * 任何一个用户失败（比如 Redis 暂时抖动）都不会让循环中断，确保尽力把
+     * 能踢下线的全部踢掉，避免出现"前一半被踢、后一半残留"的不一致。</p>
+     */
+    private void kickoutTenantUsers(long tenantId) {
+        List<Long> userIds = userMapper.selectList(
+                        new LambdaQueryWrapper<User>()
+                                .eq(User::getStatus, 1)
+                                .eq(User::getTenantId, tenantId))
+                .stream()
+                .map(User::getId)
+                .toList();
+        int kickedCount = 0;
+        for (Long uid : userIds) {
+            try {
+                StpUtil.kickout(uid);
+                kickedCount++;
+            } catch (Exception ex) {
+                // 单个用户 kickout 失败不影响整体；保留 WARN 日志便于事后排查
+                log.warn("Kickout user {} failed during tenant {} disable: {}",
+                        uid, tenantId, ex.getMessage());
+            }
+        }
+        log.info("Kicked out {} active users from tenant {} (total candidates={})",
+                kickedCount, tenantId, userIds.size());
     }
 
     public Map<String, Object> getAiConfig(Long tenantId) {
@@ -96,25 +192,7 @@ public class TenantService {
         Map<String, Object> defaults = Map.of("provider", "mock", "baseUrl", "", "apiKey", "", "model", "");
         if (t == null || t.getAiConfig() == null) return defaults;
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            Map<String, Object> cfg = mapper.readValue(t.getAiConfig(), Map.class);
-
-            // 懒迁移：检测到旧 AES-ECB 密文 → 解密 → 用新 AES-GCM 重新加密 → 回写 DB。
-            // 单次代价：一次解密 + 一次加密 + 一次 update。失败不阻塞返回。
-            Object rawApiKey = cfg.get("apiKey");
-            if (rawApiKey instanceof String s && CryptoUtils.isLegacyFormat(s) && !s.isBlank()) {
-                try {
-                    String plain = CryptoUtils.decrypt(s);
-                    String reencrypted = CryptoUtils.encrypt(plain);
-                    cfg.put("apiKey", reencrypted);
-                    t.setAiConfig(mapper.writeValueAsString(cfg));
-                    tenantMapper.updateById(t);
-                    log.info("Migrated tenant {} apiKey from legacy ECB to AES-GCM", tenantId);
-                } catch (Exception e) {
-                    log.warn("Failed to migrate apiKey for tenant {}: {}", tenantId, e.getMessage());
-                }
-            }
-
+            Map<String, Object> cfg = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
             Map<String, Object> result = new HashMap<>(defaults);
             result.putAll(cfg);
             // 不回传明文 API Key：仅指示是否已配置，避免管理员页面网络面板/日志泄漏第三方密钥
@@ -155,7 +233,7 @@ public class TenantService {
             String enc = credentials.get("apiKey");
             if (enc != null && !enc.isBlank()) {
                 int version = parseEncVersion(cfg.get(ENC_VERSION_FIELD));
-                String plain = decryptApiKeyByVersion(enc, version);
+                String plain = decryptApiKeyByVersion(enc, version, tenantId);
                 credentials.put("apiKey", plain);
                 credentials.remove(ENC_VERSION_FIELD); // 内部 credentials map 不暴露版本字段
                 // 旧版本：触发异步重新加密为 v2，下次解密直接走新分支
@@ -169,12 +247,14 @@ public class TenantService {
     }
 
     /** 根据加密版本号选择解密路径。 */
-    private String decryptApiKeyByVersion(String enc, int version) {
+    private String decryptApiKeyByVersion(String enc, int version, Long tenantId) {
         if (version >= CURRENT_ENC_VERSION) {
             return cryptoService.decrypt(enc, CRYPTO_PURPOSE_AI);
         }
-        // v1 / 缺失：旧 ECB 解密
-        return cryptoService.decryptLegacyEcb(enc);
+        // v1 / 缺失：旧 ECB 解密。显式传入 tenantId 让 SecurityMetrics 能按租户分桶
+        // 评估迁移完成度（对应 bugfix.md 漏洞 1 + 漏洞 32）。
+        long tenantTag = tenantId != null ? tenantId : 0L;
+        return cryptoService.decryptLegacyEcb(enc, tenantTag);
     }
 
     private int parseEncVersion(Object raw) {
@@ -220,20 +300,15 @@ public class TenantService {
             }
         }
 
-        // Partial update：从旧配置起步，传入 null 的字段保留原值。
-        // 避免「前端只想改 baseUrl 但没传 apiKey，结果把 apiKey 清空」这种回归。
-        // cfg 用 Object 值类型，兼容 encVersion (int) 与其他字符串字段共存。
-        ObjectMapper mapper = new ObjectMapper();
+        // 在已存配置基础上做 merge，避免传 null 时清空已有字段（特别是 apiKey 留空表示"不修改"）
+        // cfg 用 Object 值类型，兼容 encVersion (int) 与其他字符串字段共存
         Map<String, Object> cfg = new LinkedHashMap<>();
         if (t.getAiConfig() != null && !t.getAiConfig().isBlank()) {
             try {
-                cfg.putAll(mapper.readValue(t.getAiConfig(), Map.class));
-            } catch (JsonProcessingException ignored) {
-                // 旧 cfg 损坏，从空 map 开始重建
-            }
+                Map<String, Object> existing = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
+                cfg.putAll(existing);
+            } catch (JsonProcessingException ignored) {}
         }
-
-
         if (provider != null) cfg.put("provider", provider);
         if (baseUrl != null) cfg.put("baseUrl", baseUrl);
         // apiKey 仅在显式提供且非空时才更新；空字符串视作"保留原值"
@@ -242,12 +317,17 @@ public class TenantService {
             cfg.put(ENC_VERSION_FIELD, CURRENT_ENC_VERSION);
         }
         if (model != null) cfg.put("model", model);
-
         try {
-            t.setAiConfig(mapper.writeValueAsString(cfg));
+            t.setAiConfig(new ObjectMapper().writeValueAsString(cfg));
         } catch (JsonProcessingException e) {
             throw new BusinessException(40000, "序列化 AI 配置失败");
         }
         tenantMapper.updateById(t);
+        // 漏洞 12 修复（T7.3）：配置变更后立即让 AI 客户端缓存失效，
+        // 否则 TenantAwareAiService 内 ConcurrentHashMap 仍持有按旧 (baseUrl|apiKey|model)
+        // 指纹建好的 OpenAiCompatService，下一次调用会继续走旧上游 / 旧 key，
+        // 直到下一次进程重启或指纹自然变化才会替换。这里把 evict 放在 updateById 之后，
+        // 保证后续无论是同步还是异步触达 delegate() 都能命中最新指纹路径并重建客户端。
+        tenantAwareAiService.evict(tenantId);
     }
 }

@@ -2,7 +2,7 @@ package com.campusforum.report.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.dev33.satoken.stp.StpUtil;
-import com.campusforum.admin.service.AuditLogService;
+import com.campusforum.infra.audit.AuditLogService;
 import com.campusforum.common.R;
 import com.campusforum.report.dto.ReportVO;
 import com.campusforum.report.service.ReportService;

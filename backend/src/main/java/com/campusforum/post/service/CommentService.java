@@ -5,6 +5,7 @@ import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
 import com.campusforum.achievement.service.AchievementService;
 import com.campusforum.notify.service.NotifyService;
+import com.campusforum.infra.sanitize.HtmlSanitizerService;
 import com.campusforum.post.domain.Comment;
 import com.campusforum.post.domain.Reaction;
 import com.campusforum.post.dto.CommentVO;
@@ -51,6 +52,12 @@ public class CommentService {
     private final ReactionMapper reactionMapper;
     private final SensitiveWordService sensitiveWordService;
     private final SessionRegistry sessionRegistry;
+    /**
+     * HTML 净化服务（任务 T8.3 / 漏洞 18）：评论 / 回复内容写库前剥离 {@code <script>} /
+     * 事件处理属性 / {@code javascript:} 协议 URL，避免存储型 XSS。
+     * COMMENT_POLICY 仅允许格式化与链接，不允许图片 / 表格 / 代码块。
+     */
+    private final HtmlSanitizerService htmlSanitizerService;
     private static final ObjectMapper jsonMapper = new ObjectMapper();
 
     @Transactional
@@ -66,7 +73,9 @@ public class CommentService {
         comment.setParentId(req.getParentId());
         comment.setReplyToId(req.getReplyToId());
         comment.setAuthorId(userId);
-        comment.setContent(req.getContent());
+        // 漏洞 18 修复：评论写库前必须经 HTML 净化，移除 <script> / 事件处理属性 /
+        // javascript: 协议 URL，避免评论区被滥用为 XSS 载体。
+        comment.setContent(htmlSanitizerService.sanitizeComment(req.getContent()));
         comment.setLikeCount(0);
         comment.setStatus(1);
 
@@ -275,7 +284,7 @@ public class CommentService {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "评论包含敏感内容，请修改后重试");
         }
 
-        comment.setContent(req.getContent());
+        comment.setContent(htmlSanitizerService.sanitizeComment(req.getContent()));
         comment.setUpdatedAt(LocalDateTime.now());
         commentMapper.updateById(comment);
 

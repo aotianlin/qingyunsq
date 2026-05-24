@@ -45,7 +45,10 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - SA_TOKEN_JWT_SECRET_KEY=${JWT_SECRET}
+      # 已移除：当前 Sa-Token 走 Redis 持久化 + tik 风格 token，未启用 JWT 模式（详见 deploy/SECURITY.md §1.1）
+      # 历史上此处注入 SA_TOKEN_JWT_SECRET_KEY=${JWT_SECRET}，但后端未引入 sa-token-jwt 依赖，
+      # 该 ENV 在 Sa-Token 中不会被读取，是死配置；为避免给运维"虚假安全感"，已移除该行。
+      # 实际守护 token → loginId 映射的密钥是 REDIS_PASSWORD。
       - TENANT_MODE=${TENANT_MODE}
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}

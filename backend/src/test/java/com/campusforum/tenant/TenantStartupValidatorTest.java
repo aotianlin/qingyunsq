@@ -10,11 +10,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
+import org.mockito.junit.jupiter.MockitoSettings;
 import org.springframework.boot.DefaultApplicationArguments;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -22,18 +31,42 @@ import static org.mockito.Mockito.when;
  * 验证 standalone/multi 两种模式下的启动期校验逻辑。
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class TenantStartupValidatorTest {
 
     @Mock
     private TenantMapper tenantMapper;
 
     private TenantProperties props;
+    private DataSource dataSource;
     private TenantStartupValidator validator;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         props = new TenantProperties();
-        validator = new TenantStartupValidator(props, tenantMapper);
+        // 默认提供一个"什么列都没有"的 DataSource mock，让 standalone/multi 通过后的
+        // ignore-tables 校验也能跑过（不会抛错）
+        dataSource = mockEmptyDataSource();
+        validator = new TenantStartupValidator(props, tenantMapper, dataSource);
+    }
+
+    /**
+     * 构造一个返回"忽略名单中所有表都没有 tenant_id 列、且 schema 中无任何业务表"的 DataSource mock，
+     * 让 schema 校验环节直接通过，便于复用既有的 standalone/multi 用例。
+     */
+    private DataSource mockEmptyDataSource() throws Exception {
+        DataSource ds = mock(DataSource.class);
+        Connection conn = mock(Connection.class);
+        DatabaseMetaData md = mock(DatabaseMetaData.class);
+        ResultSet emptyRs = mock(ResultSet.class);
+        when(ds.getConnection()).thenReturn(conn);
+        when(conn.getCatalog()).thenReturn(null);
+        when(conn.getMetaData()).thenReturn(md);
+        // getColumns 与 getTables 都返回空 ResultSet（next() = false）
+        when(md.getColumns(any(), any(), any(), any())).thenReturn(emptyRs);
+        when(md.getTables(any(), any(), any(), any())).thenReturn(emptyRs);
+        when(emptyRs.next()).thenReturn(false);
+        return ds;
     }
 
     @Nested

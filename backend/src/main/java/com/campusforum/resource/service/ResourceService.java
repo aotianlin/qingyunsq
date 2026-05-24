@@ -107,7 +107,10 @@ public class ResourceService {
             MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
             try (java.io.InputStream in = file.getInputStream();
                  DigestInputStream dis = new DigestInputStream(in, sha256)) {
-                storageKey = storageService.upload(dis, originalName, file.getContentType());
+                // 漏洞 6（bugfix.md）：必须传 file.getSize() 而非 dis.available()。
+                // available() 仅返回当前 buffer 内已就绪字节数（通常 ~8KB），
+                // 在 MinIO 实现下会被当作 size 上限，导致大文件被截断。
+                storageKey = storageService.upload(dis, originalName, file.getContentType(), file.getSize());
             }
             sha256Hex = HexFormat.of().formatHex(sha256.digest());
         } catch (NoSuchAlgorithmException e) {
