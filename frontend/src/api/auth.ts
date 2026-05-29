@@ -84,6 +84,15 @@ export async function sendEmailCode(email: string, scene: 'REGISTER' | 'LOGIN' |
   return res.data;
 }
 
+export async function checkEmailExists(email: string): Promise<boolean> {
+  const res = await request<{ exists: boolean }>({
+    method: 'POST',
+    url: '/auth/email-exists',
+    data: { email },
+  });
+  return res.data.exists;
+}
+
 export async function logout(): Promise<void> {
   await request({ method: 'POST', url: '/auth/logout' });
 }

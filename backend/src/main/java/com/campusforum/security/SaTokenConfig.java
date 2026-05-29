@@ -20,6 +20,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
                         "/api/v1/auth/login",
                         "/api/v1/auth/register",
                         "/api/v1/auth/email-code",
+                        "/api/v1/auth/email-exists",
                         "/api/v1/auth/forgot-password",
                         "/api/v1/auth/reset-password",
                         // 资源下载/预览支持签名 URL 模式（&lt;a&gt; 直链等场景），controller 内部会按 sig 或登录态进行校验

@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NIcon, NInput, NTabPane, NTabs, useMessage } from 'naive-ui';
 import { ArrowForwardOutline, LockClosedOutline, MailOutline, ShieldCheckmarkOutline, SparklesOutline } from '@vicons/ionicons5';
-import { login, loginWithEmailCode, sendEmailCode } from '@/api/auth';
+import { checkEmailExists, login, loginWithEmailCode, sendEmailCode } from '@/api/auth';
 import { useAuthStore } from '@/stores/auth';
 import { validateEmail, validatePassword } from '@/utils/authValidation';
 
@@ -105,9 +105,17 @@ async function handleSendCode() {
     message.warning('请先填写有效的邮箱');
     return;
   }
+  const trimmedEmail = email.value.trim();
   codeLoading.value = true;
   try {
-    await sendEmailCode(email.value.trim(), 'LOGIN');
+    // 防呆校验：未注册邮箱不发验证码，提示后跳转至注册页并预填邮箱
+    const exists = await checkEmailExists(trimmedEmail);
+    if (!exists) {
+      message.warning('该邮箱尚未注册，将跳转到注册页');
+      router.push({ path: '/register', query: { email: trimmedEmail } });
+      return;
+    }
+    await sendEmailCode(trimmedEmail, 'LOGIN');
     message.success('验证码已发送，请查收邮箱');
     startCodeCountdown();
   } catch (err: unknown) {

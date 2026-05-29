@@ -188,6 +188,9 @@ rate-limit:
     "[POST /api/v1/auth/forgot-password]":
       max-requests: 5
       window-seconds: 900
+    "[POST /api/v1/auth/email-exists]":
+      max-requests: 20
+      window-seconds: 60
     "[POST /api/v1/auth/ws-ticket]":
       max-requests: 30
       window-seconds: 60
