@@ -41,6 +41,12 @@ public class AuthController {
         return R.ok(Map.of("message", "验证码已发送，请查收邮箱"));
     }
 
+    @PostMapping("/email-exists")
+    public R<Map<String, Boolean>> emailExists(@Valid @RequestBody EmailOnlyRequest req) {
+        boolean exists = userService.existsByEmail(req.getEmail());
+        return R.ok(Map.of("exists", exists));
+    }
+
     @PostMapping("/login")
     public R<Map<String, Object>> login(@Valid @RequestBody LoginRequest req) {
         UserVO user = userService.login(req);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { NIcon, NInput, useMessage } from 'naive-ui';
 import { ArrowForwardOutline, IdCardOutline, LockClosedOutline, MailOutline, PersonOutline, SchoolOutline, ShieldCheckmarkOutline } from '@vicons/ionicons5';
 import { register, sendEmailCode } from '@/api/auth';
@@ -14,9 +14,13 @@ import {
 } from '@/utils/authValidation';
 
 const router = useRouter();
+const route = useRoute();
 const message = useMessage();
 
-const email = ref('');
+// 支持从登录页"未注册邮箱"流转过来时通过 URL query 预填邮箱
+const prefilledEmail = typeof route.query.email === 'string' ? route.query.email.trim() : '';
+
+const email = ref(prefilledEmail);
 const password = ref('');
 const confirmPassword = ref('');
 const studentNo = ref('');
@@ -33,6 +37,12 @@ const fieldState = ref({
   password: { active: false, touched: false, error: '', shaking: false },
   confirmPassword: { active: false, touched: false, error: '', shaking: false },
 });
+
+// 预填的邮箱立即触发一次校验，便于用户及时看到格式错误
+if (prefilledEmail) {
+  fieldState.value.email.touched = true;
+  fieldState.value.email.error = validateEmail(prefilledEmail);
+}
 const passwordStrength = computed(() => getPasswordStrength(password.value));
 const canSubmit = computed(() =>
   Boolean(

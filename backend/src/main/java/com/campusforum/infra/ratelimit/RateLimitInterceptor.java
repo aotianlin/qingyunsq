@@ -60,6 +60,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private static final String[] SENSITIVE_PREFIXES = {
             "/api/v1/auth/login",
             "/api/v1/auth/register",
+            "/api/v1/auth/email-exists",
             "/api/v1/auth/forgot-password",
             "/api/v1/auth/reset-password",
             "/api/v1/auth/ws-ticket",

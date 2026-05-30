@@ -129,6 +129,21 @@ public class UserService {
         emailVerificationCodeService.sendCode(email, scene);
     }
 
+    /**
+     * 判断当前租户下指定邮箱是否已注册（不区分账号是否被禁用）。
+     * 仅用于登录页"获取验证码"前的防呆提示。
+     * 安全说明：此接口存在轻度邮箱枚举风险，已在 application.yml 中配置严格限流（与 login 同级），
+     * 且 register 接口本身就具备等价枚举能力，故未增加新的实质攻击面。
+     */
+    public boolean existsByEmail(String email) {
+        long tid = requireTenantId();
+        String normalizedEmail = normalizeEmail(email);
+        if (normalizedEmail.isEmpty()) return false;
+        return userMapper.selectCount(new LambdaQueryWrapper<User>()
+                .eq(User::getTenantId, tid)
+                .eq(User::getEmail, normalizedEmail)) > 0;
+    }
+
 
     public UserVO login(LoginRequest req) {
         if ("CODE".equalsIgnoreCase(req.getLoginType())) {
