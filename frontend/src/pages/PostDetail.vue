@@ -91,9 +91,9 @@ function openReport(targetType: 'POST' | 'COMMENT', targetId: number) {
   reportModalShow.value = true;
 }
 
-function openAiSummary() {
+function askXiaoqingAboutPost() {
   if (!post.value) return;
-  router.push({ path: '/ai', query: { mode: 'summary', postId: String(post.value.id) }, hash: '#ai-workspace' });
+  router.push({ path: '/ai', query: { mode: 'qa', postId: String(post.value.id) } });
 }
 
 async function openAiAnalysis() {
@@ -560,9 +560,9 @@ onMounted(loadPost);
                 <n-icon size="16"><MegaphoneOutline /></n-icon>
                 举报
               </button>
-              <button class="action-btn ai-action" @click="openAiSummary">
+              <button class="action-btn ai-action" @click="askXiaoqingAboutPost">
                 <n-icon size="16"><DocumentTextOutline /></n-icon>
-                AI 摘要
+                问小青
               </button>
               <button class="action-btn ai-action" @click="openAiAnalysis">
                 <n-icon size="16"><SparklesOutline /></n-icon>

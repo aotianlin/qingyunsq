@@ -1633,9 +1633,9 @@ function openPostShare(post: PostVO) {
   postActionVisible.value = false;
 }
 
-function openPostAiSummary(post?: PostVO | null) {
+function askXiaoqingAboutPost(post?: PostVO | null) {
   if (!post) return;
-  router.push({ path: '/ai', query: { mode: 'summary', postId: String(post.id) }, hash: '#ai-workspace' });
+  router.push({ path: '/ai', query: { mode: 'qa', postId: String(post.id) } });
 }
 
 async function copyPostLink(post?: PostVO | null) {
@@ -2451,10 +2451,10 @@ watch(() => route.params.id, () => loadSpace());
                 </button>
                 <button
                   type="button"
-                  @click="openPostAiSummary(postDetail)"
+                  @click="askXiaoqingAboutPost(postDetail)"
                 >
                   <n-icon><DocumentTextOutline /></n-icon>
-                  AI 摘要
+                  问小青
                 </button>
               </div>
             </article>
@@ -2650,12 +2650,12 @@ watch(() => route.params.id, () => loadSpace());
           </button>
           <button
             :disabled="!postActionTarget"
-            @click="openPostAiSummary(postActionTarget)"
+            @click="askXiaoqingAboutPost(postActionTarget)"
           >
             <n-icon>
               <DocumentTextOutline />
             </n-icon>
-            AI 摘要
+            问小青
           </button>
           <button
             :disabled="!postActionTarget"
@@ -3539,9 +3539,9 @@ watch(() => route.params.id, () => loadSpace());
                     <button
                       class="action right"
                       type="button"
-                      @click.stop="openPostAiSummary(post)"
+                      @click.stop="askXiaoqingAboutPost(post)"
                     >
-                      <n-icon><DocumentTextOutline /></n-icon> 摘要
+                      <n-icon><DocumentTextOutline /></n-icon> 问小青
                     </button>
                   </div>
                 </div>

@@ -163,8 +163,8 @@ async function copyPostLink(id: number) {
   }
 }
 
-function openAiSummary(id: number) {
-  router.push({ path: '/ai', query: { mode: 'summary', postId: String(id) }, hash: '#ai-workspace' });
+function askXiaoqingAboutPost(id: number) {
+  router.push({ path: '/ai', query: { mode: 'qa', postId: String(id) } });
 }
 
 function stopCardClick(event: MouseEvent) {
@@ -280,8 +280,8 @@ onMounted(() => loadPosts(true));
             </button>
             <button
               class="card-action-btn ai"
-              title="AI 摘要"
-              @click.stop="openAiSummary(post.id)"
+              title="问小青"
+              @click.stop="askXiaoqingAboutPost(post.id)"
             >
               <n-icon size="16">
                 <SparklesOutline />

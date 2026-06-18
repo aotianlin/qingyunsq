@@ -27,7 +27,7 @@ const fieldState = ref({
 const featureList = [
   '加入多校学习圈，追踪热门课程讨论',
   '查看广场动态、资源分享与打卡挑战',
-  '使用 AI 助手快速总结帖子与学习内容',
+  '使用小青知识库快速整理帖子与学习内容',
 ];
 
 const canSubmit = computed(() => {

@@ -133,6 +133,24 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true },
       },
       {
+        path: 'ai/wikis',
+        name: 'ai-wikis',
+        component: () => import('@/pages/AiAssistant.vue'),
+        meta: { requiresAuth: true },
+      },
+      {
+        path: 'ai/discover',
+        name: 'ai-discover',
+        component: () => import('@/pages/AiAssistant.vue'),
+        meta: { requiresAuth: true },
+      },
+      {
+        path: 'ai/wikis/:id',
+        name: 'ai-wiki-detail',
+        component: () => import('@/pages/AiAssistant.vue'),
+        meta: { requiresAuth: true },
+      },
+      {
         path: 'notifications',
         name: 'notifications',
         component: () => import('@/pages/Notifications.vue'),
