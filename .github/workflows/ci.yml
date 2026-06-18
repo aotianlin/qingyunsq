@@ -39,18 +39,6 @@ jobs:
           java-version: "17"
           distribution: "temurin"
           cache: maven
-      - name: Start MinIO
-        run: |
-          docker run -d --name minio-ci -p 9000:9000 \
-            -e MINIO_ROOT_USER=minioadmin \
-            -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio server /data
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:9000/minio/health/live && break
-            sleep 1
-          done
-          # Create test bucket by directly creating the directory
-          docker exec minio-ci mkdir -p /data/test-bucket
       - name: Initialize MySQL schema
         run: docker exec -i ${{ job.services.mysql.id }} mysql -uroot -proot < db/schema.sql
       - name: Run tests

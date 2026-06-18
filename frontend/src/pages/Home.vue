@@ -1,598 +1,797 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
-import { ChatbubblesOutline, CheckmarkCircleOutline, PeopleOutline, PlanetOutline, SchoolOutline, SparklesOutline } from '@vicons/ionicons5';
+import { NIcon } from 'naive-ui';
+import {
+  ArrowForwardOutline,
+  BookOutline,
+  ChatbubblesOutline,
+  CloudDownloadOutline,
+  CalendarOutline,
+  SparklesOutline,
+} from '@vicons/ionicons5';
 
 const router = useRouter();
-const authStore = useAuthStore();
 
-const stats = [
-  { label: '入驻高校', value: '128+', icon: SchoolOutline },
-  { label: '活跃学生', value: '56,231+', icon: PeopleOutline },
-  { label: '优质帖子', value: '324,112+', icon: ChatbubblesOutline },
-  { label: '学习圈', value: '12,421+', icon: PlanetOutline },
-];
-
-const featuredSpaces = [
+const modules = [
   {
-    name: '计算机科学社群',
-    category: '科技',
-    desc: '围绕算法、AI、系统设计与实习经验展开讨论，适合从新生到竞赛党全阶段加入。',
-    members: '14.2k',
-    accent: '#0058be',
-    cover: 'linear-gradient(135deg, rgba(0,88,190,0.16), rgba(173,198,255,0.32))',
+    title: '广场讨论',
+    text: '快速浏览校园帖子、问答和热门话题。',
+    icon: ChatbubblesOutline,
   },
   {
-    name: 'UI/UX 爱好者',
-    category: '设计',
-    desc: '作品集互评、交互拆解、AIGC 设计流与 Figma 进阶技巧。',
-    members: '8.5k',
-    accent: '#0f766e',
-    cover: 'linear-gradient(135deg, rgba(16,185,129,0.14), rgba(110,251,190,0.3))',
+    title: '学习圈',
+    text: '按课程、兴趣和项目沉淀长期交流。',
+    icon: BookOutline,
   },
   {
-    name: '全球交流计划',
-    category: '留学',
-    desc: '留学申请、交换项目、语言考试与海外学习生活经验共享。',
-    members: '12.1k',
-    accent: '#b45309',
-    cover: 'linear-gradient(135deg, rgba(245,158,11,0.14), rgba(255,220,198,0.34))',
-  },
-  {
-    name: '本科科研网络',
-    category: '科研',
-    desc: '实验室招募、论文阅读、项目协作与导师沟通建议一站式交流。',
-    members: '6.7k',
-    accent: '#7c3aed',
-    cover: 'linear-gradient(135deg, rgba(124,58,237,0.14), rgba(216,226,255,0.34))',
+    title: '资源协作',
+    text: '上传、检索和下载可复用学习资料。',
+    icon: CloudDownloadOutline,
   },
 ];
-
-const highlights = [
-  {
-    title: '跨校学习圈',
-    text: '支持校园、学院、兴趣组三级组织形态，自由构建公开或私密学习圈层。',
-  },
-  {
-    title: '任务打卡与积分成长',
-    text: '通过挑战、排行榜、成就体系帮助用户长期沉淀学习习惯。',
-  },
-  {
-    title: '小青知识库深度增强',
-    text: '提供知识库问答、资料发现与学习任务拆解能力，让内容生产与学习效率双向提升。',
-  },
-];
-
-function goPrimary() {
-  router.push(authStore.isLoggedIn ? '/square' : '/register');
-}
 </script>
 
 <template>
-  <div class="home-page cf-page-shell">
-    <section class="hero-section">
-      <div class="hero-copy">
-        <span class="cf-pill">Academic Pulse · 现代校园社区体验</span>
-        <h1 class="hero-title">
-          连接校园，
-          <br />
-          成就未来
-        </h1>
-        <p class="hero-desc">
-          CampusForum 为高校学习社群打造清爽、高效、现代的交流环境，让知识分享、空间协作、打卡成长与小青知识库自然融合。
-        </p>
-        <div class="hero-actions">
-          <button
-            class="cf-primary-btn"
-            @click="goPrimary"
-          >
-            {{ authStore.isLoggedIn ? '进入广场' : '立即加入' }}
-          </button>
-          <button
-            class="cf-secondary-btn"
-            @click="router.push('/spaces')"
-          >
-            探索学习圈
-          </button>
-        </div>
-        <div class="hero-mini-stats">
-          <div
-            v-for="item in stats.slice(0, 3)"
-            :key="item.label"
-            class="mini-stat"
-          >
-            <strong>{{ item.value }}</strong>
-            <span>{{ item.label }}</span>
-          </div>
-        </div>
-      </div>
+  <div class="home-page">
+    <!-- Top Header -->
+    <header class="home-nav">
+      <button class="brand" @click="router.push('/')">
+        <img src="@/assets/images/logo.png" alt="青云阁" class="brand-img" />
+        <span class="brand-text">青云阁</span>
+      </button>
+      <nav>
+        <button class="nav-btn-secondary" @click="router.push('/login')">登录</button>
+        <button class="nav-btn-primary" @click="router.push('/register')">加入社区</button>
+      </nav>
+    </header>
 
-      <div class="hero-visual cf-card">
-        <div class="visual-banner">
-          <div class="visual-badge">
-            <n-icon size="16">
-              <SparklesOutline />
-            </n-icon>
-            新一代学习社群体验
-          </div>
-          <div class="visual-grid">
-            <div class="visual-panel wide">
-              <div class="panel-label">
-                热门讨论
-              </div>
-              <h3>本周最受关注：如何构建属于大学生的高质量知识网络？</h3>
-              <p>围绕学习方法、资源协作和项目实战展开的高热度话题持续增长。</p>
-            </div>
-            <div class="visual-panel accent">
-              <div class="panel-label">
-                今日打卡
-              </div>
-              <strong>8,931</strong>
-              <span>比昨日增长 18.6%</span>
-            </div>
-            <div class="visual-panel">
-              <div class="panel-label">
-                AI 学习助手
-              </div>
-              <p>摘要、问答、内容分析，多场景支持课件与帖子精读。</p>
-            </div>
-            <div class="visual-panel">
-              <div class="panel-label">
-                学习圈
-              </div>
-              <p>按课程、课题组、兴趣方向创建轻量空间，沉淀共享资料与讨论。</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="stats-section cf-surface">
-      <div
-        v-for="stat in stats"
-        :key="stat.label"
-        class="stat-item"
-      >
-        <div class="stat-icon">
-          <n-icon size="20">
-            <component :is="stat.icon" />
-          </n-icon>
-        </div>
-        <div>
-          <strong>{{ stat.value }}</strong>
-          <span>{{ stat.label }}</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="spaces-section">
-      <div class="section-head">
-        <div>
-          <h2 class="cf-section-title">
-            精选学习圈
-          </h2>
-          <p class="cf-section-subtitle">
-            参考 Stitch 已生成的风格重构，为不同学习兴趣提供更具呼吸感的展示布局。
+    <!-- Main Content -->
+    <main>
+      <!-- Hero Section -->
+      <section class="hero-section">
+        <div class="hero-content">
+          <span class="cf-pill mb-4">青云阁社区</span>
+          <h1 class="hero-headline">
+            校园讨论、学习圈与
+            <span class="gradient-text">资源协作</span>
+            都在这里
+          </h1>
+          <p class="hero-sub">
+            从广场交流到打卡挑战，从资料共享到 AI 辅助学习，青云阁
+            帮你把校园里的信息流整理成可参与、可沉淀的社区体验。
           </p>
+          <div class="hero-actions">
+            <button class="primary-action" @click="router.push('/register')">
+              立即加入社区
+              <NIcon size="18">
+                <ArrowForwardOutline />
+              </NIcon>
+            </button>
+            <button class="secondary-action" @click="router.push('/square')">进入广场</button>
+          </div>
         </div>
-        <button
-          class="cf-ghost-btn"
-          @click="router.push('/spaces')"
-        >
-          查看全部
-        </button>
-      </div>
 
-      <div class="spaces-grid">
-        <article
-          v-for="space in featuredSpaces"
-          :key="space.name"
-          class="space-card cf-card"
-          :style="{ '--space-cover': space.cover }"
-        >
-          <div class="space-top">
-            <span
-              class="space-tag"
-              :style="{ color: space.accent }"
-            >{{ space.category }}</span>
-            <span class="space-members">{{ space.members }} 成员</span>
-          </div>
-          <div>
-            <h3>{{ space.name }}</h3>
-            <p>{{ space.desc }}</p>
-          </div>
-        </article>
-      </div>
-    </section>
+        <!-- Big Hero Workspace Image -->
+        <div class="hero-showcase cf-card">
+          <img
+            src="@/assets/images/hero_workspace.png"
+            alt="青云阁 Workspace Mockup"
+            class="showcase-img"
+          />
+        </div>
+      </section>
 
-    <section class="highlights-section">
-      <div class="section-head compact">
-        <div>
-          <h2 class="cf-section-title">
-            为什么校园团队会选择 CampusForum
-          </h2>
-          <p class="cf-section-subtitle">
-            对缺失页面的后续设计，也会沿用这一套蓝白、轻盈、信息卡片化的视觉语言。
-          </p>
+      <!-- Feature Three-Column Grid -->
+      <section class="feature-section">
+        <div class="feature-grid">
+          <article v-for="item in modules" :key="item.title" class="feature-card cf-card">
+            <div class="feature-icon-wrapper">
+              <NIcon size="24">
+                <component :is="item.icon" />
+              </NIcon>
+            </div>
+            <h2>{{ item.title }}</h2>
+            <p>{{ item.text }}</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Hot Topics / Community Updates Section -->
+      <section class="topics-section">
+        <div class="section-header">
+          <h2 class="cf-section-title">社区热门动态</h2>
+          <p class="cf-section-subtitle">探索校园里正在发生的精彩讨论与知识分享</p>
+        </div>
+
+        <div class="topics-grid">
+          <!-- Left: Big Featured Post Card -->
+          <article class="featured-card cf-card">
+            <div class="featured-img-container">
+              <img
+                src="@/assets/images/abstract_network.png"
+                alt="Featured Topic Cover"
+                class="featured-img"
+              />
+            </div>
+            <div class="featured-content">
+              <div class="tag-row">
+                <span class="topic-tag tag-primary">学术探索</span>
+                <span class="topic-tag tag-secondary">指南</span>
+              </div>
+              <h3 class="featured-title">如何在青云阁中更高效地建立属于你的学术讨论圈</h3>
+              <p class="featured-desc">
+                在这里，你可以按课程、兴趣和项目创建特定的学习板块，邀请同伴一起讨论学习，沉淀知识。
+              </p>
+            </div>
+          </article>
+
+          <!-- Right: Stacked Mini Post Cards -->
+          <div class="mini-cards-stack">
+            <!-- Mini Card 1 -->
+            <article class="mini-card cf-card">
+              <div class="mini-card-header">
+                <div class="mini-tag">
+                  <NIcon size="16">
+                    <SparklesOutline />
+                  </NIcon>
+                  <span>AI 助手</span>
+                </div>
+                <span class="mini-time">1 天前</span>
+              </div>
+              <h3 class="mini-title">AI 问答助手已全面上线</h3>
+              <p class="mini-desc">提供智能提炼核心观点，帮您整理讨论方向。</p>
+            </article>
+
+            <!-- Mini Card 2 -->
+            <article class="mini-card cf-card">
+              <div class="mini-card-header">
+                <div class="mini-tag tag-blue">
+                  <NIcon size="16">
+                    <CalendarOutline />
+                  </NIcon>
+                  <span>资源共享</span>
+                </div>
+                <span class="mini-time">3 天前</span>
+              </div>
+              <h3 class="mini-title">2026年数据结构复习考研包已发布</h3>
+              <p class="mini-desc">收录了历年期末及考研真题的重难点分析。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bottom CTA Banner Section -->
+      <section class="bottom-cta-section">
+        <div class="cta-banner cf-card">
+          <div class="cta-content">
+            <h2>开启你的校园协作之旅，与大家一同交流成长</h2>
+            <p>加入青云阁，探索更高效的学习交流与学术研讨空间。</p>
+            <button class="primary-action cta-btn" @click="router.push('/register')">
+              立即加入社区
+              <NIcon size="18">
+                <ArrowForwardOutline />
+              </NIcon>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="home-footer">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <img src="@/assets/images/logo.png" alt="青云阁" class="footer-logo-img" />
+          <span class="footer-brand-name">青云阁</span>
+        </div>
+        <div class="footer-links">
+          <div class="link-group">
+            <h4>探索</h4>
+            <button @click="router.push('/square')">校园广场</button>
+            <button @click="router.push('/spaces')">学习圈子</button>
+          </div>
+          <div class="link-group">
+            <h4>资源</h4>
+            <button @click="router.push('/resources')">学习资料</button>
+            <button @click="router.push('/checkin')">打卡挑战</button>
+          </div>
         </div>
       </div>
-
-      <div class="highlight-grid">
-        <article
-          v-for="item in highlights"
-          :key="item.title"
-          class="highlight-card cf-card"
-        >
-          <div class="highlight-icon">
-            <n-icon size="20">
-              <CheckmarkCircleOutline />
-            </n-icon>
-          </div>
-          <h3>{{ item.title }}</h3>
-          <p>{{ item.text }}</p>
-        </article>
+      <div class="footer-bottom">
+        <p>© 2026 青云阁. All Rights Reserved. 激发学术与校园社交的无限可能</p>
       </div>
-    </section>
+    </footer>
   </div>
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 .home-page {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(246, 248, 251, 0.98)),
+    radial-gradient(circle at 16% 10%, rgba(0, 216, 191, 0.08), transparent 30%),
+    radial-gradient(circle at 82% 20%, rgba(56, 189, 248, 0.07), transparent 32%);
+  color: var(--cf-text-primary);
+  transition:
+    background-color 0.36s ease,
+    color 0.36s ease;
+}
+
+/* Dark theme overrides */
+html[data-theme='dark'] .home-page {
+  background:
+    linear-gradient(180deg, rgba(10, 10, 12, 0.96), rgba(5, 5, 6, 0.98)),
+    radial-gradient(circle at 16% 10%, rgba(0, 245, 212, 0.12), transparent 30%),
+    radial-gradient(circle at 82% 20%, rgba(167, 139, 250, 0.1), transparent 32%);
+}
+
+.home-nav {
+  width: min(1180px, calc(100% - 32px));
+  height: 74px;
+  margin: 0 auto;
   display: flex;
-  flex-direction: column;
-  gap: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
 }
 
-.hero-section {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  gap: 28px;
-  align-items: stretch;
+button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
 }
 
-.hero-copy,
-.hero-visual {
-  min-height: 520px;
-}
-
-.hero-copy {
+.brand {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 8px 0;
-}
-
-.hero-title {
-  margin: 18px 0 16px;
+  align-items: center;
+  gap: 12px;
   font-family: var(--cf-font-heading);
-  font-size: clamp(44px, 5vw, 68px);
-  line-height: 1.02;
-  letter-spacing: 0;
+  font-weight: 900;
+  font-size: 20px;
 }
 
-.hero-desc {
-  margin: 0;
-  max-width: 560px;
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: var(--cf-primary);
+  color: var(--cf-text-inverse);
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 14px 30px rgba(0, 191, 168, 0.2);
+}
+
+.brand-img {
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  object-fit: cover;
+  box-shadow: 0 14px 30px rgba(0, 191, 168, 0.2);
+}
+
+.brand-text {
+  font-weight: 900;
+  color: var(--cf-text-primary);
+}
+
+.home-nav nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-btn-secondary,
+.nav-btn-primary {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 14px;
+  font-weight: 800;
+  font-size: 14px;
+  transition: all 0.22s ease;
+}
+
+.nav-btn-secondary {
   color: var(--cf-text-secondary);
-  font-size: 18px;
-  line-height: 1.75;
+}
+
+.nav-btn-secondary:hover {
+  color: var(--cf-primary);
+  background: var(--cf-bg-soft);
+}
+
+.nav-btn-primary {
+  background: var(--cf-primary);
+  color: var(--cf-text-inverse);
+  box-shadow: 0 12px 30px rgba(0, 191, 168, 0.22);
+}
+
+.nav-btn-primary:hover {
+  background: var(--cf-primary-hover);
+  transform: translateY(-1px);
+}
+
+main {
+  width: 100%;
+}
+
+/* Hero Section */
+.hero-section {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 80px 0 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.hero-content {
+  max-width: 800px;
+  margin-bottom: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hero-headline {
+  font-family: var(--cf-font-heading);
+  font-size: clamp(36px, 6vw, 64px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 24px;
+}
+
+.hero-sub {
+  font-size: clamp(16px, 2.5vw, 19px);
+  line-height: 1.8;
+  color: var(--cf-text-secondary);
+  margin-bottom: 36px;
+  max-width: 680px;
 }
 
 .hero-actions {
   display: flex;
-  gap: 12px;
-  margin-top: 28px;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.hero-mini-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 34px;
-}
-
-.mini-stat {
-  padding: 18px;
-  border-radius: 18px;
-  background: var(--cf-bg-glass);
-  border: 1px solid var(--cf-border);
-  backdrop-filter: blur(8px);
-
-  strong {
-    display: block;
-    font-family: var(--cf-font-heading);
-    font-size: 22px;
-    margin-bottom: 6px;
-  }
-
-  span {
-    color: var(--cf-text-muted);
-    font-size: 13px;
-  }
-}
-
-.hero-visual {
-  padding: 24px;
-  box-shadow: var(--cf-shadow-float);
-}
-
-.visual-banner {
-  height: 100%;
-  border-radius: 24px;
-  background: linear-gradient(180deg, var(--cf-bg-glass-soft), var(--cf-bg-glass));
-  padding: 24px;
-  border: 1px solid var(--cf-border);
-  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
-}
-
-.visual-badge {
-  display: inline-flex;
+.primary-action {
+  height: 48px;
+  padding: 0 24px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 15px;
+  background: var(--cf-primary);
+  color: var(--cf-text-inverse);
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
+  box-shadow: 0 16px 36px rgba(0, 191, 168, 0.28);
+  transition: all 0.22s ease;
+}
+
+.primary-action:hover {
+  background: var(--cf-primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 42px rgba(0, 191, 168, 0.38);
+}
+
+.secondary-action {
+  height: 48px;
+  padding: 0 24px;
   border-radius: 999px;
-  background: var(--cf-bg-glass);
+  font-weight: 800;
+  font-size: 15px;
   border: 1px solid var(--cf-border);
-  color: var(--cf-primary);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.visual-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 22px;
-  height: calc(100% - 48px);
-}
-
-.visual-panel {
-  padding: 20px;
-  border-radius: 20px;
-  background: var(--cf-bg-glass-soft);
-  border: 1px solid var(--cf-border-glass);
-  box-shadow: var(--cf-shadow-soft);
-  backdrop-filter: blur(18px) saturate(135%);
-  -webkit-backdrop-filter: blur(18px) saturate(135%);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  justify-content: space-between;
-
-  h3,
-  strong {
-    margin: 0;
-    font-family: var(--cf-font-heading);
-    color: var(--cf-text-primary);
-  }
-
-  p,
-  span {
-    margin: 0;
-    color: var(--cf-text-secondary);
-    line-height: 1.7;
-  }
-
-  &.wide {
-    grid-column: span 2;
-    min-height: 210px;
-  }
-
-  &.accent {
-    background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass-soft));
-  }
-}
-
-.panel-label {
-  color: var(--cf-text-muted);
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.stats-section {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  padding: 18px;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, var(--cf-bg-glass-soft), color-mix(in srgb, var(--cf-bg-glass) 62%, transparent));
-  border: 1px solid var(--cf-border);
-  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
-
-  strong {
-    display: block;
-    font-family: var(--cf-font-heading);
-    font-size: 22px;
-    margin-bottom: 4px;
-  }
-
-  span {
-    color: var(--cf-text-muted);
-    font-size: 13px;
-  }
-}
-
-.stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--cf-primary-soft);
-  color: var(--cf-primary);
-}
-
-.spaces-section,
-.highlights-section {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 20px;
-}
-
-.section-head.compact {
-  align-items: flex-start;
-}
-
-.spaces-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.space-card {
-  position: relative;
-  min-height: 220px;
-  padding: 22px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    background: var(--space-cover);
-    opacity: 0.68;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 1px;
-    z-index: -1;
-    border-radius: inherit;
-    background: linear-gradient(180deg, var(--cf-surface-highlight), transparent 46%);
-  }
-
-  h3 {
-    margin: 0 0 10px;
-    font-family: var(--cf-font-heading);
-    font-size: 24px;
-  }
-
-  p {
-    margin: 0;
-    color: var(--cf-text-secondary);
-    line-height: 1.75;
-  }
-}
-
-.space-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.space-tag,
-.space-members {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.space-tag {
-  background: var(--cf-bg-readable) !important;
-  border: 1px solid var(--cf-border);
-}
-
-.space-members {
+  background: rgba(255, 255, 255, 0.76);
   color: var(--cf-text-secondary);
-  background: var(--cf-bg-glass);
-  border: 1px solid var(--cf-border);
+  transition: all 0.22s ease;
 }
 
-.highlight-grid {
+html[data-theme='dark'] .secondary-action {
+  background: rgba(20, 20, 24, 0.76);
+}
+
+.secondary-action:hover {
+  background: var(--cf-bg-soft);
+  border-color: var(--cf-primary);
+  transform: translateY(-2px);
+}
+
+.hero-showcase {
+  width: 100%;
+  max-width: 1080px;
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: var(--cf-shadow-card);
+}
+
+.showcase-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  transition: transform 0.5s ease;
+}
+
+.hero-showcase:hover .showcase-img {
+  transform: scale(1.01);
+}
+
+/* Feature Grid */
+.feature-section {
+  width: min(1180px, calc(100% - 32px));
+  margin: 80px auto;
+}
+
+.feature-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  gap: 24px;
 }
 
-.highlight-card {
-  padding: 22px;
-
-  h3 {
-    margin: 14px 0 10px;
-    font-family: var(--cf-font-heading);
-    font-size: 22px;
-  }
-
-  p {
-    margin: 0;
-    color: var(--cf-text-secondary);
-    line-height: 1.72;
-  }
-}
-
-.highlight-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
+.feature-card {
+  padding: 36px 32px;
+  border-radius: 24px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.feature-icon-wrapper {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--cf-primary-soft);
+  color: var(--cf-primary);
+  margin-bottom: 24px;
+}
+
+.feature-card h2 {
+  font-family: var(--cf-font-heading);
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 12px;
+  color: var(--cf-text-primary);
+}
+
+.feature-card p {
+  color: var(--cf-text-secondary);
+  line-height: 1.8;
+  font-size: 15px;
+}
+
+/* Topics Section */
+.topics-section {
+  width: min(1180px, calc(100% - 32px));
+  margin: 100px auto;
+}
+
+.section-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.cf-section-title {
+  font-size: clamp(28px, 4vw, 38px);
+  font-weight: 900;
+  margin-bottom: 12px;
+}
+
+.cf-section-subtitle {
+  color: var(--cf-text-muted);
+}
+
+.topics-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 32px;
+}
+
+.featured-card {
+  border-radius: 24px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.featured-img-container {
+  width: 100%;
+  height: 280px;
+  overflow: hidden;
+}
+
+.featured-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.featured-card:hover .featured-img {
+  transform: scale(1.03);
+}
+
+.featured-content {
+  padding: 32px;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.tag-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.topic-tag {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.tag-primary {
   background: var(--cf-primary-soft);
   color: var(--cf-primary);
 }
 
-@media (max-width: 960px) {
-  .hero-section,
-  .stats-section,
-  .spaces-grid,
-  .highlight-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .hero-copy,
-  .hero-visual {
-    min-height: auto;
-  }
-
-  .hero-mini-stats,
-  .visual-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .visual-panel.wide {
-    grid-column: span 1;
-  }
-
-  .section-head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.tag-secondary {
+  background: var(--cf-secondary-soft);
+  color: var(--cf-secondary);
 }
 
-@media (max-width: 640px) {
-  .hero-title {
-    font-size: 40px;
+.featured-title {
+  font-family: var(--cf-font-heading);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.4;
+  margin-bottom: 12px;
+  color: var(--cf-text-primary);
+}
+
+.featured-desc {
+  color: var(--cf-text-secondary);
+  line-height: 1.8;
+  font-size: 15px;
+}
+
+.mini-cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.mini-card {
+  padding: 24px;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mini-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.mini-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--cf-secondary);
+  background: var(--cf-secondary-soft);
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.mini-tag.tag-blue {
+  color: var(--cf-accent-sky);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.mini-time {
+  font-size: 12px;
+  color: var(--cf-text-muted);
+}
+
+.mini-title {
+  font-family: var(--cf-font-heading);
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: var(--cf-text-primary);
+}
+
+.mini-desc {
+  color: var(--cf-text-secondary);
+  line-height: 1.6;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Bottom CTA Banner */
+.bottom-cta-section {
+  width: min(1180px, calc(100% - 32px));
+  margin: 100px auto;
+}
+
+.cta-banner {
+  border-radius: 28px;
+  padding: 60px 40px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(0, 216, 191, 0.06), transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(123, 97, 255, 0.05), transparent 40%),
+    rgba(255, 255, 255, 0.88);
+}
+
+html[data-theme='dark'] .cta-banner {
+  background:
+    radial-gradient(circle at 10% 20%, rgba(0, 245, 212, 0.08), transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(167, 139, 250, 0.08), transparent 40%),
+    rgba(20, 20, 24, 0.82);
+}
+
+.cta-content {
+  max-width: 700px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cta-content h2 {
+  font-family: var(--cf-font-heading);
+  font-size: clamp(24px, 4vw, 36px);
+  font-weight: 900;
+  line-height: 1.3;
+  margin-bottom: 16px;
+  color: var(--cf-text-primary);
+}
+
+.cta-content p {
+  font-size: 16px;
+  color: var(--cf-text-secondary);
+  margin-bottom: 32px;
+  line-height: 1.8;
+}
+
+.cta-btn {
+  align-self: center;
+}
+
+/* Footer */
+.home-footer {
+  width: 100%;
+  border-t: 1px solid var(--cf-border);
+  background: var(--cf-bg-soft);
+  padding: 64px 32px 32px;
+}
+
+.footer-grid {
+  width: min(1180px, 100%);
+  margin: 0 auto 48px;
+  display: grid;
+  grid-template-columns: 1.5fr repeat(2, 1fr);
+  gap: 40px;
+}
+
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--cf-primary);
+  color: var(--cf-text-inverse);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.footer-logo-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  object-fit: cover;
+}
+
+.footer-brand-name {
+  font-family: var(--cf-font-heading);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--cf-text-primary);
+}
+
+.footer-links {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.link-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.link-group h4 {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--cf-text-primary);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  letter-spacing: 0.05em;
+}
+
+.link-group button {
+  font-size: 14px;
+  color: var(--cf-text-muted);
+  transition: color 0.2s ease;
+}
+
+.link-group button:hover {
+  color: var(--cf-primary);
+}
+
+.footer-bottom {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  border-top: 1px solid var(--cf-border);
+  padding-top: 24px;
+  text-align: center;
+}
+
+.footer-bottom p {
+  font-size: 13px;
+  color: var(--cf-text-muted);
+  margin: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 960px) {
+  .hero-section {
+    padding-top: 40px;
   }
 
-  .hero-actions {
-    flex-direction: column;
+  .feature-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .topics-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .footer-links {
+    grid-column: 1;
+    grid-template-columns: 1fr 1fr;
   }
 }
 </style>

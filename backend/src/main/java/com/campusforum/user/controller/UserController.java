@@ -9,6 +9,7 @@ import com.campusforum.post.dto.FavoriteVO;
 import com.campusforum.post.service.FavoriteService;
 import com.campusforum.user.dto.UpdateProfileRequest;
 import com.campusforum.user.dto.UserAssetUploadVO;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.service.UserService;
 import jakarta.validation.Valid;
@@ -107,8 +108,11 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    public R<UserVO> getById(@PathVariable Long id) {
-        return R.ok(userService.getById(id));
+    public R<PublicUserVO> getById(@PathVariable Long id) {
+        // 安全加固：查看他人资料只返回最小披露的 PublicUserVO，
+        // 避免遍历 id 收集同租户用户的 email / studentNo 等 PII。
+        // 查看本人完整资料请走 GET /api/v1/users/me。
+        return R.ok(userService.getPublicById(id));
     }
 
     @GetMapping("/me/favorites")

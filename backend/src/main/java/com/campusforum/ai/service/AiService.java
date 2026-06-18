@@ -8,6 +8,10 @@ public interface AiService {
     List<String> recommendTags(String title, String content);
     String chat(List<ChatMessage> messages, String context);
 
+    default String chat(List<ChatMessage> messages, String context, String model) {
+        return chat(messages, context);
+    }
+
     /**
      * 生成帖子智能卡片。失败返回 {@code null}，由调用方决定是否兜底。
      *

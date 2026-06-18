@@ -8,7 +8,7 @@ CampusForum 是一个采用前后端分离架构的现代 Web 应用：
 
 - **后端架构**：基于 Java 17 + Spring Boot 3.x，持久层采用 MyBatis-Plus，权限控制采用 Sa-Token。
 - **前端架构**：基于 Vue 3 (Composition API) + Vite 5 + TypeScript 开发，UI 框架采用 Naive UI，状态管理采用 Pinia。
-- **数据与存储**：主数据库使用 MySQL 8.0，缓存使用 Redis 7 + Caffeine（二级缓存），搜索依赖 MeiliSearch，文件存储兼容 S3 协议（如 MinIO）。
+- **数据与存储**：主数据库使用 MySQL 8.0，缓存使用 Redis 7 + Caffeine（二级缓存），搜索支持 MeiliSearch 或 MySQL 兜底，文件存储当前实现为阿里云 OSS（生产默认）与本地磁盘（开发/测试）。
 - **核心特色**：
   - **多租户隔离**：利用 MyBatis-Plus 的 `TenantLineInnerInterceptor` 实现底层的行级租户数据隔离。
   - **AI 增强**：集成了兼容 OpenAI 协议的大模型接口，支持帖子摘要、敏感词与风控校验、打卡相关性检测等功能。
@@ -26,7 +26,8 @@ campus-1/
 │   │   ├── user/       # 用户模块（注册、登录、授权）
 │   │   ├── post/       # 帖子模块（增删改查、引用、反应）
 │   │   ├── space/      # 学习空间模块（多权限、成员管理）
-│   │   ├── tenant/     # 租户模块（租户管理、AI配置）
+│   │   ├── tenant/     # 租户模块（租户管理、AI 配置）
+│   │   ├── ai/         # AI 摘要、对话、RAG 与 AI 工作台
 │   │   ├── checkin/    # 打卡系统模块
 │   │   └── ...         # 积分、通知、敏感词等其他业务模块
 │   └── src/test/       # 后端单元测试
@@ -66,6 +67,7 @@ mvn spring-boot:run
 ```
 > **注意**：如果使用自定义 JDK 环境（例如在 Windows 下的 WSL 开发环境），可使用环境变量指定，如：
 > `JAVA_HOME=/path/to/jdk mvn test`
+> 默认 `dev` profile 会连接 `application-dev.yml` 中的 MySQL/Redis 地址。若在本机运行，请通过环境变量覆盖 `SPRING_DATASOURCE_URL`、`REDIS_HOST`、`REDIS_PASSWORD`、`STORAGE_TYPE` 等配置。
 
 ### 4. 前端启动
 进入 `frontend/` 目录：
@@ -114,6 +116,7 @@ npm run dev -- --host 127.0.0.1
 
 ### 3. 安全提示
 - **绝对不要**将 `.env` 环境变量文件、本地敏感配置、`node_modules/`、`target/`、凭证信息及用户上传的原始附件直接 Commit 进仓库。
+- 当前 Sa-Token 使用 Redis 持久化的 tik token，不是 JWT；不要新增 `JWT_SECRET` 这类无效配置。生产部署必须设置 `SIGNED_URL_SECRET`、`CRYPTO_MASTER_KEY`、`CORS_ALLOWED_ORIGINS`、`WS_ALLOWED_ORIGINS`。
 
 ---
 

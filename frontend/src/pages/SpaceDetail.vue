@@ -1546,7 +1546,7 @@ function openActiveMembers() {
 async function refreshSpaceData() {
   await loadSpace();
   if (space.value) {
-    message.success('后端数据已刷新');
+    message.success('圈内数据已刷新');
   }
 }
 
@@ -2199,7 +2199,7 @@ watch(() => route.params.id, () => loadSpace());
         <div class="profile-stat-summary points">
           <span>当前可用积分</span>
           <strong>{{ formatCompactNumber(profilePointsBalance ?? profileDisplay.points) }}</strong>
-          <p>来自登录、发帖、被点赞、打卡等后端积分记录。</p>
+        <p>来自登录、发帖、被点赞、打卡等积分记录。</p>
         </div>
         <div class="profile-stat-list">
           <article
@@ -3321,7 +3321,7 @@ watch(() => route.params.id, () => loadSpace());
                   <header>
                     <div>
                       <h3>最新讨论</h3>
-                      <span>来自后端的圈内帖子</span>
+                      <span>圈内最新帖子</span>
                     </div>
                     <button @click="activeTab = '帖子'">
                       查看全部
@@ -3824,8 +3824,8 @@ watch(() => route.params.id, () => loadSpace());
                     >
                       <n-icon><RefreshOutline /></n-icon>
                       <span>
-                        <strong>刷新后端数据</strong>
-                        <small>重新拉取圈子、成员、帖子、资料和打卡数据</small>
+                        <strong>刷新圈内数据</strong>
+                        <small>重新同步圈子、成员、帖子、资料和打卡数据</small>
                       </span>
                     </button>
                     <button

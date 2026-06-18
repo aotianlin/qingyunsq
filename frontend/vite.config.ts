@@ -30,8 +30,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
       },
       manifest: {
-        name: 'CampusForum',
-        short_name: 'CampusForum',
+        name: '青云阁',
+        short_name: '青云阁',
         theme_color: '#18a058',
         icons: [
           { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
@@ -47,17 +47,20 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    watch: {
+      ignored: ['**/src/auto-imports.d.ts', '**/src/components.d.ts'],
+    },
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8080',
         changeOrigin: true,
       },
       '/ws': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8080',
         ws: true,
       },
       '/uploads': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8080',
         changeOrigin: true,
       },
     },

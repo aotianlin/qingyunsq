@@ -43,7 +43,11 @@ public class SignedUrlService {
      * 简化签名：使用配置的默认 TTL，返回完整 token 与过期时间。
      */
     public SignedToken sign(long userId, String type, long resourceId, String action) {
-        long exp = System.currentTimeMillis() / 1000 + properties.getSignedUrlTtlSeconds();
+        long ttl = properties.getSignedUrlTtlSeconds();
+        if ("preview".equals(action)) {
+            ttl = 1800; // 30分钟，以防止预览时滚动或重新加载导致签名失效
+        }
+        long exp = System.currentTimeMillis() / 1000 + ttl;
         return new SignedToken(sign(userId, type, resourceId, action, exp), exp);
     }
 

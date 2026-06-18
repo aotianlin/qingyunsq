@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NButton, NEmpty, NIcon, NSpin, NTag, useMessage } from 'naive-ui';
 import {
@@ -355,7 +355,6 @@ function cleanupProfileParticles() {
 
 onMounted(() => {
   loadUser();
-  nextTick(initProfileParticles);
 });
 
 onUnmounted(cleanupProfileParticles);
@@ -683,29 +682,22 @@ watch(currentUserId, () => {
 <style scoped lang="scss">
 .user-page {
   position: relative;
-  min-height: 100%;
-  padding: 36px 28px 56px;
+  min-height: calc(100vh - 112px);
+  padding: 8px 0 40px;
   color: var(--cf-text-primary);
-  background:
-    linear-gradient(180deg, rgba(13, 17, 23, 0.18), rgba(13, 17, 23, 0.76)),
-    linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(56, 189, 248, 0.035));
+  background: var(--cf-page-bg);
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .profile-particles {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 0;
+  display: none;
 }
 
 .profile-content {
   position: relative;
   z-index: 1;
-  max-width: 1180px;
+  max-width: none;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -713,12 +705,12 @@ watch(currentUserId, () => {
 }
 
 .glass-surface {
-  background: rgba(22, 27, 34, 0.7);
-  border: 1px solid var(--cf-border);
-  border-radius: var(--cf-radius-md);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.26);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: var(--cf-card-bg);
+  border: 1px solid var(--cf-card-border);
+  border-radius: 20px;
+  box-shadow: var(--cf-card-shadow);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
 }
 
 .loading-state,
@@ -741,15 +733,7 @@ watch(currentUserId, () => {
 }
 
 .profile-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 36px 36px;
-  mask-image: linear-gradient(90deg, rgba(0, 0, 0, 0.85), transparent 78%);
-  pointer-events: none;
+  display: none;
 }
 
 .hero-main,
@@ -771,8 +755,8 @@ watch(currentUserId, () => {
   flex: 0 0 108px;
   border-radius: 50%;
   padding: 4px;
-  background: var(--cf-gradient-primary);
-  box-shadow: 0 0 34px rgba(99, 102, 241, 0.36);
+  background: linear-gradient(135deg, var(--cf-primary), #00a88f);
+  box-shadow: 0 18px 42px rgba(0, 191, 168, 0.18);
 }
 
 .avatar-frame img,
@@ -783,11 +767,15 @@ watch(currentUserId, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #101722;
+  background: var(--cf-bg-base);
   color: #fff;
   object-fit: cover;
   font-size: 42px;
   font-weight: 800;
+}
+
+.avatar-frame span {
+  color: var(--cf-primary);
 }
 
 .identity-block {
@@ -860,9 +848,9 @@ watch(currentUserId, () => {
 
 .stat-cell {
   min-height: 82px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--cf-radius-sm);
-  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--cf-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--cf-primary) 5%, var(--cf-bg-card));
   color: var(--cf-text-primary);
   display: flex;
   flex-direction: column;
@@ -876,7 +864,7 @@ watch(currentUserId, () => {
 .stat-cell strong {
   font-size: 28px;
   line-height: 1;
-  color: #cfd7ff;
+  color: var(--cf-text-primary);
 }
 
 .stat-cell span {
@@ -891,8 +879,8 @@ watch(currentUserId, () => {
 }
 
 .stat-cell.clickable:hover {
-  border-color: rgba(99, 102, 241, 0.55);
-  background: rgba(99, 102, 241, 0.12);
+  border-color: color-mix(in srgb, var(--cf-primary) 42%, transparent);
+  background: color-mix(in srgb, var(--cf-primary) 9%, var(--cf-bg-card));
   transform: translateY(-2px);
 }
 
@@ -916,15 +904,15 @@ watch(currentUserId, () => {
 .progress-track {
   height: 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--cf-bg-muted);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #6366f1, #38bdf8);
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+  background: linear-gradient(90deg, var(--cf-primary), var(--cf-primary-alt));
+  box-shadow: var(--cf-progress-shadow);
   transition: width 0.3s ease;
 }
 
@@ -979,8 +967,8 @@ watch(currentUserId, () => {
   height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  background: rgba(99, 102, 241, 0.12);
-  color: #cfd7ff;
+  background: var(--cf-primary-soft);
+  color: var(--cf-primary);
   font-size: 13px;
 }
 
@@ -1006,7 +994,7 @@ watch(currentUserId, () => {
 }
 
 .post-item:hover {
-  border-color: rgba(99, 102, 241, 0.42);
+  border-color: color-mix(in srgb, var(--cf-primary) 34%, transparent);
   transform: translateX(4px);
 }
 
@@ -1090,7 +1078,6 @@ watch(currentUserId, () => {
   text-align: right;
   overflow-wrap: anywhere;
 }
-
 .achievement-list {
   display: flex;
   flex-direction: column;
@@ -1100,12 +1087,8 @@ watch(currentUserId, () => {
 .achievement-item {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr) auto;
-  gap: 12px;
   align-items: center;
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--cf-radius-sm);
-  background: rgba(255, 255, 255, 0.035);
+  gap: 12px;
 }
 
 .achievement-item.locked {
@@ -1119,8 +1102,8 @@ watch(currentUserId, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #cfd7ff;
-  background: rgba(99, 102, 241, 0.15);
+  color: var(--cf-primary);
+  background: var(--cf-primary-soft);
 }
 
 .achievement-copy {
@@ -1153,8 +1136,8 @@ watch(currentUserId, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #cfd7ff;
-  background: rgba(99, 102, 241, 0.14);
+  color: var(--cf-primary);
+  background: var(--cf-primary-soft);
 }
 
 .mini-metric div {

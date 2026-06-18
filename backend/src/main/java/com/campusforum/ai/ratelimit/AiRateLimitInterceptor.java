@@ -31,6 +31,9 @@ public class AiRateLimitInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest req, HttpServletResponse res, Object handler) throws Exception {
+        if (!isCostlyAiEndpoint(req)) {
+            return true;
+        }
         if (!StpUtil.isLogin()) {
             // 未登录请求 fall-through，让鉴权拦截器返回 401
             return true;
@@ -59,6 +62,22 @@ public class AiRateLimitInterceptor implements HandlerInterceptor {
         }
 
         return true;
+    }
+
+    private boolean isCostlyAiEndpoint(HttpServletRequest req) {
+        String method = req.getMethod();
+        String path = req.getRequestURI();
+        if (!"POST".equalsIgnoreCase(method)) {
+            return false;
+        }
+        return path.equals("/api/v1/ai/chat")
+                || path.equals("/api/v1/ai/rag-chat")
+                || path.equals("/api/v1/ai/summarize")
+                || path.equals("/api/v1/ai/moderate")
+                || path.equals("/api/v1/ai/tags")
+                || path.matches("/api/v1/ai/post-card/[^/]+")
+                || path.matches("/api/v1/ai/plugins/[^/]+/invoke")
+                || path.matches("/api/v1/ai/conversations/[^/]+/messages");
     }
 
     private boolean reject(HttpServletResponse res, long retryAfter, String msg) throws IOException {

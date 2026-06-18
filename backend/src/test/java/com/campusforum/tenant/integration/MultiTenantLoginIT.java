@@ -227,6 +227,52 @@ class MultiTenantLoginIT {
         // 查不到 → 抛 INVALID_CREDENTIALS。此处 controller 是 mock，仅验证 filter 层行为。
     }
 
+    // ========== 回归：已认证分支 session.tenantId 为 Integer 时不应抛 ClassCastException ==========
+
+    /**
+     * 回归测试：sa-token-redis-jackson 反序列化后，小数值的 session tenantId 可能是
+     * {@link Integer} 而非 {@link Long}。MultiTenantResolver 早期用 {@code (Long)} 强转，
+     * 在 multi 模式下每个已认证请求都会抛 ClassCastException 并穿透 filter 变成 500。
+     * 修复后统一按 {@link Number} 取值，此用例锁定该行为：session 持有 Integer 时
+     * 请求应正常解析到对应租户，而不是 500。
+     */
+    @Test
+    @DisplayName("回归: 已认证 session.tenantId 为 Integer 时正常解析（不抛 CCE）")
+    void authenticatedSessionWithIntegerTenantIdResolves() throws Exception {
+        // 模拟已登录，且 session 中 tenantId 是 Integer（Redis-Jackson 反序列化的真实形态）
+        cn.dev33.satoken.session.SaSession session = mock(cn.dev33.satoken.session.SaSession.class);
+        when(session.get("tenantId")).thenReturn(Integer.valueOf((int) TENANT_A));
+        stpUtilMock.when(StpUtil::isLogin).thenReturn(true);
+        stpUtilMock.when(StpUtil::getSession).thenReturn(session);
+
+        mvc.perform(post("/api/v1/auth/login")
+                        .header("Host", "localhost")  // 无子域名，走 session 权威分支
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"user@a.com\",\"password\":\"pass123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("login-ok:tenanta:1"));
+    }
+
+    /**
+     * 回归补充：已认证但 session 完全缺失 tenantId（null）时，应返回 400 TENANT_NOT_RESOLVED
+     * 而非 NPE / 500，要求用户重新登录。
+     */
+    @Test
+    @DisplayName("回归: 已认证但 session 缺失 tenantId → 400 TENANT_NOT_RESOLVED")
+    void authenticatedSessionMissingTenantIdRejected() throws Exception {
+        cn.dev33.satoken.session.SaSession session = mock(cn.dev33.satoken.session.SaSession.class);
+        when(session.get("tenantId")).thenReturn(null);
+        stpUtilMock.when(StpUtil::isLogin).thenReturn(true);
+        stpUtilMock.when(StpUtil::getSession).thenReturn(session);
+
+        mvc.perform(post("/api/v1/auth/login")
+                        .header("Host", "localhost")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"user@a.com\",\"password\":\"pass123\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.TENANT_NOT_RESOLVED.getCode()));
+    }
+
     // ========== Test Controller ==========
 
     /**

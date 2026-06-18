@@ -11,4 +11,6 @@ public class AiRequest {
     private String title;
     private List<ChatMessage> messages;
     private String context;
+    private String model;
+    private List<String> abilities;
 }

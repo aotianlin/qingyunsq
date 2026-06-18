@@ -47,15 +47,23 @@ ai:
   base-url: ${AI_BASE_URL:https://api.deepseek.com}
   api-key: ${AI_API_KEY:}
   model: ${AI_MODEL:deepseek-v4-flash}
+  providers:
+    deepseek:
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:${AI_API_KEY:}}
+    mimo:
+      base-url: ${MIMO_BASE_URL:https://api.xiaomimimo.com/v1}
+      api-key: ${MIMO_API_KEY:}
 
 storage:
-  type: minio
-  minio:
-    endpoint: ${STORAGE_MINIO_ENDPOINT}
-    access-key: ${MINIO_ACCESS_KEY}
-    secret-key: ${MINIO_SECRET_KEY}
-    bucket: ${MINIO_BUCKET:campusforum}
-
+  type: ${STORAGE_TYPE:oss}
+  local:
+    path: ${STORAGE_LOCAL_PATH:/app/uploads}
+  oss:
+    endpoint: ${STORAGE_OSS_ENDPOINT:}
+    access-key: ${OSS_ACCESS_KEY:}
+    secret-key: ${OSS_SECRET_KEY:}
+    bucket: ${OSS_BUCKET:}
 search:
   type: meilisearch
   meilisearch:
@@ -76,6 +84,8 @@ security:
   upload:
     real-mime-check: ${UPLOAD_REAL_MIME_CHECK:true}
     allowed-asset-hosts: ${ALLOWED_ASSET_HOSTS}
+    self-hosts:
+      - ${STORAGE_OSS_HOST:}
   ws-ticket:
     ttl-seconds: ${WS_TICKET_TTL_SECONDS:30}
     enforced: ${WS_TICKET_ENFORCED:false}

@@ -1,23 +1,3 @@
-# ===========================================================================
-# CampusForum 生产 Docker Compose 部署配置
-# ===========================================================================
-#
-# 🔥 2026-05-22 安全加固（security-hardening spec）部署须知 🔥
-#
-# 启动前必须完成：
-#   1) 应用数据库迁移：参见 db/migrations/README.md
-#        mysql -u $MYSQL_USER -p $MYSQL_PASSWORD $MYSQL_DATABASE \
-#          < db/migrations/V20260522_01__reset_token_hash.sql
-#        mysql -u $MYSQL_USER -p $MYSQL_PASSWORD $MYSQL_DATABASE \
-#          < db/migrations/V20260522_02__resource_sha256.sql
-#
-#   2) 配置 .env 文件中以下新增变量（缺一启动失败）：
-#        CRYPTO_MASTER_KEY      ≥ 32 字节随机串
-#        CORS_ALLOWED_ORIGINS   逗号分隔的前端域名
-#
-# 详细说明：deploy/SECURITY.md
-# ===========================================================================
-
 version: "3.8"
 
 services:
@@ -39,75 +19,70 @@ services:
       dockerfile: Dockerfile
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL:-jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
-      # 已移除：当前 Sa-Token 走 Redis 持久化 + tik 风格 token，未启用 JWT 模式（详见 deploy/SECURITY.md §1.1）
-      # 历史上此处注入 SA_TOKEN_JWT_SECRET_KEY=${JWT_SECRET}，但后端未引入 sa-token-jwt 依赖，
-      # 该 ENV 在 Sa-Token 中不会被读取，是死配置；为避免给运维"虚假安全感"，已移除该行。
-      # 实际守护 token → loginId 映射的密钥是 REDIS_PASSWORD。
-      - TENANT_MODE=${TENANT_MODE}
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_STARTTLS_ENABLE=${SMTP_STARTTLS_ENABLE}
-      - SMTP_SSL_ENABLE=${SMTP_SSL_ENABLE}
-      - SMTP_PROXY_HOST=${SMTP_PROXY_HOST}
-      - SMTP_PROXY_PORT=${SMTP_PROXY_PORT}
-      - SMTP_PROXY_USERNAME=${SMTP_PROXY_USERNAME}
-      - SMTP_PROXY_PASSWORD=${SMTP_PROXY_PASSWORD}
-      - SMTP_SOCKS_HOST=${SMTP_SOCKS_HOST}
-      - SMTP_SOCKS_PORT=${SMTP_SOCKS_PORT}
-      - SMTP_SSL_PROTOCOLS=${SMTP_SSL_PROTOCOLS}
-      - SMTP_SSL_TRUST=${SMTP_SSL_TRUST}
-      - SMTP_SSL_CHECK_SERVER_IDENTITY=${SMTP_SSL_CHECK_SERVER_IDENTITY}
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - EMAIL_FROM=${EMAIL_FROM}
-      - RESET_LINK_BASE=${RESET_LINK_BASE}
-      - AI_PROVIDER=${AI_PROVIDER}
-      - AI_API_KEY=${AI_API_KEY}
-      - AI_BASE_URL=${AI_BASE_URL}
-      - AI_MODEL=${AI_MODEL}
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER}}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD}}
-      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - STORAGE_MINIO_ENDPOINT=${STORAGE_MINIO_ENDPOINT:-http://minio:9000}
-      - SEARCH_MEILISEARCH_HOST=${SEARCH_MEILISEARCH_HOST:-http://meilisearch:7700}
-      # 资源签名 URL 的 HMAC 密钥（必填，无默认值，缺失则后端启动失败）
+      - TENANT_MODE=${TENANT_MODE:-standalone}
       - SIGNED_URL_SECRET=${SIGNED_URL_SECRET}
-      # AES-GCM 主密钥（缺陷 1.1，必填，无默认值，长度 ≥ 32 字节）
       - CRYPTO_MASTER_KEY=${CRYPTO_MASTER_KEY}
-      # CryptoUtils 旧版兼容密钥（用于解密 encVersion=1 历史密文，必填）
-      - APP_CRYPTO_KEY=${APP_CRYPTO_KEY}
-      # 紧急回滚开关，默认 false；遇到 v1 ECB 旧密文解密链路问题时可临时设为 true
       - CRYPTO_LEGACY_MODE=${CRYPTO_LEGACY_MODE:-false}
-      # CORS 允许的前端来源（缺陷 1.30，必填，逗号分隔）
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
-      # 头像 / 封面 URL 域名白名单（缺陷 1.20，可选）
-      - ALLOWED_ASSET_HOSTS=${ALLOWED_ASSET_HOSTS:-}
-      # WebSocket 票据强制开关（缺陷 1.3，默认 false 兼容期；建议稳定后切 true）
+      - WS_ALLOWED_ORIGINS=${WS_ALLOWED_ORIGINS}
       - WS_TICKET_ENFORCED=${WS_TICKET_ENFORCED:-false}
       - WS_TICKET_TTL_SECONDS=${WS_TICKET_TTL_SECONDS:-30}
-      # 上传 MIME 类型校验开关（缺陷 1.22，默认开启）
-      - UPLOAD_REAL_MIME_CHECK=${UPLOAD_REAL_MIME_CHECK:-true}
-      # WebSocket 允许的来源（生产必填，CSWSH 防御）
-      - WS_ALLOWED_ORIGINS=${WS_ALLOWED_ORIGINS}
+      - SPRINGDOC_ENABLED=${SPRINGDOC_ENABLED:-false}
+      - AI_PROVIDER=${AI_PROVIDER:-mock}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_BASE_URL=${AI_BASE_URL:-https://api.deepseek.com}
+      - AI_MODEL=${AI_MODEL:-deepseek-v4-flash}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - DEEPSEEK_API_KEY
+      - MIMO_BASE_URL=${MIMO_BASE_URL:-https://api.xiaomimimo.com/v1}
+      - MIMO_API_KEY
+      - STORAGE_TYPE=${STORAGE_TYPE:-oss}
+      - STORAGE_LOCAL_PATH=${STORAGE_LOCAL_PATH:-/app/uploads}
+      - STORAGE_OSS_ENDPOINT=${STORAGE_OSS_ENDPOINT}
+      - STORAGE_OSS_HOST=${STORAGE_OSS_HOST:-}
+      - OSS_ACCESS_KEY=${OSS_ACCESS_KEY}
+      - OSS_SECRET_KEY=${OSS_SECRET_KEY}
+      - OSS_BUCKET=${OSS_BUCKET}
+      - ALLOWED_ASSET_HOSTS=${ALLOWED_ASSET_HOSTS:-}
+      - SEARCH_MEILISEARCH_HOST=${SEARCH_MEILISEARCH_HOST:-http://meilisearch:7700}
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+      - EMAIL_MOCK_ENABLED=${EMAIL_MOCK_ENABLED:-false}
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_STARTTLS_ENABLE=${SMTP_STARTTLS_ENABLE:-true}
+      - SMTP_SSL_ENABLE=${SMTP_SSL_ENABLE:-false}
+      - SMTP_PROXY_HOST=${SMTP_PROXY_HOST:-}
+      - SMTP_PROXY_PORT=${SMTP_PROXY_PORT:-}
+      - SMTP_PROXY_USERNAME=${SMTP_PROXY_USERNAME:-}
+      - SMTP_PROXY_PASSWORD=${SMTP_PROXY_PASSWORD:-}
+      - SMTP_SOCKS_HOST=${SMTP_SOCKS_HOST:-}
+      - SMTP_SOCKS_PORT=${SMTP_SOCKS_PORT:-}
+      - SMTP_SSL_PROTOCOLS=${SMTP_SSL_PROTOCOLS:-}
+      - SMTP_SSL_TRUST=${SMTP_SSL_TRUST:-}
+      - SMTP_SSL_CHECK_SERVER_IDENTITY=${SMTP_SSL_CHECK_SERVER_IDENTITY:-}
       - SMTP_USERNAME=${SMTP_USERNAME:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
-      - OFFICE_PREVIEW_URL=${OFFICE_PREVIEW_URL:-http://localhost:8012/onlinePreview}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - RESET_LINK_BASE=${RESET_LINK_BASE}
+      - OFFICE_PREVIEW_URL=${OFFICE_PREVIEW_URL:-http://kkfileview:8012/onlinePreview}
+      - UPLOAD_REAL_MIME_CHECK=${UPLOAD_REAL_MIME_CHECK:-true}
       - MANAGEMENT_HEALTH_MAIL_ENABLED=false
     ports:
       - "127.0.0.1:8080:8080"
+    volumes:
+      - local_uploads:/app/uploads
     depends_on:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_started
+      meilisearch:
         condition: service_started
     restart: always
 
@@ -143,20 +118,8 @@ services:
       - meili_data:/meili_data
     restart: always
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    ports:
-      - "127.0.0.1:9001:9001"
-    volumes:
-      - minio_data:/data
-    restart: always
-
 volumes:
   mysql_data:
   redis_data:
   meili_data:
-  minio_data:
+  local_uploads:

@@ -19,19 +19,43 @@ interface AuthState {
 }
 
 export const useAuthStore = defineStore('auth', {
-  state: (): AuthState => ({
-    token: localStorage.getItem('token'),
-    user: null,
-    isLoggedIn: !!localStorage.getItem('token'),
-    tenantId: localStorage.getItem('tenantId') ? Number(localStorage.getItem('tenantId')) : null,
-    tenantCode: localStorage.getItem('tenantCode'),
-  }),
+  state: (): AuthState => {
+    const token = localStorage.getItem('token');
+    const isGuest = token === 'GUEST_TOKEN';
+    return {
+      token,
+      user: isGuest
+        ? {
+            id: -1,
+            nickname: '游客用户',
+            avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=Guest',
+            email: 'guest@campus.edu',
+            role: 'GUEST',
+            points: 0,
+          }
+        : null,
+      isLoggedIn: !!token,
+      tenantId: localStorage.getItem('tenantId') ? Number(localStorage.getItem('tenantId')) : null,
+      tenantCode: localStorage.getItem('tenantCode'),
+    };
+  },
 
   actions: {
     setToken(token: string) {
       this.token = token;
       this.isLoggedIn = true;
       localStorage.setItem('token', token);
+      if (token === 'GUEST_TOKEN') {
+        this.user = {
+          id: -1,
+          nickname: '游客用户',
+          avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=Guest',
+          email: 'guest@campus.edu',
+          role: 'GUEST',
+          points: 0,
+        };
+        localStorage.setItem('role', 'GUEST');
+      }
     },
 
     setUser(user: UserInfo) {

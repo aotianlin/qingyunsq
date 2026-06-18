@@ -16,13 +16,23 @@ export async function aiRecommendTags(title: string, content: string): Promise<A
   return res.data;
 }
 
-export async function aiChat(messages: { role: string; content: string }[], context?: string): Promise<AiResponse> {
-  const res = await request<AiResponse>({ method: 'POST', url: '/ai/chat', data: { messages, context } });
+export async function aiChat(
+  messages: { role: string; content: string }[],
+  context?: string,
+  model?: string,
+  abilities?: string[],
+): Promise<AiResponse> {
+  const res = await request<AiResponse>({ method: 'POST', url: '/ai/chat', data: { messages, context, model, abilities } });
   return res.data;
 }
 
-export async function aiRagChat(messages: { role: string; content: string }[], context?: string): Promise<AiResponse> {
-  const res = await request<AiResponse>({ method: 'POST', url: '/ai/rag-chat', data: { messages, context } });
+export async function aiRagChat(
+  messages: { role: string; content: string }[],
+  context?: string,
+  model?: string,
+  abilities?: string[],
+): Promise<AiResponse> {
+  const res = await request<AiResponse>({ method: 'POST', url: '/ai/rag-chat', data: { messages, context, model, abilities } });
   return res.data;
 }
 

@@ -25,6 +25,9 @@ import java.io.IOException;
 @Component
 @RequiredArgsConstructor
 public class TenantBindingCheckInterceptor implements HandlerInterceptor {
+    /** 复用单例 ObjectMapper：线程安全且构造开销不低，避免每次 reject 都 new。 */
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final TenantAuditService auditService;
 
     @Override
@@ -49,8 +52,11 @@ public class TenantBindingCheckInterceptor implements HandlerInterceptor {
             return reject(req, res, "invalid_tenant_header", headerVal);
         }
 
-        long actual = TenantContext.getTenantId();
-        if (claimedByClient != actual) {
+        Long actual = TenantContext.getTenantId();
+        // 防御：正常情况下 TenantResolutionFilter 已设置 TenantContext，
+        // 但若上游未解析出租户（context 为 null），不能让自动拆箱抛 NPE，
+        // 此时按"无法校验绑定"拒绝该携带 X-Tenant-Id 的请求。
+        if (actual == null || claimedByClient != actual) {
             return reject(req, res, "header_mismatch_session",
                     claimedByClient + " vs session " + actual);
         }
@@ -60,15 +66,17 @@ public class TenantBindingCheckInterceptor implements HandlerInterceptor {
     private boolean reject(HttpServletRequest req, HttpServletResponse res,
                            String reason, String detail) throws IOException {
         long userId = StpUtil.getLoginIdAsLong();
-        long actualTid = TenantContext.getTenantId();
+        Long actualTid = TenantContext.getTenantId();
         // F7: 在拦截器线程提取请求元数据，再调异步审计（避免跨线程持有 req）
         String uri = req.getRequestURI();
         String method = req.getMethod();
         String ipAddress = TenantAuditService.resolveClientIp(req);
-        auditService.recordViolationAttempt(userId, actualTid, uri, method, ipAddress, reason, detail);
+        // actualTid 可能为 null（上游未解析出租户）；审计落库用 0 占位，避免异步任务 NPE
+        auditService.recordViolationAttempt(userId, actualTid != null ? actualTid : 0L,
+                uri, method, ipAddress, reason, detail);
         res.setStatus(HttpStatus.FORBIDDEN.value());
         res.setContentType("application/json;charset=UTF-8");
-        new ObjectMapper().writeValue(res.getWriter(), R.fail(ErrorCode.TENANT_VIOLATION));
+        OBJECT_MAPPER.writeValue(res.getWriter(), R.fail(ErrorCode.TENANT_VIOLATION));
         return false;
     }
 }

@@ -144,12 +144,12 @@ onMounted(() => loadPosts(true));
 </script>
 
 <template>
-  <div style="padding: 24px;">
-    <h2 style="margin-bottom: 16px;">
+  <div class="admin-page">
+    <h2>
       帖子管理
     </h2>
 
-    <NSpace style="margin-bottom: 16px;">
+    <NSpace class="admin-filterbar">
       <NInput
         v-model:value="keyword"
         placeholder="搜索标题/内容"

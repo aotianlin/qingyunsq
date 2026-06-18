@@ -106,13 +106,6 @@
             <version>0.4</version>
         </dependency>
 
-        <!-- MinIO -->
-        <dependency>
-            <groupId>io.minio</groupId>
-            <artifactId>minio</artifactId>
-            <version>8.5.10</version>
-        </dependency>
-
         <!-- Alibaba Cloud OSS -->
         <dependency>
             <groupId>com.aliyun.oss</groupId>

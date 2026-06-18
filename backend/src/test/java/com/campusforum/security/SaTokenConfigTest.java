@@ -11,15 +11,16 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * SaTokenConfig 单元测试：验证排除路径配置正确。
+ * SaTokenConfig 单元测试：验证拦截器注册正确。
  *
- * <p>确保 forgot-password 和 reset-password 在未登录情况下可访问，
- * 而 /me 仍需登录。</p>
+ * <p>当前放行路径不再写入 Spring MVC 的 excludePatterns，而是在 SaInterceptor 内
+ * 通过 SaRouter.notMatch 声明。因此这个测试只验证拦截器覆盖 /api/v1/**，
+ * 具体放行/拦截行为由接口集成测试覆盖。</p>
  */
 class SaTokenConfigTest {
 
     @Test
-    @DisplayName("email-code、forgot-password 和 reset-password 应在排除路径中")
+    @DisplayName("Sa-Token 拦截器不再使用 registry excludePatterns")
     void shouldExcludeForgotAndResetPasswordPaths() throws Exception {
         SaTokenConfig config = new SaTokenConfig();
         InterceptorRegistry registry = new InterceptorRegistry();
@@ -29,13 +30,11 @@ class SaTokenConfigTest {
         List<String> excludePatterns = getExcludePatterns(registry);
 
         assertThat(excludePatterns)
-                .contains("/api/v1/auth/email-code")
-                .contains("/api/v1/auth/forgot-password")
-                .contains("/api/v1/auth/reset-password");
+                .isEmpty();
     }
 
     @Test
-    @DisplayName("/me 不应在排除路径中（需要登录）")
+    @DisplayName("/me 不通过 registry excludePatterns 放行")
     void shouldNotExcludeMePath() throws Exception {
         SaTokenConfig config = new SaTokenConfig();
         InterceptorRegistry registry = new InterceptorRegistry();
@@ -48,7 +47,7 @@ class SaTokenConfigTest {
     }
 
     @Test
-    @DisplayName("login 和 register 仍在排除路径中")
+    @DisplayName("login 和 register 由 SaRouter.notMatch 放行")
     void shouldExcludeLoginAndRegisterPaths() throws Exception {
         SaTokenConfig config = new SaTokenConfig();
         InterceptorRegistry registry = new InterceptorRegistry();
@@ -57,8 +56,7 @@ class SaTokenConfigTest {
         List<String> excludePatterns = getExcludePatterns(registry);
 
         assertThat(excludePatterns)
-                .contains("/api/v1/auth/login")
-                .contains("/api/v1/auth/register");
+                .isEmpty();
     }
 
     /**
@@ -77,6 +75,7 @@ class SaTokenConfigTest {
         // InterceptorRegistration 内部维护 excludePatterns
         Field excludeField = InterceptorRegistration.class.getDeclaredField("excludePatterns");
         excludeField.setAccessible(true);
-        return (List<String>) excludeField.get(registration);
+        List<String> patterns = (List<String>) excludeField.get(registration);
+        return patterns == null ? List.of() : patterns;
     }
 }

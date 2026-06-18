@@ -1114,7 +1114,7 @@ onMounted(loadProfile);
       <div class="stat-summary points">
         <span>当前可用积分</span>
         <strong>{{ formatCompactNumber(pointsBalance ?? user?.points ?? 0) }}</strong>
-        <p>来自登录、发帖、被点赞、打卡等后端积分记录。</p>
+        <p>来自登录、发帖、被点赞、打卡等积分记录。</p>
       </div>
       <div class="stat-list">
         <article
@@ -1157,34 +1157,14 @@ onMounted(loadProfile);
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  background-color: var(--cf-bg-base);
-  background-image: var(--cf-bg-environment);
-  background-position: 0 0, center, center;
-  background-size: 32px 32px, 140% 140%, 140% 140%;
+  min-height: calc(100vh - 112px);
+  background: var(--cf-page-bg);
   color: var(--cf-text-primary);
-  overflow: hidden;
+  overflow: visible;
 
   &::before,
   &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-  }
-
-  &::before {
-    background:
-      linear-gradient(180deg, transparent, color-mix(in srgb, var(--cf-bg-base) 74%, transparent)),
-      repeating-linear-gradient(90deg, transparent 0 74px, color-mix(in srgb, var(--cf-text-primary) 4%, transparent) 74px 75px);
-    opacity: 0.72;
-  }
-
-  &::after {
-    background: linear-gradient(120deg, transparent 0%, color-mix(in srgb, var(--cf-primary) 8%, transparent) 48%, transparent 100%);
-    opacity: 0.55;
-    transform: translate3d(-18%, -12%, 0);
+    display: none;
   }
 }
 
@@ -1196,15 +1176,18 @@ onMounted(loadProfile);
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  border-bottom: 1px solid var(--cf-border-glass);
-  background: var(--cf-bg-glass-strong);
-  backdrop-filter: blur(14px);
+  border: 1px solid var(--cf-card-border);
+  border-radius: 20px;
+  background: var(--cf-card-bg);
+  box-shadow: var(--cf-card-shadow);
+  backdrop-filter: blur(24px) saturate(150%);
+  margin-bottom: 18px;
   z-index: 10;
 
   .header-left,
   .header-actions button {
-    border: 1px solid var(--cf-border-glass);
-    background: var(--cf-bg-glass);
+    border: 1px solid var(--cf-border);
+    background: var(--cf-bg-readable);
     color: var(--cf-text-primary);
     cursor: pointer;
     display: inline-flex;
@@ -1241,13 +1224,13 @@ onMounted(loadProfile);
 .scroll-content {
   position: relative;
   z-index: 1;
-  flex: 1;
-  overflow-y: auto;
-  padding: 32px;
+  flex: 0 0 auto;
+  overflow: visible;
+  padding: 8px 0 32px;
 }
 
 .profile-container {
-  width: min(100%, 1100px);
+  width: 100%;
   margin: 0 auto;
   padding-bottom: 60px;
 }
@@ -1264,12 +1247,12 @@ onMounted(loadProfile);
 }
 
 .glass-card {
-  border: 1px solid var(--cf-border-glass);
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, var(--cf-surface-highlight), transparent 62%),
-    var(--cf-bg-glass);
-  box-shadow: var(--cf-shadow-card);
+  border: 1px solid var(--cf-card-border);
+  border-radius: 20px;
+  background: var(--cf-card-bg);
+  box-shadow: var(--cf-card-shadow);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
 }
 
 .cover-section {
@@ -2300,7 +2283,7 @@ onMounted(loadProfile);
 
 @media (prefers-reduced-motion: no-preference) {
   .profile-layout {
-    animation: profileEnvironmentDrift 9s linear infinite;
+    animation: none;
   }
 }
 

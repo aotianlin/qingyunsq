@@ -18,6 +18,7 @@ import com.campusforum.tenant.cache.ActiveTenantCache;
 import com.campusforum.user.config.StudentNoMappingProperties;
 import com.campusforum.user.domain.User;
 import com.campusforum.user.dto.LoginRequest;
+import com.campusforum.user.dto.PublicUserVO;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UpdateProfileRequest;
 import com.campusforum.user.dto.UserVO;
@@ -29,6 +30,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -97,7 +99,6 @@ public class UserService {
                 throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "该学号已注册");
             }
         }
-        emailVerificationCodeService.verifyAndConsume(email, EmailCodeScene.REGISTER, req.getEmailCode());
 
         User user = new User();
         user.setEmail(email);
@@ -120,7 +121,23 @@ public class UserService {
             }
         }
 
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException e) {
+            // selectCount 预检查与 insert 之间存在并发窗口，最终由 DB 唯一索引
+            // (uk_tenant_email / uk_tenant_student) 兜底。命中时转换为友好的 400 提示，
+            // 而非把底层异常以 500 形式抛给前端。
+            log.warn("Register unique-key conflict for email={}: {}", email, e.getMessage());
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "该邮箱或学号已注册");
+        }
+
+        // 验证码在 insert 成功之后才消费（删除 Redis key）：
+        // - 验证码错误：verifyAndConsume 抛异常 → @Transactional 回滚刚插入的 user，
+        //   且因为未删除 key，验证码不会被吞掉；
+        // - 唯一索引并发冲突：在到达此行前已抛出，验证码同样不会被消费。
+        // 这样保证"注册失败时验证码可复用"，避免用户被迫反复获取验证码。
+        emailVerificationCodeService.verifyAndConsume(email, EmailCodeScene.REGISTER, req.getEmailCode());
+
         log.info("User registered: id={}, email={}", user.getId(), user.getEmail());
         return toVO(user);
     }
@@ -191,17 +208,30 @@ public class UserService {
     private UserVO loginByEmailCode(LoginRequest req) {
         long tid = requireTenantId();
         String email = normalizeEmail(req.getEmail());
+        // 安全加固：验证码登录与密码登录保持一致的锁定保护（IP 维度 + 账号维度），
+        // 避免攻击者绕到验证码登录路径规避 loginByPassword 的暴力破解防护。
+        String clientIp = trustedProxyResolver.resolve(httpRequest);
+        loginLockoutService.ensureIpNotLocked(clientIp);
+        loginLockoutService.ensureNotLocked(tid, email);
+
         User user = findTenantUser(tid, email);
-        if (user == null || user.getStatus() == 0 || !StringUtils.hasText(req.getEmailCode())) {
+        boolean ok = user != null && user.getStatus() != 0 && StringUtils.hasText(req.getEmailCode());
+        if (ok) {
+            try {
+                emailVerificationCodeService.verifyAndConsume(tid, email, EmailCodeScene.LOGIN, req.getEmailCode());
+            } catch (BusinessException e) {
+                ok = false;
+            }
+        }
+
+        if (!ok) {
+            // 统一累计失败计数，并返回与密码登录一致的不可区分错误信息
+            loginLockoutService.recordFailure(tid, email);
+            loginLockoutService.recordIpFailure(clientIp);
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS.getCode(), "邮箱或验证码错误");
         }
 
-        try {
-            emailVerificationCodeService.verifyAndConsume(tid, email, EmailCodeScene.LOGIN, req.getEmailCode());
-        } catch (BusinessException e) {
-            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS.getCode(), "邮箱或验证码错误");
-        }
-
+        loginLockoutService.recordSuccess(tid, email);
         return completeLogin(user);
     }
 
@@ -249,6 +279,10 @@ public class UserService {
         if (!BCrypt.checkpw(oldPwd, user.getPasswordHash())) {
             throw new BusinessException(ErrorCode.WRONG_PASSWORD);
         }
+        // 新密码不得与原密码相同，避免"修改"实为无效操作
+        if (BCrypt.checkpw(newPwd, user.getPasswordHash())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "新密码不能与原密码相同");
+        }
         user.setPasswordHash(BCrypt.hashpw(newPwd, BCrypt.gensalt(10)));
         userMapper.updateById(user);
         // 安全加固（缺陷 5）：密码变更后注销该用户的所有活跃 Sa-Token，
@@ -292,13 +326,34 @@ public class UserService {
         return toVO(user);
     }
 
+    /**
+     * 查看他人公开资料（最小披露）。
+     *
+     * <p>安全加固：原 {@code GET /api/v1/users/{id}} 直接返回完整 {@link UserVO}，
+     * 其中含 {@code email}/{@code studentNo}/{@code role}/{@code points}/{@code status}
+     * 等敏感字段，任何登录用户都可遍历 id 收集同租户全部用户的邮箱与学号（PII 泄露）。
+     * 这与缺陷 1.21 引入 {@link PublicUserVO} 的"最小披露"初衷自相矛盾。</p>
+     *
+     * <p>本方法仅返回 {@link PublicUserVO}（id/nickname/avatarUrl/bio）。
+     * "本人详情"仍走 {@link #getById(Long)} 返回完整 {@link UserVO}。</p>
+     */
+    public PublicUserVO getPublicById(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        return PublicUserVO.from(user);
+    }
+
     @Transactional
     public UserVO updateProfile(Long userId, UpdateProfileRequest req) {
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        if (req.getNickname() != null) user.setNickname(req.getNickname());
+        if (req.getNickname() != null && !req.getNickname().isBlank()) {
+            user.setNickname(req.getNickname());
+        }
         if (req.getAvatarUrl() != null) {
             // 安全加固（缺陷 1.20）：URL 域名白名单校验，防止 javascript:/data: XSS 与 Open Redirect
             assertHostAllowed(req.getAvatarUrl());
@@ -583,18 +638,18 @@ public class UserService {
         // SQL 层粗筛
         List<Long> candidateIds = userMapper.selectUserIdsByTagSubscription(tid, safeTags);
         if (candidateIds.isEmpty()) return Set.of();
-        // Java 层精确匹配（SQL LIKE 仍可能有少量误匹配，例如标签包含特殊字符）
+        // Java 层精确匹配（SQL LIKE 仍可能有少量误匹配，例如标签包含特殊字符）。
+        // 优化：用 selectBatchIds 一次性批量加载候选用户，避免在循环里逐个 selectById 造成的 N+1 查询。
         Set<Long> result = new HashSet<>();
         Set<String> originalTags = new HashSet<>(tags);
-        for (Long uid : candidateIds) {
-            User user = userMapper.selectById(uid);
+        for (User user : userMapper.selectBatchIds(candidateIds)) {
             if (user == null || user.getTagSubscriptions() == null) continue;
             try {
                 Set<String> subs = jsonMapper.readValue(user.getTagSubscriptions(),
                         new TypeReference<Set<String>>() {});
                 for (String tag : originalTags) {
                     if (subs.contains(tag)) {
-                        result.add(uid);
+                        result.add(user.getId());
                         break;
                     }
                 }

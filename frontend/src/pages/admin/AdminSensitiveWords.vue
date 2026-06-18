@@ -146,15 +146,14 @@ onMounted(loadWords);
 
 <style scoped>
 .admin-sw {
-  height: 100vh;
-  overflow-y: auto;
-  padding: 24px;
+  min-height: 100%;
+  padding: 28px 32px 40px;
 }
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 .page-header h2 {
   margin: 0;

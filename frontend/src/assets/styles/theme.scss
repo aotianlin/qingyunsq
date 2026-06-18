@@ -1,4 +1,7 @@
 /* frontend/src/assets/styles/theme.scss */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --cf-font-heading: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', sans-serif;
@@ -59,6 +62,17 @@
     linear-gradient(135deg, color-mix(in srgb, var(--cf-primary) 7%, transparent), transparent 42%),
     linear-gradient(315deg, color-mix(in srgb, var(--cf-secondary) 7%, transparent), transparent 46%);
 
+  --cf-page-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(246, 248, 251, 0.96)),
+    radial-gradient(circle at 18% 8%, rgba(0, 216, 191, 0.13), transparent 28%),
+    radial-gradient(circle at 82% 18%, rgba(90, 200, 250, 0.12), transparent 30%);
+  --cf-card-bg: rgba(255, 255, 255, 0.82);
+  --cf-card-border: rgba(15, 23, 42, 0.08);
+  --cf-card-shadow: 0 18px 55px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --cf-column-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(238, 246, 247, 0.74)), rgba(240, 247, 248, 0.72);
+  --cf-column-border: rgba(15, 23, 42, 0.06);
+  --cf-column-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 18px 48px rgba(15, 23, 42, 0.05);
+  --cf-glass-btn-bg: rgba(255, 255, 255, 0.1);
+
   --cf-max-width: 1200px;
   --cf-header-height: 72px;
   --cf-sidebar-width: 248px;
@@ -114,6 +128,40 @@ html[data-theme='dark'] {
     radial-gradient(color-mix(in srgb, var(--cf-text-primary) 28%, transparent) 1.05px, transparent 1.05px),
     linear-gradient(135deg, color-mix(in srgb, var(--cf-primary) 8%, transparent), transparent 44%),
     linear-gradient(315deg, color-mix(in srgb, var(--cf-secondary) 8%, transparent), transparent 48%);
+
+  --cf-page-bg: linear-gradient(180deg, #090e1a 0%, #05070c 100%),
+    radial-gradient(circle at 18% 8%, rgba(0, 245, 212, 0.15), transparent 28%),
+    radial-gradient(circle at 82% 18%, rgba(167, 139, 250, 0.12), transparent 30%);
+  --cf-card-bg: rgba(22, 28, 45, 0.72);
+  --cf-card-border: rgba(255, 255, 255, 0.07);
+  --cf-card-shadow: 0 24px 70px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --cf-column-bg: rgba(15, 23, 42, 0.35);
+  --cf-column-border: rgba(255, 255, 255, 0.04);
+  --cf-column-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02), 0 18px 54px rgba(0, 0, 0, 0.26);
+  --cf-glass-btn-bg: rgba(255, 255, 255, 0.05);
+
+  /* Tailwind dark theme dynamic overrides */
+  .text-on-surface {
+    color: var(--cf-text-primary) !important;
+  }
+  .text-on-surface-variant {
+    color: var(--cf-text-secondary) !important;
+  }
+  .border-outline-variant {
+    border-color: var(--cf-border) !important;
+  }
+  .bg-surface-container-low {
+    background-color: var(--cf-bg-soft) !important;
+  }
+  .bg-surface-container {
+    background-color: var(--cf-bg-muted) !important;
+  }
+  .hover\:bg-surface-container:hover {
+    background-color: var(--cf-bg-muted) !important;
+  }
+  .hover\:bg-surface-container-low:hover {
+    background-color: var(--cf-bg-soft) !important;
+  }
 }
 
 * {
@@ -124,42 +172,17 @@ html,
 body,
 #app {
   min-height: 100%;
+  background-color: var(--cf-bg-base);
 }
 
 body {
   margin: 0;
-  background-color: var(--cf-bg-base);
-  background-image: var(--cf-bg-environment);
-  background-position: 0 0, center, center;
-  background-size: 32px 32px, 140% 140%, 140% 140%;
   color: var(--cf-text-primary);
+  background-color: var(--cf-bg-base);
   font-family: var(--cf-font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.36s ease, color 0.36s ease, background-position 0.36s ease;
-}
-
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, transparent, color-mix(in srgb, var(--cf-bg-base) 74%, transparent)),
-    repeating-linear-gradient(90deg, transparent 0 74px, color-mix(in srgb, var(--cf-text-primary) 4%, transparent) 74px 75px);
-  opacity: 0.72;
-}
-
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: linear-gradient(120deg, transparent 0%, color-mix(in srgb, var(--cf-primary) 8%, transparent) 48%, transparent 100%);
-  opacity: 0.55;
-  transform: translate3d(-18%, -12%, 0);
+  transition: background-color 0.36s ease, color 0.36s ease;
 }
 
 @keyframes cfSlideEnter {

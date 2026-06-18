@@ -64,13 +64,13 @@ class TenantControllerTest {
         rawConfig.put("provider", "openai");
         rawConfig.put("baseUrl", "https://api.deepseek.com");
         rawConfig.put("model", "deepseek-v4-pro");
-        rawConfig.put("apiKey", "sk-9f6121c4089d4bfc88f56d0f540af139");
+        rawConfig.put("apiKey", "sk-test-placeholder-1234567890abcdef");
         when(tenantService.getAiConfig(1L)).thenReturn(rawConfig);
 
         var result = controller.getAiConfig(1L);
 
         Map<String, Object> data = result.getData();
-        assertThat(data.get("apiKey")).isEqualTo("sk-9***f139");
+        assertThat(data.get("apiKey")).isEqualTo("sk-t***cdef");
         assertThat(data.get("provider")).isEqualTo("openai");
         assertThat(data.get("baseUrl")).isEqualTo("https://api.deepseek.com");
         assertThat(data.get("model")).isEqualTo("deepseek-v4-pro");
@@ -98,14 +98,14 @@ class TenantControllerTest {
         when(tenantService.getAiConfig(1L)).thenReturn(Map.of(
                 "provider", "openai",
                 "baseUrl", "https://api.deepseek.com",
-                "apiKey", "sk-9f6121c4089d4bfc88f56d0f540af139",
+                "apiKey", "sk-test-placeholder-1234567890abcdef",
                 "model", "deepseek-v4-pro"
         ));
 
         Map<String, String> body = Map.of(
                 "provider", "openai",
                 "baseUrl", "https://api.deepseek.com",
-                "apiKey", "sk-9***f139",   // 掩码占位符
+                "apiKey", "sk-t***cdef",   // 掩码占位符
                 "model", "deepseek-v4-pro");
 
         try (MockedStatic<StpUtil> stpMock = mockStatic(StpUtil.class)) {
@@ -123,7 +123,7 @@ class TenantControllerTest {
         String detail = captor.getValue().getDetail();
         assertThat(detail).contains("\"changes\":{}");
         // apiKey 原始值不应出现在审计中
-        assertThat(detail).doesNotContain("sk-9f6121c4089d4bfc88f56d0f540af139");
+        assertThat(detail).doesNotContain("sk-test-placeholder-1234567890abcdef");
     }
 
     @Test
@@ -134,7 +134,7 @@ class TenantControllerTest {
         when(tenantService.getAiConfig(1L)).thenReturn(Map.of(
                 "provider", "openai",
                 "baseUrl", "https://api.deepseek.com",
-                "apiKey", "sk-9f6121c4089d4bfc88f56d0f540af139",
+                "apiKey", "sk-test-placeholder-1234567890abcdef",
                 "model", "deepseek-v4-pro"
         ));
 
@@ -142,7 +142,7 @@ class TenantControllerTest {
         Map<String, String> body = Map.of(
                 "provider", "openai",
                 "baseUrl", "https://api.deepseek.com",
-                "apiKey", "sk-9***f139",
+                "apiKey", "sk-t***cdef",
                 "model", "deepseek-v4-flash");
 
         try (MockedStatic<StpUtil> stpMock = mockStatic(StpUtil.class)) {

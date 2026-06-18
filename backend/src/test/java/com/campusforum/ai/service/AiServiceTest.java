@@ -73,6 +73,6 @@ class AiServiceTest {
     @Test
     void shouldReturnDefaultGreetingForEmptyMessages() {
         String reply = aiService.chat(List.of(), null);
-        assertThat(reply).contains("CampusForum");
+        assertThat(reply).contains("小青").contains("青云阁");
     }
 }

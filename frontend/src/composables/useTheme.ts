@@ -28,6 +28,13 @@ function applyTheme(mode: ThemeMode) {
   theme.value = mode;
   document.documentElement.dataset.theme = mode;
   document.documentElement.style.colorScheme = mode;
+
+  if (mode === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+
   localStorage.setItem(THEME_STORAGE_KEY, mode);
   updateThemeMeta(mode);
 }

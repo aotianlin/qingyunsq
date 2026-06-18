@@ -1,5 +1,6 @@
 package com.campusforum.security.ai;
 
+import com.campusforum.ai.config.AiProviderProperties;
 import com.campusforum.ai.service.AiService;
 import com.campusforum.ai.service.MockAiService;
 import com.campusforum.ai.service.OpenAiCompatService;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
@@ -64,6 +66,7 @@ class TenantAwareAiServiceCacheTest {
     private AuditLogService auditLogService;
     private SecurityMetrics securityMetrics;
     private TrustedProxyResolver trustedProxyResolver;
+    private AiProviderProperties aiProviderProperties;
     private HttpServletRequest httpRequest;
 
     /** 测试常量：默认租户与 AI 配置。 */
@@ -80,6 +83,7 @@ class TenantAwareAiServiceCacheTest {
         auditLogService = mock(AuditLogService.class);
         securityMetrics = mock(SecurityMetrics.class);
         trustedProxyResolver = mock(TrustedProxyResolver.class);
+        aiProviderProperties = new AiProviderProperties();
         httpRequest = mock(HttpServletRequest.class);
 
         service = new TenantAwareAiService(
@@ -88,6 +92,8 @@ class TenantAwareAiServiceCacheTest {
                 auditLogService,
                 securityMetrics,
                 trustedProxyResolver,
+                aiProviderProperties,
+                new MockEnvironment(),
                 httpRequest);
 
         TenantContext.setTenantId(TENANT_ID);
@@ -120,6 +126,13 @@ class TenantAwareAiServiceCacheTest {
         return (Map<Long, ?>) f.get(service);
     }
 
+    @SuppressWarnings("unchecked")
+    private Map<String, ?> readProviderClientCache() throws Exception {
+        Field f = TenantAwareAiService.class.getDeclaredField("providerClientCache");
+        f.setAccessible(true);
+        return (Map<String, ?>) f.get(service);
+    }
+
     /** 通过反射拿到 AiClientHolder 中的 OpenAiCompatService 实例引用。 */
     private OpenAiCompatService unwrapClient(Object holder) throws Exception {
         // record 自动生成 client() 访问器；AiClientHolder 是私有嵌套记录，
@@ -127,6 +140,12 @@ class TenantAwareAiServiceCacheTest {
         java.lang.reflect.Method m = holder.getClass().getMethod("client");
         m.setAccessible(true);
         return (OpenAiCompatService) m.invoke(holder);
+    }
+
+    private AiService invokeModelDelegate(String model) throws Exception {
+        java.lang.reflect.Method m = TenantAwareAiService.class.getDeclaredMethod("delegate", String.class);
+        m.setAccessible(true);
+        return (AiService) m.invoke(service, model);
     }
 
     /**
@@ -195,6 +214,31 @@ class TenantAwareAiServiceCacheTest {
         OpenAiCompatService secondClient = unwrapClient(readClientCache().get(TENANT_ID));
 
         assertThat(secondClient).isNotSameAs(firstClient);
+    }
+
+    @Test
+    @DisplayName("选择模型但全局 provider 未配置 key：回退到租户 AI 配置，并按所选模型创建客户端")
+    void selectedModel_withoutProviderKey_usesTenantConfigWithRequestedModel() throws Exception {
+        when(tenantService.resolveAiCredentials(TENANT_ID)).thenReturn(validOpenAiConfig());
+
+        AiService selected = invokeModelDelegate("deepseek-v4-flash");
+
+        assertThat(selected).isInstanceOf(OpenAiCompatService.class);
+        assertThat(readProviderClientCache()).containsKey("tenant:" + TENANT_ID + ":deepseek-v4-flash");
+        verify(mockAiService, never()).chat(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("evict(tenantId)：同时清理按所选模型创建的租户 AI 客户端缓存")
+    void evict_clearsSelectedModelTenantCache() throws Exception {
+        when(tenantService.resolveAiCredentials(TENANT_ID)).thenReturn(validOpenAiConfig());
+
+        invokeModelDelegate("deepseek-v4-flash");
+        assertThat(readProviderClientCache()).containsKey("tenant:" + TENANT_ID + ":deepseek-v4-flash");
+
+        service.evict(TENANT_ID);
+
+        assertThat(readProviderClientCache()).doesNotContainKey("tenant:" + TENANT_ID + ":deepseek-v4-flash");
     }
 
     @Test

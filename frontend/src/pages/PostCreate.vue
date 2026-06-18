@@ -187,7 +187,7 @@ async function submit() {
           发布新内容
         </h1>
         <p class="cf-section-subtitle">
-          {{ publishScope === 'SPACE' ? `发布到「${spaceName}」` : '适配新的广场风格，将发帖页改造成更清晰的创作工作台，兼容普通帖子、问答与引用发布。' }}
+          {{ publishScope === 'SPACE' ? `发布到「${spaceName}」` : '写下问题、经验或想法，选择合适的话题后发布到广场。' }}
         </p>
       </div>
       <button class="cf-secondary-btn" @click="router.back()">
@@ -309,11 +309,12 @@ async function submit() {
 .create-page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 22px;
+  padding: 8px 0 40px;
 }
 
 .editor-head {
-  padding: 22px;
+  padding: 24px;
   display: flex;
   justify-content: space-between;
   gap: 16px;
@@ -322,8 +323,8 @@ async function submit() {
 
 .editor-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
   align-items: start;
 }
 

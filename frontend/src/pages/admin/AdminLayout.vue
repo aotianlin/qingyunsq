@@ -108,10 +108,17 @@ function handleMenuClick(key: string) {
 .admin-shell {
   height: 100vh;
   overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(246, 248, 251, 0.98)),
+    radial-gradient(circle at 12% 8%, rgba(0, 216, 191, 0.07), transparent 30%),
+    radial-gradient(circle at 88% 16%, rgba(56, 189, 248, 0.06), transparent 32%);
 }
 
 .admin-shell-sider {
   height: 100vh;
+  background: rgba(255, 255, 255, 0.88) !important;
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 16px 0 46px rgba(15, 23, 42, 0.04);
 }
 
 .sider-toggle {
@@ -145,6 +152,52 @@ function handleMenuClick(key: string) {
   height: 100vh;
   min-width: 0;
   overflow: auto;
-  background: var(--body-color);
+  background: transparent;
+}
+
+.admin-shell-content :deep(> div:not(.admin-dashboard-page)) {
+  min-height: 100%;
+  color: var(--cf-text-primary);
+}
+
+.admin-shell-content :deep(.admin-page) {
+  padding: 28px 32px 40px;
+}
+
+.admin-shell-content :deep(h2) {
+  margin: 0 0 18px !important;
+  font-family: var(--cf-font-heading);
+  font-size: 26px;
+  letter-spacing: 0;
+}
+
+.admin-shell-content :deep(.admin-filterbar) {
+  width: 100%;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.04);
+}
+
+.admin-shell-content :deep(.n-data-table),
+.admin-shell-content :deep(.n-card) {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 18px 55px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.admin-shell-content :deep(.n-input),
+.admin-shell-content :deep(.n-base-selection) {
+  --n-border-radius: 12px !important;
+}
+
+.admin-shell-content :deep(.n-button) {
+  --n-border-radius: 12px !important;
 }
 </style>

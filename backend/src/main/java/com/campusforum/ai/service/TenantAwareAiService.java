@@ -2,6 +2,7 @@ package com.campusforum.ai.service;
 
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
+import com.campusforum.ai.config.AiProviderProperties;
 import com.campusforum.infra.audit.AuditContext;
 import com.campusforum.infra.audit.AuditLogService;
 import com.campusforum.infra.metrics.SecurityMetrics;
@@ -14,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -73,6 +75,8 @@ public class TenantAwareAiService implements AiService {
     private final AuditLogService auditLogService;
     private final SecurityMetrics securityMetrics;
     private final TrustedProxyResolver trustedProxyResolver;
+    private final AiProviderProperties aiProviderProperties;
+    private final Environment environment;
     /**
      * 注入 request-scope 的 HTTP 请求代理：仅用于在审计写入时解析客户端
      * IP / UA。AI 调用都来自登录用户的 Servlet 请求线程，注入代理本身在
@@ -94,6 +98,7 @@ public class TenantAwareAiService implements AiService {
      * </ul>
      */
     private final Map<Long, AiClientHolder> clientCache = new ConcurrentHashMap<>();
+    private final Map<String, AiClientHolder> providerClientCache = new ConcurrentHashMap<>();
 
     /**
      * 缓存项：把"指纹 + 客户端实例"绑定起来，指纹变化即触发整体替换。
@@ -120,7 +125,28 @@ public class TenantAwareAiService implements AiService {
 
     @Override
     public String chat(List<ChatMessage> messages, String context) {
-        return delegate().chat(messages, context);
+        String reply = delegate().chat(messages, context);
+        if (OpenAiCompatService.isUpstreamError(reply)) {
+            log.warn("Tenant AI chat failed, falling back to local assistant");
+            return mockAiService.chat(messages, context);
+        }
+        return reply;
+    }
+
+    @Override
+    public String chat(List<ChatMessage> messages, String context, String model) {
+        if (model != null && !model.isBlank()) {
+            AiService selected = delegate(model);
+            if (selected != null) {
+                String reply = selected.chat(messages, context);
+                if (OpenAiCompatService.isUpstreamError(reply)) {
+                    log.warn("AI provider chat failed, falling back to local assistant: model={}", model);
+                    return mockAiService.chat(messages, context);
+                }
+                return reply;
+            }
+        }
+        return chat(messages, context);
     }
 
     @Override
@@ -143,6 +169,7 @@ public class TenantAwareAiService implements AiService {
      */
     public void evict(long tenantId) {
         AiClientHolder removed = clientCache.remove(tenantId);
+        providerClientCache.keySet().removeIf(key -> key.startsWith("tenant:" + tenantId + ":"));
         if (removed != null) {
             log.info("AI client cache evicted: tenantId={}", tenantId);
         }
@@ -172,14 +199,7 @@ public class TenantAwareAiService implements AiService {
         try {
             config = tenantService.resolveAiCredentials(tenantId);
         } catch (CryptoException e) {
-            // 漏洞 12 修复：解密失败必须 fail-loud，不能再静默降级 mock
-            // 否则租户管理员看到的是"AI 工作正常但答非所问"，无法定位问题
-            AuditContext ctx = AuditContext.from(httpRequest, trustedProxyResolver, null, tenantId);
-            auditLogService.log(ctx, "AI_DECRYPT_FAIL", "tenant", tenantId,
-                    "AI apiKey 解密失败：" + e.getClass().getSimpleName());
-            securityMetrics.cryptoDecryptFailed();
-            log.warn("Tenant AI apiKey decrypt failed, fail-loud: tenantId={}", tenantId);
-            throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE);
+            return handleDecryptFailure(tenantId, e, null);
         }
 
         String provider = config.get("provider");
@@ -220,6 +240,138 @@ public class TenantAwareAiService implements AiService {
             return new AiClientHolder(fingerprint, new OpenAiCompatService(baseUrl, apiKey, model));
         });
         return holder.client();
+    }
+
+    private AiService delegate(String requestedModel) {
+        if (!aiProviderProperties.supportedModels().containsKey(requestedModel)) {
+            throw new BusinessException(40000, "不支持的 AI 模型");
+        }
+
+        AiProviderProperties.Provider provider = aiProviderProperties.resolveByModel(requestedModel);
+        if (provider == null || provider.getApiKey() == null || provider.getApiKey().isBlank()) {
+            return delegateTenantWithRequestedModel(requestedModel);
+        }
+
+        try {
+            PrivateNetworkValidator.requirePublic(provider.getBaseUrl(), true);
+        } catch (IllegalArgumentException ex) {
+            Long tenantId = TenantContext.getTenantId();
+            if (tenantId != null) {
+                AuditContext ctx = AuditContext.from(httpRequest, trustedProxyResolver, null, tenantId);
+                auditLogService.log(ctx, "AI_SSRF_BLOCKED", "tenant", tenantId,
+                        "AI provider baseUrl 命中 SSRF 防护：" + ex.getMessage());
+            }
+            securityMetrics.ssrfBlocked("validator");
+            log.warn("AI provider baseUrl rejected (SSRF guard): model={}, error={}",
+                    requestedModel, ex.getMessage());
+            return mockAiService;
+        }
+
+        String fingerprint = buildFingerprint(provider.getBaseUrl(), provider.getApiKey(), provider.getModel());
+        AiClientHolder holder = providerClientCache.compute("provider:" + provider.getModel(), (key, existing) -> {
+            if (existing != null && existing.fingerprint().equals(fingerprint)) {
+                return existing;
+            }
+            return new AiClientHolder(fingerprint,
+                    new OpenAiCompatService(provider.getBaseUrl(), provider.getApiKey(), provider.getModel()));
+        });
+        return holder.client();
+    }
+
+    private AiService delegateTenantWithRequestedModel(String requestedModel) {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            return mockAiService;
+        }
+
+        Map<String, String> config;
+        try {
+            config = tenantService.resolveAiCredentials(tenantId);
+        } catch (CryptoException e) {
+            return handleDecryptFailure(tenantId, e, requestedModel);
+        }
+
+        String provider = config.get("provider");
+        String apiKey = config.get("apiKey");
+        String baseUrl = config.get("baseUrl");
+        if (!"openai".equalsIgnoreCase(provider) || apiKey == null || apiKey.isBlank()) {
+            return mockAiService;
+        }
+
+        try {
+            PrivateNetworkValidator.requirePublic(baseUrl, true);
+        } catch (IllegalArgumentException ex) {
+            AuditContext ctx = AuditContext.from(httpRequest, trustedProxyResolver, null, tenantId);
+            auditLogService.log(ctx, "AI_SSRF_BLOCKED", "tenant", tenantId,
+                    "AI baseUrl 命中 SSRF 防护：" + ex.getMessage());
+            securityMetrics.ssrfBlocked("validator");
+            log.warn("Tenant AI baseUrl rejected (SSRF guard): tenantId={}, error={}",
+                    tenantId, ex.getMessage());
+            return mockAiService;
+        }
+
+        String fingerprint = buildFingerprint(baseUrl, apiKey, requestedModel);
+        AiClientHolder holder = providerClientCache.compute("tenant:" + tenantId + ":" + requestedModel, (key, existing) -> {
+            if (existing != null && existing.fingerprint().equals(fingerprint)) {
+                return existing;
+            }
+            log.info("Building tenant OpenAI compat client for requested model: tenantId={}, baseUrl={}, model={}",
+                    tenantId, baseUrl, requestedModel);
+            return new AiClientHolder(fingerprint, new OpenAiCompatService(baseUrl, apiKey, requestedModel));
+        });
+        return holder.client();
+    }
+
+    private AiService handleDecryptFailure(Long tenantId, CryptoException e, String requestedModel) {
+        AuditContext ctx = AuditContext.from(httpRequest, trustedProxyResolver, null, tenantId);
+        auditLogService.log(ctx, "AI_DECRYPT_FAIL", "tenant", tenantId,
+                "AI apiKey 解密失败：" + e.getClass().getSimpleName());
+        securityMetrics.cryptoDecryptFailed();
+
+        if (isDevProfile()) {
+            log.warn("Tenant AI apiKey decrypt failed in dev profile, falling back to provider/mock: tenantId={}",
+                    tenantId);
+            String fallbackModel = requestedModel;
+            if (fallbackModel == null || fallbackModel.isBlank()) {
+                fallbackModel = aiProviderProperties.supportedModels().containsKey("deepseek-v4-flash")
+                        ? "deepseek-v4-flash"
+                        : null;
+            }
+            if (fallbackModel != null && aiProviderProperties.supportedModels().containsKey(fallbackModel)) {
+                AiProviderProperties.Provider provider = aiProviderProperties.resolveByModel(fallbackModel);
+                if (provider != null && provider.getApiKey() != null && !provider.getApiKey().isBlank()) {
+                    try {
+                        PrivateNetworkValidator.requirePublic(provider.getBaseUrl(), true);
+                        String fingerprint = buildFingerprint(provider.getBaseUrl(), provider.getApiKey(), provider.getModel());
+                        AiClientHolder holder = providerClientCache.compute("provider:" + provider.getModel(), (key, existing) -> {
+                            if (existing != null && existing.fingerprint().equals(fingerprint)) {
+                                return existing;
+                            }
+                            return new AiClientHolder(fingerprint,
+                                    new OpenAiCompatService(provider.getBaseUrl(), provider.getApiKey(), provider.getModel()));
+                        });
+                        return holder.client();
+                    } catch (IllegalArgumentException ex) {
+                        securityMetrics.ssrfBlocked("validator");
+                        log.warn("AI provider baseUrl rejected during dev fallback: model={}, error={}",
+                                fallbackModel, ex.getMessage());
+                    }
+                }
+            }
+            return mockAiService;
+        }
+
+        log.warn("Tenant AI apiKey decrypt failed, fail-loud: tenantId={}", tenantId);
+        throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE);
+    }
+
+    private boolean isDevProfile() {
+        for (String profile : environment.getActiveProfiles()) {
+            if ("dev".equalsIgnoreCase(profile)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { NIcon, NInput, NStep, NSteps, useMessage } from 'naive-ui';
-import { KeyOutline, LockClosedOutline, MailOutline, RefreshOutline } from '@vicons/ionicons5';
+import { useMessage } from 'naive-ui';
 import { forgotPassword, resetPassword } from '@/api/auth';
-import { getPasswordStrength, validateConfirmPassword, validateEmail, validatePassword } from '@/utils/authValidation';
+import {
+  getPasswordStrength,
+  validateConfirmPassword,
+  validateEmail,
+  validatePassword,
+} from '@/utils/authValidation';
 
 const router = useRouter();
 const message = useMessage();
@@ -39,7 +43,10 @@ function runFieldValidation(field: ForgotField) {
   };
   fieldState.value[field].error = validators[field]();
   if (field === 'newPassword' && confirmPassword.value) {
-    fieldState.value.confirmPassword.error = validateConfirmPassword(confirmPassword.value, newPassword.value);
+    fieldState.value.confirmPassword.error = validateConfirmPassword(
+      confirmPassword.value,
+      newPassword.value,
+    );
   }
 }
 
@@ -103,8 +110,6 @@ async function handleReset() {
   }
   loading.value = true;
   try {
-    // 重置密码：成功后由 auth.ts 内部 helper 自动 logout + 跳转 /login，
-    // 这里仅保留 toast 提示，避免与 helper 内的 router.push 重复跳转
     await resetPassword(email.value.trim(), emailCode.value.trim(), newPassword.value);
     message.success('密码重置成功，请重新登录');
   } catch (error) {
@@ -117,173 +122,246 @@ async function handleReset() {
 </script>
 
 <template>
-  <div class="forgot-page">
-    <div class="forgot-shell">
-      <section class="forgot-visual cf-card">
-        <div class="forgot-visual-inner">
-          <span class="cf-pill">Account Recovery</span>
-          <h1>安全地找回你的校园账号</h1>
-          <p>
-            采用两步流程完成密码重置：先验证注册邮箱，再使用邮箱验证码设置新密码，整个过程保持与新视觉系统一致。
-          </p>
+  <div class="bg-background text-on-surface min-h-screen flex flex-col relative overflow-hidden">
+    <!-- Background Abstract Pattern -->
+    <div class="absolute inset-0 pointer-events-none opacity-20">
+      <div
+        class="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-gradient-to-br from-blue-100 to-purple-100 blur-[100px]"
+      />
+      <div
+        class="absolute bottom-[10%] -right-[10%] w-[60%] h-[60%] rounded-full bg-gradient-to-tl from-indigo-50 to-cyan-50 blur-[120px]"
+      />
+    </div>
 
-          <div class="visual-steps">
-            <div class="visual-step active">
-              <strong>01 验证邮箱</strong>
-              <span>确认你当前使用的注册邮箱，系统会发送一次性验证码。</span>
-            </div>
-            <div class="visual-step" :class="{ active: step === 2 }">
-              <strong>02 设置新密码</strong>
-              <span>输入邮箱验证码与新密码，完成账号恢复。</span>
+    <!-- TopNavBar -->
+    <nav class="bg-transparent docked full-width top-0 z-50">
+      <div
+        class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-stack-md w-full mx-auto"
+      >
+        <div class="flex items-center gap-3">
+          <img src="@/assets/images/logo.png" alt="青云阁" class="w-8 h-8 rounded-lg object-cover" />
+          <div
+            class="font-headline-md text-[24px] font-extrabold tracking-tight h-[32px] overflow-hidden"
+          >
+            <div class="flex flex-col rolling-text">
+              <div class="h-[32px] flex items-center">
+                <span class="text-gray-400/70 dark:text-gray-500/70">青云阁</span>
+              </div>
+              <div class="h-[32px] flex items-center">
+                <span class="text-gray-400/70 dark:text-gray-500/70">青云阁</span>
+              </div>
             </div>
           </div>
         </div>
-      </section>
+      </div>
+    </nav>
 
-      <section class="forgot-panel cf-surface">
-        <div class="panel-head">
-          <h2>找回密码</h2>
-          <p>{{ stepTitle }}</p>
+    <!-- Main Content -->
+    <main
+      class="flex-grow flex items-center justify-center p-margin-mobile md:p-margin-desktop relative z-10"
+    >
+      <div
+        class="glass-panel w-full max-w-[480px] rounded-apple p-8 md:p-12 relative overflow-hidden"
+      >
+        <div class="text-center mb-8">
+          <h1 class="font-headline-xl text-headline-xl text-primary mb-2">找回密码</h1>
+          <p class="font-body-md text-body-md text-on-surface-variant">
+            {{ stepTitle }}
+          </p>
         </div>
 
-        <NSteps
-          :current="step"
-          class="stepper"
-        >
-          <NStep title="验证身份" />
-          <NStep title="重置密码" />
-        </NSteps>
-
-        <div v-if="step === 1" class="form-area">
+        <!-- Step Indicator (Apple Style Connection Bar) -->
+        <div class="flex items-center justify-center gap-3 mb-8">
+          <div class="flex items-center gap-2">
+            <div
+              class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300"
+              :class="
+                step === 1
+                  ? 'bg-primary text-on-primary'
+                  : 'bg-surface-container-low text-on-surface-variant'
+              "
+            >
+              1
+            </div>
+            <span
+              class="text-sm font-medium transition-colors duration-300"
+              :class="step === 1 ? 'text-primary font-bold' : 'text-on-surface-variant'"
+            >
+              验证身份
+            </span>
+          </div>
           <div
-            class="form-block"
-            :class="{ invalid: fieldState.email.touched && fieldState.email.error, shake: fieldState.email.shaking }"
-          >
-            <label>注册邮箱</label>
-            <n-input
-              v-model:value="email"
-              size="large"
-              placeholder="请输入注册时使用的邮箱"
-              maxlength="128"
-              :status="fieldState.email.touched && fieldState.email.error ? 'error' : undefined"
-              @focus="focusField('email')"
-              @blur="blurField('email')"
-              @input="runFieldValidation('email')"
+            class="w-12 h-px transition-colors duration-300"
+            :class="step === 2 ? 'bg-primary' : 'bg-outline-variant'"
+          />
+          <div class="flex items-center gap-2">
+            <div
+              class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300"
+              :class="
+                step === 2
+                  ? 'bg-primary text-on-primary'
+                  : 'bg-surface-container-low text-on-surface-variant'
+              "
             >
-              <template #prefix>
-                <n-icon><MailOutline /></n-icon>
-              </template>
-            </n-input>
-            <small
-              v-if="fieldState.email.touched && fieldState.email.error"
-              class="field-hint error"
+              2
+            </div>
+            <span
+              class="text-sm font-medium transition-colors duration-300"
+              :class="step === 2 ? 'text-primary font-bold' : 'text-on-surface-variant'"
             >
-              {{ fieldState.email.error }}
-            </small>
+              重置密码
+            </span>
+          </div>
+        </div>
+
+        <!-- Step 1: Input Email -->
+        <div v-if="step === 1" class="space-y-6">
+          <div class="space-y-4">
+            <div>
+              <label class="sr-only" for="email">注册邮箱</label>
+              <div class="relative" :class="{ shake: fieldState.email.shaking }">
+                <input
+                  id="email"
+                  v-model="email"
+                  type="text"
+                  placeholder="请输入注册时使用的邮箱"
+                  class="w-full bg-transparent border rounded-xl px-4 py-3 font-body-md text-body-md text-on-surface focus:ring-1 transition-colors outline-none"
+                  :class="
+                    fieldState.email.touched && fieldState.email.error
+                      ? 'border-error focus:border-error focus:ring-error'
+                      : 'border-outline-variant focus:border-primary focus:ring-primary'
+                  "
+                  @focus="focusField('email')"
+                  @blur="blurField('email')"
+                  @input="runFieldValidation('email')"
+                />
+              </div>
+              <small
+                v-if="fieldState.email.touched && fieldState.email.error"
+                class="text-error text-xs mt-1 block"
+              >
+                {{ fieldState.email.error }}
+              </small>
+            </div>
           </div>
 
           <button
-            class="cf-primary-btn submit-btn"
             :disabled="loading"
+            class="w-full bg-primary text-on-primary font-label-md text-label-md py-3.5 rounded-full hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             @click="handleSendCode"
           >
-            <n-icon size="16"><RefreshOutline /></n-icon>
-            {{ loading ? '提交中...' : '获取验证码' }}
+            {{ loading ? '发送中...' : '获取验证码' }}
           </button>
         </div>
 
-        <div v-else class="form-area">
-          <div class="form-block">
-            <label>邮箱验证码</label>
-            <n-input
-              v-model:value="emailCode"
-              size="large"
-              placeholder="请输入邮箱验证码"
-            >
-              <template #prefix>
-                <n-icon><KeyOutline /></n-icon>
-              </template>
-            </n-input>
-          </div>
-
-          <div
-            class="form-block"
-            :class="{ invalid: fieldState.newPassword.touched && fieldState.newPassword.error, shake: fieldState.newPassword.shaking }"
-          >
-            <label>新密码</label>
-            <n-input
-              v-model:value="newPassword"
-              type="password"
-              size="large"
-              placeholder="8-64 位，需包含字母和数字"
-              show-password-on="click"
-              maxlength="64"
-              :status="fieldState.newPassword.touched && fieldState.newPassword.error ? 'error' : undefined"
-              @focus="focusField('newPassword')"
-              @blur="blurField('newPassword')"
-              @input="runFieldValidation('newPassword')"
-            >
-              <template #prefix>
-                <n-icon><LockClosedOutline /></n-icon>
-              </template>
-            </n-input>
-            <div
-              v-if="fieldState.newPassword.active || newPassword"
-              class="password-strength"
-              :class="passwordStrength.strength"
-            >
-              <div class="strength-bar">
-                <span />
-              </div>
-              <small>密码强度：{{ passwordStrength.label }}，{{ passwordStrength.hint }}</small>
+        <!-- Step 2: Input Code & New Password -->
+        <div v-else class="space-y-5">
+          <div class="space-y-4">
+            <!-- Code Input -->
+            <div>
+              <label class="sr-only" for="emailCode">验证码</label>
+              <input
+                id="emailCode"
+                v-model="emailCode"
+                type="text"
+                placeholder="请输入邮箱验证码"
+                class="w-full bg-transparent border border-outline-variant rounded-xl px-4 py-3 font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-colors outline-none"
+              />
             </div>
-            <small
-              v-if="fieldState.newPassword.touched && fieldState.newPassword.error"
-              class="field-hint error"
-            >
-              {{ fieldState.newPassword.error }}
-            </small>
+
+            <!-- New Password Input -->
+            <div>
+              <label class="sr-only" for="newPassword">新密码</label>
+              <div class="relative" :class="{ shake: fieldState.newPassword.shaking }">
+                <input
+                  id="newPassword"
+                  v-model="newPassword"
+                  type="password"
+                  placeholder="8-64 位新密码，需包含字母和数字"
+                  class="w-full bg-transparent border rounded-xl px-4 py-3 font-body-md text-body-md text-on-surface focus:ring-1 transition-colors outline-none"
+                  :class="
+                    fieldState.newPassword.touched && fieldState.newPassword.error
+                      ? 'border-error focus:border-error focus:ring-error'
+                      : 'border-outline-variant focus:border-primary focus:ring-primary'
+                  "
+                  @focus="focusField('newPassword')"
+                  @blur="blurField('newPassword')"
+                  @input="runFieldValidation('newPassword')"
+                />
+              </div>
+              <!-- Password Strength Bar -->
+              <div
+                v-if="fieldState.newPassword.active || newPassword"
+                class="mt-2 text-xs flex items-center gap-2"
+                :class="{
+                  'text-error': passwordStrength.strength === 'weak',
+                  'text-orange-500': passwordStrength.strength === 'medium',
+                  'text-primary': passwordStrength.strength === 'strong',
+                  'text-outline-variant': passwordStrength.strength === 'empty',
+                }"
+              >
+                <div class="flex-grow h-1.5 rounded-full bg-surface-container-low overflow-hidden">
+                  <div
+                    class="h-full rounded-full transition-all duration-300"
+                    :class="{
+                      'w-1/3 bg-error': passwordStrength.strength === 'weak',
+                      'w-2/3 bg-orange-500': passwordStrength.strength === 'medium',
+                      'w-full bg-primary': passwordStrength.strength === 'strong',
+                      'w-0': passwordStrength.strength === 'empty',
+                    }"
+                  />
+                </div>
+                <span class="whitespace-nowrap">强度: {{ passwordStrength.label }}</span>
+              </div>
+              <small
+                v-if="fieldState.newPassword.touched && fieldState.newPassword.error"
+                class="text-error text-xs mt-1 block"
+              >
+                {{ fieldState.newPassword.error }}
+              </small>
+            </div>
+
+            <!-- Confirm Password Input -->
+            <div>
+              <label class="sr-only" for="confirmPassword">确认密码</label>
+              <div class="relative" :class="{ shake: fieldState.confirmPassword.shaking }">
+                <input
+                  id="confirmPassword"
+                  v-model="confirmPassword"
+                  type="password"
+                  placeholder="请再次输入新密码"
+                  class="w-full bg-transparent border rounded-xl px-4 py-3 font-body-md text-body-md text-on-surface focus:ring-1 transition-colors outline-none"
+                  :class="
+                    fieldState.confirmPassword.touched && fieldState.confirmPassword.error
+                      ? 'border-error focus:border-error focus:ring-error'
+                      : 'border-outline-variant focus:border-primary focus:ring-primary'
+                  "
+                  @focus="focusField('confirmPassword')"
+                  @blur="blurField('confirmPassword')"
+                  @input="runFieldValidation('confirmPassword')"
+                />
+              </div>
+              <small
+                v-if="fieldState.confirmPassword.touched && fieldState.confirmPassword.error"
+                class="text-error text-xs mt-1 block"
+              >
+                {{ fieldState.confirmPassword.error }}
+              </small>
+            </div>
           </div>
 
-          <div
-            class="form-block"
-            :class="{ invalid: fieldState.confirmPassword.touched && fieldState.confirmPassword.error, shake: fieldState.confirmPassword.shaking }"
-          >
-            <label>确认密码</label>
-            <n-input
-              v-model:value="confirmPassword"
-              type="password"
-              size="large"
-              placeholder="请再次输入新密码"
-              show-password-on="click"
-              maxlength="64"
-              :status="fieldState.confirmPassword.touched && fieldState.confirmPassword.error ? 'error' : undefined"
-              @focus="focusField('confirmPassword')"
-              @blur="blurField('confirmPassword')"
-              @input="runFieldValidation('confirmPassword')"
-            >
-              <template #prefix>
-                <n-icon><LockClosedOutline /></n-icon>
-              </template>
-            </n-input>
-            <small
-              v-if="fieldState.confirmPassword.touched && fieldState.confirmPassword.error"
-              class="field-hint error"
-            >
-              {{ fieldState.confirmPassword.error }}
-            </small>
-          </div>
-
-          <div class="action-row">
+          <div class="flex gap-4">
             <button
-              class="cf-secondary-btn"
+              type="button"
+              class="flex-1 bg-surface-container-low text-primary border border-outline-variant font-label-md text-label-md py-3 rounded-full hover:bg-surface-container transition-colors"
               @click="step = 1"
             >
-              返回上一步
+              上一步
             </button>
             <button
-              class="cf-primary-btn"
+              type="button"
               :disabled="loading"
+              class="flex-1 bg-primary text-on-primary font-label-md text-label-md py-3 rounded-full hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               @click="handleReset"
             >
               {{ loading ? '重置中...' : '重置密码' }}
@@ -291,301 +369,101 @@ async function handleReset() {
           </div>
         </div>
 
-        <div class="footer-note">
-          想起密码了？
-          <button
-            class="text-link strong"
-            @click="router.push('/login')"
-          >
-            返回登录
-          </button>
+        <!-- Footer Note -->
+        <div class="flex flex-col items-center gap-3 mt-8">
+          <div class="font-label-md text-label-md text-on-surface-variant">
+            想起密码了？
+            <button
+              class="text-secondary hover:underline font-bold transition-all"
+              @click="router.push('/login')"
+            >
+              返回登录
+            </button>
+          </div>
         </div>
-      </section>
-    </div>
+      </div>
+    </main>
   </div>
 </template>
 
-<style scoped lang="scss">
-.forgot-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
+<style scoped>
+.bg-background {
+  background: var(--cf-page-bg);
+  color: var(--cf-text-primary);
 }
 
-.forgot-shell {
-  width: min(1080px, 100%);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 430px;
-  gap: 22px;
+.pointer-events-none.opacity-20 {
+  display: none;
 }
 
-.forgot-visual,
-.forgot-panel {
-  min-height: 680px;
+nav {
+  padding: 18px 24px 0;
 }
 
-.forgot-visual {
-  padding: 28px;
-  background: linear-gradient(180deg, var(--cf-bg-glass-soft), var(--cf-bg-glass));
-  box-shadow: var(--cf-shadow-float);
+.glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 22px;
+  box-shadow:
+    0 18px 55px rgba(15, 23, 42, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  overflow: visible;
 }
 
-.forgot-visual-inner {
-  height: 100%;
-  padding: 32px;
-  border-radius: 24px;
-  display: flex;
-  flex-direction: column;
-  background: linear-gradient(180deg, var(--cf-bg-glass-soft), color-mix(in srgb, var(--cf-bg-glass) 68%, transparent));
-  border: 1px solid var(--cf-border-glass);
-  box-shadow: inset 0 1px 0 var(--cf-surface-highlight), var(--cf-shadow-card);
-  backdrop-filter: blur(16px) saturate(132%);
-  -webkit-backdrop-filter: blur(16px) saturate(132%);
-
-  h1 {
-    margin: 18px 0 12px;
-    font-family: var(--cf-font-heading);
-    font-size: clamp(40px, 4vw, 56px);
-    line-height: 1.06;
-    letter-spacing: 0;
-  }
-
-  p {
-    margin: 0;
-    color: var(--cf-text-secondary);
-    line-height: 1.85;
-    font-size: 17px;
-  }
+input {
+  background: var(--cf-bg-base) !important;
+  border-color: var(--cf-border) !important;
+  color: var(--cf-text-primary) !important;
 }
 
-.visual-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-top: 28px;
+input::placeholder {
+  color: var(--cf-text-muted) !important;
+  opacity: 0.8;
 }
 
-.visual-step {
-  padding: 18px;
-  border-radius: 18px;
-  background: var(--cf-bg-glass-soft);
-  border: 1px solid var(--cf-border-glass);
-  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
-  backdrop-filter: blur(14px) saturate(128%);
-  -webkit-backdrop-filter: blur(14px) saturate(128%);
-
-  strong {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 16px;
-  }
-
-  span {
-    color: var(--cf-text-muted);
-    font-size: 14px;
-    line-height: 1.75;
-  }
-
-  &.active {
-    background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass-soft));
-    border-color: var(--cf-border-strong);
-  }
+input:focus {
+  border-color: var(--cf-primary) !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-primary) 12%, transparent) !important;
 }
 
-.forgot-panel {
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+button.bg-primary {
+  background: var(--cf-primary) !important;
+  color: var(--cf-text-inverse) !important;
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--cf-primary) 24%, transparent);
 }
 
-.panel-head {
-  margin-bottom: 22px;
-
-  h2 {
-    margin: 0 0 8px;
-    font-family: var(--cf-font-heading);
-    font-size: 32px;
-  }
-
-  p {
-    margin: 0;
-    color: var(--cf-text-secondary);
-  }
+button.bg-surface-container-low {
+  background: var(--cf-bg-soft) !important;
+  border-color: var(--cf-border) !important;
 }
 
-.stepper {
-  margin-bottom: 26px;
+html[data-theme='dark'] .glass-panel {
+  background: rgba(12, 12, 13, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.form-area {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.form-block {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-
-  label {
-    font-size: 14px;
-    font-weight: 700;
-  }
-
-  &.invalid {
-    :deep(.n-input) {
-      --n-border: 1px solid var(--cf-danger) !important;
-      --n-border-hover: 1px solid var(--cf-danger) !important;
-      --n-border-focus: 1px solid var(--cf-danger) !important;
-      --n-box-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--cf-danger) 18%, transparent) !important;
-    }
-  }
-
-  &.shake {
-    animation: field-shake 0.48s ease;
-  }
-}
-
-.field-hint {
-  min-height: 18px;
-  font-size: 12px;
-  line-height: 1.5;
-
-  &.error {
-    color: var(--cf-danger);
-  }
-}
-
-.password-strength {
-  display: grid;
-  gap: 6px;
-
-  small {
-    color: var(--cf-text-muted);
-    font-size: 12px;
-    line-height: 1.5;
-  }
-
-  &.weak {
-    --strength-color: var(--cf-danger);
-    --strength-width: 33%;
-  }
-
-  &.medium {
-    --strength-color: #d97706;
-    --strength-width: 66%;
-  }
-
-  &.strong {
-    --strength-color: var(--cf-primary);
-    --strength-width: 100%;
-  }
-
-  &.empty {
-    --strength-color: var(--cf-border-strong);
-    --strength-width: 0%;
-  }
-}
-
-.strength-bar {
-  height: 6px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--cf-bg-glass-soft);
-
-  span {
-    display: block;
-    width: var(--strength-width);
-    height: 100%;
-    border-radius: inherit;
-    background: var(--strength-color);
-    transition: width 0.2s ease, background-color 0.2s ease;
-  }
+.shake {
+  animation: field-shake 0.48s ease;
 }
 
 @keyframes field-shake {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateX(0);
   }
-  20%, 60% {
+  20%,
+  60% {
     transform: translateX(-4px);
   }
-  40%, 80% {
+  40%,
+  80% {
     transform: translateX(4px);
   }
 }
 
-.submit-btn {
-  width: 100%;
-  min-height: 48px;
-}
-
-.action-row {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
-
-  button {
-    flex: 1;
-  }
-}
-
-.footer-note {
-  margin-top: 20px;
-  text-align: center;
-  color: var(--cf-text-secondary);
-  font-size: 14px;
-}
-
-.text-link {
-  border: none;
-  background: transparent;
-  color: var(--cf-primary);
-  cursor: pointer;
-  padding: 0;
-  font-size: 14px;
-
-  &.strong {
-    font-weight: 700;
-  }
-}
-
-:deep(.n-input),
-:deep(.n-step-indicator) {
-  --n-border-radius: 14px !important;
-}
-
-@media (max-width: 960px) {
-  .forgot-page {
-    padding: 16px;
-  }
-
-  .forgot-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .forgot-visual,
-  .forgot-panel {
-    min-height: auto;
-  }
-}
-
-@media (max-width: 640px) {
-  .forgot-visual,
-  .forgot-panel {
-    padding: 20px;
-  }
-
-  .forgot-visual-inner {
-    padding: 22px;
-  }
-
-  .action-row {
-    flex-direction: column;
-  }
+.rolling-text {
+  animation: none;
 }
 </style>

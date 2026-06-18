@@ -81,12 +81,12 @@ onMounted(() => loadLogs(true));
 </script>
 
 <template>
-  <div style="padding: 24px;">
-    <h2 style="margin-bottom: 16px;">
+  <div class="admin-page">
+    <h2>
       审计日志
     </h2>
 
-    <NSpace style="margin-bottom: 16px;">
+    <NSpace class="admin-filterbar">
       <NInput
         v-model:value="operatorId"
         placeholder="操作人 ID"

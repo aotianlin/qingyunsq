@@ -70,6 +70,7 @@ class AiRateLimitInterceptorTest {
     @Test
     void preHandle_shouldRejectWhenUserPerMinExceeded() throws Exception {
         TenantContext.setTenantId(1L);
+        MockHttpServletRequest req = costlyAiRequest();
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         try (MockedStatic<StpUtil> stp = org.mockito.Mockito.mockStatic(StpUtil.class)) {
@@ -77,7 +78,7 @@ class AiRateLimitInterceptorTest {
             stp.when(StpUtil::getLoginIdAsLong).thenReturn(7L);
             when(rateLimiter.tryAcquire(eq("ai_rate:user:7:min"), eq(5), eq(60))).thenReturn(42L);
 
-            boolean result = interceptor.preHandle(new MockHttpServletRequest(), res, new Object());
+            boolean result = interceptor.preHandle(req, res, new Object());
 
             assertThat(result).isFalse();
             assertThat(res.getStatus()).isEqualTo(429);
@@ -91,6 +92,7 @@ class AiRateLimitInterceptorTest {
     @Test
     void preHandle_shouldRejectWhenTenantPerDayExceeded() throws Exception {
         TenantContext.setTenantId(1L);
+        MockHttpServletRequest req = costlyAiRequest();
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         try (MockedStatic<StpUtil> stp = org.mockito.Mockito.mockStatic(StpUtil.class)) {
@@ -99,7 +101,7 @@ class AiRateLimitInterceptorTest {
             when(rateLimiter.tryAcquire(eq("ai_rate:user:7:min"), eq(5), eq(60))).thenReturn(0L);
             when(rateLimiter.tryAcquire(eq("ai_rate:tenant:1:day"), eq(1000), eq(86400))).thenReturn(3600L);
 
-            boolean result = interceptor.preHandle(new MockHttpServletRequest(), res, new Object());
+            boolean result = interceptor.preHandle(req, res, new Object());
 
             assertThat(result).isFalse();
             assertThat(res.getStatus()).isEqualTo(429);
@@ -111,6 +113,7 @@ class AiRateLimitInterceptorTest {
     @Test
     void preHandle_shouldAllowWhenBothLimitsNotExceeded() throws Exception {
         TenantContext.setTenantId(1L);
+        MockHttpServletRequest req = costlyAiRequest();
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         try (MockedStatic<StpUtil> stp = org.mockito.Mockito.mockStatic(StpUtil.class)) {
@@ -119,7 +122,7 @@ class AiRateLimitInterceptorTest {
             when(rateLimiter.tryAcquire(eq("ai_rate:user:7:min"), eq(5), eq(60))).thenReturn(0L);
             when(rateLimiter.tryAcquire(eq("ai_rate:tenant:1:day"), eq(1000), eq(86400))).thenReturn(0L);
 
-            boolean result = interceptor.preHandle(new MockHttpServletRequest(), res, new Object());
+            boolean result = interceptor.preHandle(req, res, new Object());
 
             assertThat(result).isTrue();
             assertThat(res.getStatus()).isEqualTo(HttpServletResponse.SC_OK);
@@ -129,6 +132,7 @@ class AiRateLimitInterceptorTest {
     @Test
     void preHandle_shouldSkipTenantLimitWhenTenantContextMissing() throws Exception {
         // 不设 TenantContext
+        MockHttpServletRequest req = costlyAiRequest();
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         try (MockedStatic<StpUtil> stp = org.mockito.Mockito.mockStatic(StpUtil.class)) {
@@ -136,12 +140,18 @@ class AiRateLimitInterceptorTest {
             stp.when(StpUtil::getLoginIdAsLong).thenReturn(7L);
             when(rateLimiter.tryAcquire(eq("ai_rate:user:7:min"), eq(5), eq(60))).thenReturn(0L);
 
-            boolean result = interceptor.preHandle(new MockHttpServletRequest(), res, new Object());
+            boolean result = interceptor.preHandle(req, res, new Object());
 
             assertThat(result).isTrue();
             // tenant 限流键不应被检查
             verify(rateLimiter, never()).tryAcquire(
                     org.mockito.ArgumentMatchers.startsWith("ai_rate:tenant:"), anyInt(), anyInt());
         }
+    }
+
+    private MockHttpServletRequest costlyAiRequest() {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/ai/chat");
+        req.setRequestURI("/api/v1/ai/chat");
+        return req;
     }
 }

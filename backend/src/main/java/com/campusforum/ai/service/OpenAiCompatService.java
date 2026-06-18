@@ -45,7 +45,11 @@ public class OpenAiCompatService implements AiService {
     private static final int READ_TIMEOUT_MS = 30000;
 
     /** 统一的脱敏错误文案，避免泄漏上游具体错误信息（漏洞 1.18）。 */
-    private static final String AI_UPSTREAM_ERROR_MESSAGE = "AI 服务暂时不可用，请稍后重试";
+    static final String AI_UPSTREAM_ERROR_MESSAGE = "AI 服务暂时不可用，请稍后重试";
+
+    static boolean isUpstreamError(String reply) {
+        return AI_UPSTREAM_ERROR_MESSAGE.equals(reply);
+    }
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -117,7 +121,8 @@ public class OpenAiCompatService implements AiService {
         if (context != null && !context.isBlank()) {
             chatMessages.add(Map.of("role", "system", "content", context));
         }
-        chatMessages.add(Map.of("role", "system", "content", "你是 CampusForum 高校轻量化学习社群平台的AI助手，请友好、简洁地回答用户问题。"));
+        chatMessages.add(Map.of("role", "system", "content",
+                "你叫小青，是青云阁网站的 AI 助手。青云阁是当前高校学习交流社区网站的名称，不是你的名字，也不要把它解释成其他类型的网站。请友好、简洁地回答用户问题；当用户询问你的名字或身份时，明确回答你是小青。"));
         if (messages != null) {
             for (ChatMessage msg : messages) {
                 chatMessages.add(Map.of("role", msg.role(), "content", msg.content()));

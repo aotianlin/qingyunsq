@@ -43,13 +43,14 @@ public class AiController {
 
     @PostMapping("/chat")
     public R<AiResponse> chat(@RequestBody AiRequest req) {
-        String reply = aiService.chat(req.getMessages(), req.getContext());
+        String reply = aiService.chat(req.getMessages(), req.getContext(), req.getModel());
         return R.ok(AiResponse.builder().reply(reply).build());
     }
 
     @PostMapping("/rag-chat")
     public R<AiResponse> ragChat(@RequestBody AiRequest req) {
-        return R.ok(ragChatService.chat(req.getMessages(), req.getContext()));
+        boolean webSearchEnabled = req.getAbilities() == null || req.getAbilities().contains("web-search");
+        return R.ok(ragChatService.chat(req.getMessages(), req.getContext(), req.getModel(), webSearchEnabled));
     }
 
     /**

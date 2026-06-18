@@ -28,8 +28,15 @@ public class SensitiveWordController {
     public R<Void> add(@RequestBody Map<String, Object> body) {
         String word = (String) body.get("word");
         int level = body.get("level") != null ? Integer.parseInt(body.get("level").toString()) : 1;
-        sensitiveWordService.add(word, level);
+        // isRegex 可选，默认 false（普通词条）；显式传 true 时按正则录入，service 会校验正则合法性。
+        boolean isRegex = parseBoolean(body.get("isRegex"));
+        sensitiveWordService.add(word, level, isRegex);
         return R.ok();
+    }
+
+    private static boolean parseBoolean(Object value) {
+        if (value instanceof Boolean b) return b;
+        return value != null && Boolean.parseBoolean(value.toString());
     }
 
     @DeleteMapping("/{id}")

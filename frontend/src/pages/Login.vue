@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { NIcon, NInput, NTabPane, NTabs, useMessage } from 'naive-ui';
-import { ArrowForwardOutline, LockClosedOutline, MailOutline, ShieldCheckmarkOutline, SparklesOutline } from '@vicons/ionicons5';
+import { useMessage } from 'naive-ui';
+import { ArrowForwardOutline, LogoWechat, LogoGithub } from '@vicons/ionicons5';
 import { checkEmailExists, login, loginWithEmailCode, sendEmailCode } from '@/api/auth';
 import { useAuthStore } from '@/stores/auth';
 import { validateEmail, validatePassword } from '@/utils/authValidation';
@@ -24,11 +24,19 @@ const fieldState = ref({
   password: { active: false, touched: false, error: '', shaking: false },
 });
 
-const featureList = [
-  '加入多校学习圈，追踪热门课程讨论',
-  '查看广场动态、资源分享与打卡挑战',
-  '使用小青知识库快速整理帖子与学习内容',
-];
+const rememberMe = ref(false);
+
+onMounted(() => {
+  const savedEmail = localStorage.getItem('rememberedEmail');
+  const savedPassword = localStorage.getItem('rememberedPassword');
+  if (savedEmail) {
+    email.value = savedEmail;
+    rememberMe.value = true;
+  }
+  if (savedPassword) {
+    password.value = savedPassword;
+  }
+});
 
 const canSubmit = computed(() => {
   if (!email.value.trim() || fieldState.value.email.error) return false;
@@ -39,9 +47,8 @@ const canSubmit = computed(() => {
 });
 
 function runFieldValidation(field: 'email' | 'password') {
-  fieldState.value[field].error = field === 'email'
-    ? validateEmail(email.value)
-    : validatePassword(password.value);
+  fieldState.value[field].error =
+    field === 'email' ? validateEmail(email.value) : validatePassword(password.value);
 }
 
 function focusField(field: 'email' | 'password') {
@@ -66,8 +73,8 @@ function blurField(field: 'email' | 'password') {
 }
 
 function validateForm() {
-  // 验证码登录模式只需要校验邮箱
-  const fields = loginMode.value === 'password' ? (['email', 'password'] as const) : (['email'] as const);
+  const fields =
+    loginMode.value === 'password' ? (['email', 'password'] as const) : (['email'] as const);
   fields.forEach((field) => {
     fieldState.value[field].touched = true;
     runFieldValidation(field);
@@ -98,7 +105,6 @@ function startCodeCountdown() {
 }
 
 async function handleSendCode() {
-  // 发送验证码前确保邮箱格式正确
   fieldState.value.email.touched = true;
   runFieldValidation('email');
   if (fieldState.value.email.error) {
@@ -108,7 +114,6 @@ async function handleSendCode() {
   const trimmedEmail = email.value.trim();
   codeLoading.value = true;
   try {
-    // 防呆校验：未注册邮箱不发验证码，提示后跳转至注册页并预填邮箱
     const exists = await checkEmailExists(trimmedEmail);
     if (!exists) {
       message.warning('该邮箱尚未注册，将跳转到注册页');
@@ -127,29 +132,61 @@ async function handleSendCode() {
 
 async function handleLogin() {
   if (!validateForm()) {
-    message.warning(loginMode.value === 'password' ? '请按提示修正邮箱和密码' : '请填写邮箱和验证码');
+    message.warning(
+      loginMode.value === 'password' ? '请按提示修正邮箱和密码' : '请填写邮箱和验证码',
+    );
     return;
   }
 
   loading.value = true;
   try {
-    const res = loginMode.value === 'password'
-      ? await login({ email: email.value.trim(), password: password.value })
-      : await loginWithEmailCode({ email: email.value.trim(), emailCode: emailCode.value.trim() });
+    const res =
+      loginMode.value === 'password'
+        ? await login({ email: email.value.trim(), password: password.value })
+        : await loginWithEmailCode({
+            email: email.value.trim(),
+            emailCode: emailCode.value.trim(),
+          });
     authStore.setToken(res.token);
     authStore.setUser(res.user);
     if (res.tenantId && res.tenantCode) {
       authStore.setTenant(res.tenantId, res.tenantCode);
     }
+    if (rememberMe.value) {
+      localStorage.setItem('rememberedEmail', email.value.trim());
+      if (loginMode.value === 'password') {
+        localStorage.setItem('rememberedPassword', password.value);
+      }
+    } else {
+      localStorage.removeItem('rememberedEmail');
+      localStorage.removeItem('rememberedPassword');
+    }
     message.success('登录成功');
     router.push('/square');
   } catch {
-    // 后端统一返回 INVALID_CREDENTIALS(40101)，前端不区分具体失败原因
     message.error(loginMode.value === 'password' ? '邮箱或密码错误' : '邮箱或验证码错误');
     resetLoginForm();
   } finally {
     loading.value = false;
   }
+}
+
+function handleSocialLogin(provider: string) {
+  message.info(`${provider} 登录正在接入中，请先使用邮箱登录或验证码登录`);
+}
+
+function handleGuestLogin() {
+  authStore.setToken('GUEST_TOKEN');
+  authStore.setUser({
+    id: -1,
+    nickname: '游客用户',
+    avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=Guest',
+    email: 'guest@campus.edu',
+    role: 'GUEST',
+    points: 0,
+  });
+  message.success('已以游客身份进入社区');
+  router.push('/square');
 }
 
 onBeforeUnmount(() => {
@@ -158,459 +195,402 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="auth-page">
-    <div class="auth-shell">
-      <section class="auth-visual cf-card">
-        <div class="auth-visual-inner">
-          <span class="cf-pill">Campus Access</span>
-          <h1>欢迎回到 CampusForum</h1>
-          <p>
-            进入一个更安静、更高效的校园学习社区，在熟悉的空间里继续追踪讨论、管理资源、沉淀成长记录。
-          </p>
+  <div class="bg-background text-on-surface min-h-screen flex flex-col relative overflow-hidden">
+    <!-- Background Abstract Pattern -->
+    <div class="absolute inset-0 pointer-events-none opacity-20">
+      <div
+        class="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-gradient-to-br from-blue-100 to-purple-100 blur-[100px]"
+      />
+      <div
+        class="absolute bottom-[10%] -right-[10%] w-[60%] h-[60%] rounded-full bg-gradient-to-tl from-indigo-50 to-cyan-50 blur-[120px]"
+      />
+    </div>
 
-          <div class="feature-list">
-            <div
-              v-for="item in featureList"
-              :key="item"
-              class="feature-item"
-            >
-              <div class="feature-icon">
-                <n-icon size="16">
-                  <SparklesOutline />
-                </n-icon>
+    <!-- TopNavBar -->
+    <nav class="bg-transparent docked full-width top-0 z-50">
+      <div
+        class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-stack-md w-full mx-auto"
+      >
+        <div class="flex items-center gap-3">
+          <img src="@/assets/images/logo.png" alt="青云阁" class="w-8 h-8 rounded-lg object-cover" />
+          <div
+            class="font-headline-md text-[24px] font-extrabold tracking-tight h-[32px] overflow-hidden"
+          >
+            <div class="flex flex-col rolling-text">
+              <div class="h-[32px] flex items-center">
+                <span class="text-gray-400/70 dark:text-gray-500/70">青云阁</span>
               </div>
-              <span>{{ item }}</span>
-            </div>
-          </div>
-
-          <div class="visual-metrics">
-            <div>
-              <strong>56k+</strong>
-              <span>活跃学生</span>
-            </div>
-            <div>
-              <strong>12k+</strong>
-              <span>学习圈</span>
-            </div>
-            <div>
-              <strong>8.9k</strong>
-              <span>今日打卡</span>
+              <div class="h-[32px] flex items-center">
+                <span class="text-gray-400/70 dark:text-gray-500/70">青云阁</span>
+              </div>
             </div>
           </div>
         </div>
-      </section>
+      </div>
+    </nav>
 
-      <section class="auth-panel cf-surface">
-        <div class="panel-head">
-          <h2>登录账号</h2>
-          <p>使用你的校园账号进入社区。</p>
+    <!-- Main Content -->
+    <main
+      class="flex-grow flex items-center justify-center p-margin-mobile md:p-margin-desktop relative z-10"
+    >
+      <div
+        class="glass-panel w-full max-w-[480px] rounded-apple p-8 md:p-12 relative overflow-hidden"
+      >
+        <div class="text-center mb-10">
+          <h1 class="font-headline-xl text-headline-xl text-primary mb-2">登录您的账号</h1>
+          <p class="font-body-md text-body-md text-on-surface-variant">请选择您的登录方式</p>
         </div>
 
-        <n-tabs
-          v-model:value="loginMode"
-          type="segment"
-          animated
-          class="login-tabs"
-        >
-          <n-tab-pane
-            name="password"
-            tab="密码登录"
-          />
-          <n-tab-pane
-            name="code"
-            tab="验证码登录"
-          />
-        </n-tabs>
-
-        <div
-          class="form-block"
-          :class="{ invalid: fieldState.email.touched && fieldState.email.error, shake: fieldState.email.shaking }"
-        >
-          <label>邮箱</label>
-          <n-input
-            v-model:value="email"
-            size="large"
-            placeholder="name@college.edu"
-            :status="fieldState.email.touched && fieldState.email.error ? 'error' : undefined"
-            @focus="focusField('email')"
-            @blur="blurField('email')"
-            @input="runFieldValidation('email')"
-          >
-            <template #prefix>
-              <n-icon><MailOutline /></n-icon>
-            </template>
-          </n-input>
-          <small
-            v-if="fieldState.email.touched && fieldState.email.error"
-            class="field-hint error"
-          >
-            {{ fieldState.email.error }}
-          </small>
-        </div>
-
-        <div
-          v-if="loginMode === 'password'"
-          class="form-block"
-          :class="{ invalid: fieldState.password.touched && fieldState.password.error, shake: fieldState.password.shaking }"
-        >
-          <div class="label-row">
-            <label>密码</label>
-            <button
-              class="text-link"
-              @click="router.push('/forgot-password')"
-            >
-              忘记密码？
-            </button>
-          </div>
-          <n-input
-            v-model:value="password"
-            type="password"
-            size="large"
-            placeholder="请输入密码"
-            show-password-on="click"
-            :status="fieldState.password.touched && fieldState.password.error ? 'error' : undefined"
-            @focus="focusField('password')"
-            @blur="blurField('password')"
-            @input="runFieldValidation('password')"
-          >
-            <template #prefix>
-              <n-icon><LockClosedOutline /></n-icon>
-            </template>
-          </n-input>
-          <small
-            v-if="fieldState.password.touched && fieldState.password.error"
-            class="field-hint error"
-          >
-            {{ fieldState.password.error }}
-          </small>
-        </div>
-
-        <div
-          v-else
-          class="form-block"
-        >
-          <label>邮箱验证码</label>
-          <div class="code-input-row">
-            <n-input
-              v-model:value="emailCode"
-              size="large"
-              placeholder="输入 6 位验证码"
-            >
-              <template #prefix>
-                <n-icon><ShieldCheckmarkOutline /></n-icon>
-              </template>
-            </n-input>
-            <button
-              class="cf-secondary-btn code-btn"
-              :disabled="codeLoading || codeCountdown > 0"
-              @click="handleSendCode"
-            >
-              {{ codeCountdown > 0 ? `${codeCountdown}s` : codeLoading ? '发送中...' : '获取验证码' }}
-            </button>
-          </div>
-        </div>
-
-        <button
-          class="cf-primary-btn submit-btn"
-          :disabled="loading || !canSubmit"
-          @click="handleLogin"
-        >
-          <n-icon size="16">
-            <ArrowForwardOutline />
-          </n-icon>
-          {{ loading ? '登录中...' : '进入社区' }}
-        </button>
-
-        <div class="footer-note">
-          还没有账号？
+        <!-- Tabs UI -->
+        <div class="tabs-container bg-surface-container-low p-1 rounded-xl flex mb-8 relative">
           <button
-            class="text-link strong"
-            @click="router.push('/register')"
+            class="flex-1 text-center py-2 rounded-lg cursor-pointer font-label-md text-label-md text-primary transition-all duration-300"
+            :class="{ 'active-tab shadow-[0_1px_3px_rgba(0,0,0,0.1)]': loginMode === 'password' }"
+            @click="loginMode = 'password'"
           >
-            立即注册
+            密码登录
+          </button>
+          <button
+            class="flex-1 text-center py-2 rounded-lg cursor-pointer font-label-md text-label-md text-primary transition-all duration-300"
+            :class="{ 'active-tab shadow-[0_1px_3px_rgba(0,0,0,0.1)]': loginMode === 'code' }"
+            @click="loginMode = 'code'"
+          >
+            验证码登录
           </button>
         </div>
-      </section>
-    </div>
+
+        <!-- Account Login Content -->
+        <div v-if="loginMode === 'password'">
+          <form class="space-y-6" @submit.prevent="handleLogin">
+            <div class="space-y-4">
+              <div>
+                <label class="sr-only" for="email">邮箱</label>
+                <div class="relative" :class="{ shake: fieldState.email.shaking }">
+                  <input
+                    id="email"
+                    v-model="email"
+                    type="text"
+                    placeholder="name@college.edu"
+                    class="w-full bg-transparent border rounded-xl px-4 py-3 font-body-md text-body-md text-on-surface focus:ring-1 transition-colors outline-none"
+                    :class="
+                      fieldState.email.touched && fieldState.email.error
+                        ? 'border-error focus:border-error focus:ring-error'
+                        : 'border-outline-variant focus:border-primary focus:ring-primary'
+                    "
+                    @focus="focusField('email')"
+                    @blur="blurField('email')"
+                    @input="runFieldValidation('email')"
+                  />
+                </div>
+                <small
+                  v-if="fieldState.email.touched && fieldState.email.error"
+                  class="text-error text-xs mt-1 block"
+                >
+                  {{ fieldState.email.error }}
+                </small>
+              </div>
+
+              <div>
+                <label class="sr-only" for="password">密码</label>
+                <div class="relative" :class="{ shake: fieldState.password.shaking }">
+                  <input
+                    id="password"
+                    v-model="password"
+                    type="password"
+                    placeholder="请输入密码"
+                    class="w-full bg-transparent border rounded-xl px-4 py-3 font-body-md text-body-md text-on-surface focus:ring-1 transition-colors outline-none"
+                    :class="
+                      fieldState.password.touched && fieldState.password.error
+                        ? 'border-error focus:border-error focus:ring-error'
+                        : 'border-outline-variant focus:border-primary focus:ring-primary'
+                    "
+                    @focus="focusField('password')"
+                    @blur="blurField('password')"
+                    @input="runFieldValidation('password')"
+                  />
+                </div>
+                <small
+                  v-if="fieldState.password.touched && fieldState.password.error"
+                  class="text-error text-xs mt-1 block"
+                >
+                  {{ fieldState.password.error }}
+                </small>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between">
+              <label class="flex items-center gap-2 cursor-pointer group">
+                <input
+                  v-model="rememberMe"
+                  type="checkbox"
+                  class="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary rounded-sm transition-colors cursor-pointer"
+                />
+                <span
+                  class="font-label-md text-label-md text-on-surface-variant group-hover:text-primary transition-colors"
+                  >记住我</span
+                >
+              </label>
+              <a
+                href="#"
+                class="font-label-md text-label-md text-secondary hover:underline transition-all"
+                @click.prevent="router.push('/forgot-password')"
+                >忘记密码?</a
+              >
+            </div>
+
+            <button
+              type="submit"
+              :disabled="loading || !canSubmit"
+              class="w-full bg-primary text-on-primary font-label-md text-label-md py-3.5 rounded-full hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group"
+            >
+              {{ loading ? '登录中...' : '登录' }}
+              <ArrowForwardOutline
+                class="w-[18px] h-[18px] group-hover:translate-x-1 transition-transform"
+              />
+            </button>
+          </form>
+        </div>
+
+        <!-- SMS Login Content -->
+        <div v-else>
+          <form class="space-y-6" @submit.prevent="handleLogin">
+            <div class="space-y-4">
+              <div>
+                <label class="sr-only" for="emailCodeInput">邮箱</label>
+                <div class="relative" :class="{ shake: fieldState.email.shaking }">
+                  <input
+                    id="emailCodeInput"
+                    v-model="email"
+                    type="text"
+                    placeholder="name@college.edu"
+                    class="w-full bg-transparent border rounded-xl px-4 py-3 font-body-md text-body-md text-on-surface focus:ring-1 transition-colors outline-none"
+                    :class="
+                      fieldState.email.touched && fieldState.email.error
+                        ? 'border-error focus:border-error focus:ring-error'
+                        : 'border-outline-variant focus:border-primary focus:ring-primary'
+                    "
+                    @focus="focusField('email')"
+                    @blur="blurField('email')"
+                    @input="runFieldValidation('email')"
+                  />
+                </div>
+                <small
+                  v-if="fieldState.email.touched && fieldState.email.error"
+                  class="text-error text-xs mt-1 block"
+                >
+                  {{ fieldState.email.error }}
+                </small>
+              </div>
+
+              <div>
+                <label class="sr-only" for="code">验证码</label>
+                <div class="relative flex gap-2">
+                  <input
+                    id="code"
+                    v-model="emailCode"
+                    type="text"
+                    placeholder="6位验证码"
+                    class="flex-grow bg-transparent border border-outline-variant rounded-xl px-4 py-3 font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-colors outline-none"
+                  />
+                  <button
+                    type="button"
+                    :disabled="codeLoading || codeCountdown > 0"
+                    class="bg-surface-container-low text-primary font-label-md text-label-md px-4 py-3 rounded-xl border border-outline-variant hover:bg-surface-container transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                    @click="handleSendCode"
+                  >
+                    {{
+                      codeCountdown > 0
+                        ? `${codeCountdown}s`
+                        : codeLoading
+                          ? '发送中...'
+                          : '获取验证码'
+                    }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              :disabled="loading || !canSubmit"
+              class="w-full bg-primary text-on-primary font-label-md text-label-md py-3.5 rounded-full hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group"
+            >
+              {{ loading ? '登录中...' : '登录' }}
+              <ArrowForwardOutline
+                class="w-[18px] h-[18px] group-hover:translate-x-1 transition-transform"
+              />
+            </button>
+          </form>
+        </div>
+
+        <!-- Divider -->
+        <div class="relative my-8">
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-outline-variant opacity-50" />
+          </div>
+          <div class="relative flex justify-center text-sm">
+            <span
+              class="px-4 bg-[#f8f9fc] dark:bg-[#1a1a1c] text-on-surface-variant font-label-sm text-label-sm uppercase rounded-full"
+              >其他方式</span
+            >
+          </div>
+        </div>
+
+        <!-- Social Logins -->
+        <div class="flex justify-center gap-4 mb-8">
+          <button
+            aria-label="WeChat Login"
+            class="w-12 h-12 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-container-low transition-colors group"
+            @click="handleSocialLogin('微信')"
+          >
+            <LogoWechat class="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
+          </button>
+          <button
+            aria-label="QQ Login"
+            class="w-12 h-12 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-container-low transition-colors group"
+            @click="handleSocialLogin('QQ')"
+          >
+            <svg
+              viewBox="0 0 448 512"
+              fill="currentColor"
+              class="w-5 h-5 text-primary group-hover:scale-110 transition-transform"
+            >
+              <path
+                d="M433.754 420.445c-11.526 1.393-44.86-52.741-44.86-52.741 0 31.345-16.136 72.247-51.051 101.786 16.842 5.192 54.843 19.167 45.803 34.421-7.316 12.343-125.51 7.881-159.632 4.037-34.122 3.844-152.316 8.306-159.632-4.037-9.045-15.25 28.918-29.214 45.783-34.415-34.92-29.539-51.059-70.445-51.059-101.792 0 0-33.334 54.134-44.859 52.741-5.37-.65-12.424-29.644 9.347-99.704 10.261-33.024 21.995-60.478 40.144-105.779C60.683 98.063 108.982.006 224 0c113.737.006 163.156 96.133 160.264 214.963 18.118 45.223 29.912 72.85 40.144 105.778 21.768 70.06 14.716 99.053 9.346 99.704z"
+              />
+            </svg>
+          </button>
+          <button
+            aria-label="GitHub Login"
+            class="w-12 h-12 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-container-low transition-colors group"
+            @click="handleSocialLogin('GitHub')"
+          >
+            <LogoGithub class="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
+          </button>
+        </div>
+
+        <!-- Secondary Actions -->
+        <div class="flex flex-col items-center gap-3">
+          <div class="font-label-md text-label-md text-on-surface-variant">
+            还没有账号？
+            <button
+              class="text-secondary hover:underline font-bold transition-all"
+              @click="router.push('/register')"
+            >
+              立即注册
+            </button>
+          </div>
+          <button
+            class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors"
+            @click="handleGuestLogin"
+          >
+            以游客身份继续
+          </button>
+        </div>
+      </div>
+    </main>
   </div>
 </template>
 
-<style scoped lang="scss">
-.auth-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
+<style scoped>
+.bg-background {
+  background: var(--cf-page-bg);
+  color: var(--cf-text-primary);
 }
 
-.auth-shell {
-  width: min(1120px, 100%);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
-  gap: 22px;
+.pointer-events-none.opacity-20 {
+  display: none;
 }
 
-.auth-visual,
-.auth-panel {
-  min-height: 680px;
+nav {
+  padding: 18px 24px 0;
 }
 
-.auth-visual {
-  padding: 28px;
-  background: var(--cf-bg-glass);
-  box-shadow: var(--cf-shadow-float);
+.glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 22px;
+  box-shadow:
+    0 18px 55px rgba(15, 23, 42, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
 }
 
-.auth-visual-inner {
-  height: 100%;
-  border-radius: 24px;
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  background: var(--cf-bg-glass);
-  border: 1px solid var(--cf-border-glass);
-  box-shadow: inset 0 1px 0 var(--cf-surface-highlight), var(--cf-shadow-card);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-
-  h1 {
-    margin: 18px 0 12px;
-    font-family: var(--cf-font-heading);
-    font-size: clamp(40px, 4vw, 58px);
-    line-height: 1.04;
-    letter-spacing: 0;
-  }
-
-  p {
-    max-width: 560px;
-    margin: 0;
-    color: var(--cf-text-secondary);
-    line-height: 1.85;
-    font-size: 17px;
-  }
+.active-tab {
+  background: var(--cf-bg-base) !important;
 }
 
-.feature-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin: 28px 0 auto;
+input {
+  background: var(--cf-bg-base) !important;
+  border-color: var(--cf-border) !important;
+  color: var(--cf-text-primary) !important;
 }
 
-.feature-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: var(--cf-bg-glass-soft);
-  border: 1px solid var(--cf-border-glass);
-  box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
-  backdrop-filter: blur(14px) saturate(128%);
-  -webkit-backdrop-filter: blur(14px) saturate(128%);
-  color: var(--cf-text-secondary);
+input::placeholder {
+  color: var(--cf-text-muted) !important;
+  opacity: 0.8;
 }
 
-.feature-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--cf-primary-soft);
-  color: var(--cf-primary);
+input:focus {
+  border-color: var(--cf-primary) !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-primary) 12%, transparent) !important;
 }
 
-.visual-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 26px;
-
-  div {
-    padding: 18px;
-    border-radius: 18px;
-    background: var(--cf-bg-glass-soft);
-    border: 1px solid var(--cf-border-glass);
-    box-shadow: inset 0 1px 0 var(--cf-surface-highlight);
-    backdrop-filter: blur(14px) saturate(128%);
-    -webkit-backdrop-filter: blur(14px) saturate(128%);
-  }
-
-  strong {
-    display: block;
-    font-family: var(--cf-font-heading);
-    font-size: 24px;
-    margin-bottom: 6px;
-  }
-
-  span {
-    color: var(--cf-text-muted);
-    font-size: 13px;
-  }
+.tabs-container {
+  background: var(--cf-bg-soft) !important;
+  border: 1px solid var(--cf-border);
 }
 
-.auth-panel {
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+button.bg-primary {
+  background: var(--cf-primary) !important;
+  color: var(--cf-text-inverse) !important;
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--cf-primary) 24%, transparent);
 }
 
-.panel-head {
-  margin-bottom: 24px;
-
-  h2 {
-    margin: 0 0 8px;
-    font-family: var(--cf-font-heading);
-    font-size: 32px;
-  }
-
-  p {
-    margin: 0;
-    color: var(--cf-text-secondary);
-  }
+button.bg-surface-container-low {
+  background: var(--cf-bg-soft) !important;
+  border-color: var(--cf-border) !important;
 }
 
-.login-tabs {
-  margin-bottom: 18px;
+.glass-panel {
+  overflow: visible;
 }
 
-.form-block {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-
-  & + .form-block {
-    margin-top: 18px;
-  }
-
-  label {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--cf-text-primary);
-  }
-
-  &.invalid {
-    :deep(.n-input) {
-      --n-border: 1px solid var(--cf-danger) !important;
-      --n-border-hover: 1px solid var(--cf-danger) !important;
-      --n-border-focus: 1px solid var(--cf-danger) !important;
-      --n-box-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--cf-danger) 18%, transparent) !important;
-    }
-  }
-
-  &.shake {
-    animation: field-shake 0.48s ease;
-  }
+html[data-theme='dark'] .glass-panel {
+  background: rgba(12, 12, 13, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.field-hint {
-  min-height: 18px;
-  font-size: 12px;
-  line-height: 1.5;
-
-  &.error {
-    color: var(--cf-danger);
-  }
+.shake {
+  animation: field-shake 0.48s ease;
 }
 
 @keyframes field-shake {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateX(0);
   }
-  20%, 60% {
+  20%,
+  60% {
     transform: translateX(-4px);
   }
-  40%, 80% {
+  40%,
+  80% {
     transform: translateX(4px);
   }
 }
 
-.label-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+.rolling-text {
+  animation: none;
 }
 
-.code-input-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 118px;
-  gap: 10px;
-  align-items: center;
-}
-
-.code-btn {
-  min-height: 40px;
-  padding: 0 12px;
-  white-space: nowrap;
-}
-
-.submit-btn {
-  width: 100%;
-  margin-top: 24px;
-  min-height: 48px;
-}
-
-.text-link {
-  border: none;
-  background: transparent;
-  color: var(--cf-primary);
-  cursor: pointer;
-  padding: 0;
-  font-size: 14px;
-
-  &.strong {
-    font-weight: 700;
+@keyframes rollDown {
+  0% {
+    transform: translateY(-50%);
   }
-}
-
-.footer-note {
-  margin-top: 18px;
-  text-align: center;
-  color: var(--cf-text-secondary);
-  font-size: 14px;
-}
-
-:deep(.n-input) {
-  --n-border-radius: 14px !important;
-}
-
-@media (max-width: 960px) {
-  .auth-page {
-    padding: 16px;
-  }
-
-  .auth-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .auth-visual,
-  .auth-panel {
-    min-height: auto;
-  }
-}
-
-@media (max-width: 640px) {
-  .auth-panel,
-  .auth-visual {
-    padding: 20px;
-  }
-
-  .auth-visual-inner {
-    padding: 22px;
-  }
-
-  .visual-metrics {
-    grid-template-columns: 1fr;
-  }
-
-  .code-input-row {
-    grid-template-columns: 1fr;
+  100% {
+    transform: translateY(0);
   }
 }
 </style>

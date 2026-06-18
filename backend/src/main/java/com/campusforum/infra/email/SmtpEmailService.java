@@ -3,12 +3,14 @@ package com.campusforum.infra.email;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
+@ConditionalOnProperty(prefix = "email", name = "mock-enabled", havingValue = "false", matchIfMissing = true)
 @RequiredArgsConstructor
 public class SmtpEmailService implements EmailService {
 
@@ -119,10 +121,14 @@ public class SmtpEmailService implements EmailService {
                 """.formatted(appName, resetLink, expireMinutes, appName);
     }
 
-    /** 脱敏邮箱地址用于日志 */
+    /**
+     * 脱敏邮箱地址用于日志
+     */
     private String maskEmail(String email) {
         int atIndex = email.indexOf('@');
-        if (atIndex <= 2) return "***" + email.substring(atIndex);
+        if (atIndex <= 2) {
+            return "***" + email.substring(atIndex);
+        }
         return email.substring(0, 2) + "***" + email.substring(atIndex);
     }
 }

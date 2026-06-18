@@ -8,6 +8,22 @@ interface ApiResponse<T = unknown> {
   traceId: string;
 }
 
+function clearAuthSession() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('role');
+  localStorage.removeItem('tenantId');
+  localStorage.removeItem('tenantCode');
+}
+
+async function syncAuthStoreLogout() {
+  try {
+    const { useAuthStore } = await import('@/stores/auth');
+    useAuthStore().logout();
+  } catch {
+    // The interceptor can run during app bootstrap; localStorage cleanup above is the source of truth.
+  }
+}
+
 const instance: AxiosInstance = axios.create({
   baseURL: '/api/v1',
   timeout: 15000,
@@ -17,7 +33,7 @@ const instance: AxiosInstance = axios.create({
 // 请求拦截：注入 Token
 instance.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  if (token && token !== 'GUEST_TOKEN') {
     config.headers.Authorization = token;
   }
   // X-Tenant-Id 不再由前端注入，租户由服务端从 Sa-Token Session 权威解析
@@ -36,8 +52,11 @@ instance.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      clearAuthSession();
+      void syncAuthStoreLogout();
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     } else if (error.response?.status === 429) {
       const retryAfter = error.response.headers['retry-after'];
       const msg = retryAfter

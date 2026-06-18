@@ -59,15 +59,11 @@ ai:
     per-user-per-min: 100
     per-tenant-per-day: 10000
 
-# ---------- 存储配置（测试用 minio mock）----------
+# ---------- 存储配置（测试用本地磁盘）----------
 storage:
-  type: minio
-  minio:
-    endpoint: http://localhost:9000
-    access-key: minioadmin
-    secret-key: minioadmin
-    bucket: test-bucket
-
+  type: local
+  local:
+    path: ./target/test-uploads
 # ---------- 搜索配置 ----------
 search:
   type: mysql

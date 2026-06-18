@@ -75,7 +75,7 @@ public class MockAiService implements AiService {
         }
 
         if (messages == null || messages.isEmpty()) {
-            return "你好！我是 CampusForum AI 助手。有什么可以帮助你的吗？";
+            return "你好！我是小青，青云阁的 AI 助手。有什么可以帮助你的吗？";
         }
         ChatMessage last = messages.get(messages.size() - 1);
         String question = last.content().toLowerCase();
@@ -95,7 +95,10 @@ public class MockAiService implements AiService {
         if (question.contains("打卡") || question.contains("挑战")) {
             return "在「自律打卡」页面可以创建或参与打卡挑战。每天坚持打卡可以积累连续天数，在排行榜上展示你的坚持。";
         }
-        return "这是 CampusForum AI 助手的默认回复。你可以问我关于平台使用的任何问题，比如如何发帖、搜索内容、管理空间等。";
+        if (question.contains("你是谁") || question.contains("你叫什么") || question.contains("名字")) {
+            return "我是小青，青云阁网站的 AI 助手。青云阁是当前高校学习交流社区网站的名字，不是我的名字。";
+        }
+        return "我是小青，青云阁的 AI 助手。你可以问我关于平台使用的任何问题，比如如何发帖、搜索内容、管理空间等。";
     }
 
     @Override

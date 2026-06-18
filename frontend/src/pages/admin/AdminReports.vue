@@ -243,17 +243,21 @@ onMounted(() => loadReports(true));
 
 <style scoped>
 .admin-reports {
-  height: 100vh;
-  overflow-y: auto;
-  padding: 24px;
+  min-height: 100%;
+  padding: 28px 32px 40px;
 }
 .page-header {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 .page-header h2 {
   margin: 0;
 }
 .filters {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.04);
 }
 </style>

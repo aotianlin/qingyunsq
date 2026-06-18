@@ -8,6 +8,7 @@ import com.aliyun.oss.model.PutObjectRequest;
 import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,7 @@ public class OssStorageService implements StorageService {
     private final OSS client;
     private final String bucket;
 
+    @Autowired
     public OssStorageService(@Value("${storage.oss.endpoint}") String endpoint,
                               @Value("${storage.oss.access-key}") String accessKey,
                               @Value("${storage.oss.secret-key}") String secretKey,

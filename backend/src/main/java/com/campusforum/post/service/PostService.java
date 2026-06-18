@@ -354,8 +354,13 @@ public class PostService {
 
         // Bug fix 1.2: TENANT_ADMIN 应用层租户校验
         if ("TENANT_ADMIN".equals(role) && !post.getAuthorId().equals(userId)) {
-            Long sessionTenantId = (Long) StpUtil.getSession().get("tenantId");
-            if (sessionTenantId != null && !sessionTenantId.equals(post.getTenantId())) {
+            // 注意：sa-token-redis-jackson 反序列化后小数值 tenantId 可能是 Integer 而非 Long，
+            // 直接 (Long) 强转会抛 ClassCastException；且 Integer.equals(Long) 恒为 false 会
+            // 误判同租户为跨租户。这里统一按 Number 取值并做数值比较。
+            Object rawTenantId = StpUtil.getSession().get("tenantId");
+            if (rawTenantId instanceof Number sessionTenantId
+                    && post.getTenantId() != null
+                    && sessionTenantId.longValue() != post.getTenantId()) {
                 throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "无权操作其他租户的帖子");
             }
         }

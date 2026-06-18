@@ -111,8 +111,8 @@ class ResourceServiceTest {
     @Test
     void shouldIncrementDownloadCount() {
         MockMultipartFile file = new MockMultipartFile(
-                "file", "data.zip", "application/zip",
-                ("zip data "+ts).getBytes(StandardCharsets.UTF_8));
+                "file", "data.pdf", "application/pdf",
+                ("pdf data "+ts).getBytes(StandardCharsets.UTF_8));
 
         UploadResourceRequest req = new UploadResourceRequest();
         ResourceVO uploaded = resourceService.upload(userId1, file, req);

@@ -225,7 +225,12 @@ async function loadPost() {
 
 async function scrollToHashComment() {
   const hash = route.hash;
-  if (!hash || !hash.startsWith('#comment-')) return;
+  if (!hash || hash === '#comments') {
+    await nextTick();
+    document.querySelector('.comments-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if (!hash.startsWith('#comment-')) return;
   const id = Number(hash.slice('#comment-'.length));
   if (!Number.isFinite(id) || id <= 0) return;
   // 等 DOM 渲染完成
@@ -427,7 +432,7 @@ function buildPostAiMaterial() {
 
 function buildPostAiContext() {
   return [
-    '你是 CampusForum 的帖子分析助手。请只围绕用户正在查看的帖子进行分析，回答要简洁、结构清晰、可执行。',
+    '你是 青云阁 的帖子分析助手。请只围绕用户正在查看的帖子进行分析，回答要简洁、结构清晰、可执行。',
     '如果用户要求回复建议，请给出适合校园社区语境的自然表达。',
     '',
     buildPostAiMaterial(),
@@ -458,7 +463,7 @@ onMounted(loadPost);
           帖子详情
         </h1>
         <p class="cf-section-subtitle">
-          统一为更清晰的内容阅读页，同时保留评论、采纳、举报与删除能力。
+          查看完整讨论、评论回复、问答采纳与 AI 辅助分析。
         </p>
       </div>
     </div>
@@ -552,7 +557,7 @@ onMounted(loadPost);
                 <n-icon size="16"><HeartOutline /></n-icon>
                 {{ post.likeCount }}
               </button>
-              <button class="action-btn">
+              <button class="action-btn" @click="scrollToHashComment">
                 <n-icon size="16"><ChatbubblesOutline /></n-icon>
                 {{ post.commentCount }}
               </button>
@@ -850,11 +855,12 @@ onMounted(loadPost);
 .detail-page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 22px;
+  padding: 8px 0 40px;
 }
 
 .page-head {
-  padding: 22px;
+  padding: 24px;
   display: flex;
   align-items: flex-start;
   gap: 16px;
@@ -876,15 +882,15 @@ onMounted(loadPost);
 
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
 }
 
 .main-column,
 .side-column {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
 }
 
 .post-card,

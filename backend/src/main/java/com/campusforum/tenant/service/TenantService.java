@@ -20,12 +20,20 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TenantService {
+
+    /** 复用单例 ObjectMapper：线程安全且构造开销不低，避免每次读写 AI 配置都 new。 */
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    /** AI 配置 JSON 反序列化目标类型，复用以消除 Map.class 的 unchecked 警告。 */
+    private static final TypeReference<Map<String, Object>> AI_CONFIG_TYPE =
+            new TypeReference<>() {};
 
     /** AI API Key 加密用的 HKDF purpose 标识，与其他场景密钥分域。 */
     private static final String CRYPTO_PURPOSE_AI = "tenant-ai-key";
@@ -192,7 +200,7 @@ public class TenantService {
         Map<String, Object> defaults = Map.of("provider", "mock", "baseUrl", "", "apiKey", "", "model", "");
         if (t == null || t.getAiConfig() == null) return defaults;
         try {
-            Map<String, Object> cfg = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
+            Map<String, Object> cfg = OBJECT_MAPPER.readValue(t.getAiConfig(), AI_CONFIG_TYPE);
             Map<String, Object> result = new HashMap<>(defaults);
             result.putAll(cfg);
             // 不回传明文 API Key：仅指示是否已配置，避免管理员页面网络面板/日志泄漏第三方密钥
@@ -224,7 +232,7 @@ public class TenantService {
         credentials.put("model", "");
         if (t == null || t.getAiConfig() == null) return credentials;
         try {
-            Map<String, Object> cfg = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
+            Map<String, Object> cfg = OBJECT_MAPPER.readValue(t.getAiConfig(), AI_CONFIG_TYPE);
             for (Map.Entry<String, Object> entry : cfg.entrySet()) {
                 if (entry.getValue() instanceof String s) {
                     credentials.put(entry.getKey(), s);
@@ -274,10 +282,10 @@ public class TenantService {
         try {
             Tenant t = tenantMapper.selectById(tenantId);
             if (t == null || t.getAiConfig() == null) return;
-            Map<String, Object> cfg = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
+            Map<String, Object> cfg = OBJECT_MAPPER.readValue(t.getAiConfig(), AI_CONFIG_TYPE);
             cfg.put("apiKey", cryptoService.encrypt(plainApiKey, CRYPTO_PURPOSE_AI));
             cfg.put(ENC_VERSION_FIELD, CURRENT_ENC_VERSION);
-            t.setAiConfig(new ObjectMapper().writeValueAsString(cfg));
+            t.setAiConfig(OBJECT_MAPPER.writeValueAsString(cfg));
             tenantMapper.updateById(t);
             log.info("Tenant {} AI apiKey upgraded to encVersion={}", tenantId, CURRENT_ENC_VERSION);
         } catch (Exception e) {
@@ -305,7 +313,7 @@ public class TenantService {
         Map<String, Object> cfg = new LinkedHashMap<>();
         if (t.getAiConfig() != null && !t.getAiConfig().isBlank()) {
             try {
-                Map<String, Object> existing = new ObjectMapper().readValue(t.getAiConfig(), Map.class);
+                Map<String, Object> existing = OBJECT_MAPPER.readValue(t.getAiConfig(), AI_CONFIG_TYPE);
                 cfg.putAll(existing);
             } catch (JsonProcessingException ignored) {}
         }
@@ -318,7 +326,7 @@ public class TenantService {
         }
         if (model != null) cfg.put("model", model);
         try {
-            t.setAiConfig(new ObjectMapper().writeValueAsString(cfg));
+            t.setAiConfig(OBJECT_MAPPER.writeValueAsString(cfg));
         } catch (JsonProcessingException e) {
             throw new BusinessException(40000, "序列化 AI 配置失败");
         }

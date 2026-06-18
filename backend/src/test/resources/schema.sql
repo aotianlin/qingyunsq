@@ -320,6 +320,7 @@ CREATE TABLE IF NOT EXISTS sensitive_words (
   tenant_id   BIGINT UNSIGNED NOT NULL,
   word        VARCHAR(64) NOT NULL,
   level       TINYINT NOT NULL DEFAULT 1 COMMENT '1低 2中 3高',
+  is_regex    TINYINT NOT NULL DEFAULT 0 COMMENT '0普通词条 1正则表达式',
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_tenant_word (tenant_id, word)
 ) ENGINE=InnoDB COMMENT='敏感词';
@@ -373,6 +374,31 @@ CREATE TABLE IF NOT EXISTS follows (
   UNIQUE KEY uk_follow (follower_id, followee_id),
   KEY idx_followee (followee_id)
 ) ENGINE=InnoDB COMMENT='用户关注';
+
+-- ============================================================
+-- 20. post_ai_cards 帖子 AI 智能卡片缓存
+-- ============================================================
+CREATE TABLE IF NOT EXISTS post_ai_cards (
+  id                      BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id               BIGINT UNSIGNED NOT NULL,
+  post_id                 BIGINT UNSIGNED NOT NULL COMMENT '对应帖子ID',
+  tldr                    TEXT DEFAULT NULL COMMENT 'TL;DR',
+  audience                VARCHAR(255) DEFAULT NULL COMMENT '适合谁读',
+  value_type              VARCHAR(255) DEFAULT NULL COMMENT '价值类型',
+  read_minutes            INT DEFAULT NULL COMMENT '预计阅读时长',
+  comment_consensus       TEXT DEFAULT NULL COMMENT '评论共识',
+  comment_disputes        TEXT DEFAULT NULL COMMENT '评论争议',
+  hot_comment_id          BIGINT UNSIGNED DEFAULT NULL COMMENT '最热评论ID',
+  hot_comment_excerpt     VARCHAR(255) DEFAULT NULL COMMENT '最热评论截取',
+  highlights              TEXT DEFAULT NULL COMMENT 'AI重点高亮 JSON 数组',
+  post_version            BIGINT UNSIGNED DEFAULT NULL COMMENT '帖子更新时间戳',
+  comment_count_snapshot  INT DEFAULT NULL COMMENT '生成时评论数',
+  created_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted                 TINYINT NOT NULL DEFAULT 0,
+  UNIQUE KEY uk_post (post_id),
+  KEY idx_tenant (tenant_id)
+) ENGINE=InnoDB COMMENT='帖子 AI 智能卡片缓存';
 
 -- ============================================================
 -- 初始数据：默认租户（standalone 模式必需）

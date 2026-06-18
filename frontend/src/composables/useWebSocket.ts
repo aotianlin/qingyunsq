@@ -28,6 +28,7 @@ let globalReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 const globalListeners: Set<(event: NotifyEvent) => void> = new Set();
 let globalConnected = false;
 let connecting = false;
+let reconnectSuspended = false;
 
 async function fetchWsTicket(): Promise<string | null> {
   try {
@@ -37,6 +38,13 @@ async function fetchWsTicket(): Promise<string | null> {
     });
     return resp.data?.ticket || null;
   } catch (err) {
+    const status =
+      typeof err === 'object' && err !== null && 'response' in err
+        ? (err as { response?: { status?: number } }).response?.status
+        : undefined;
+    if (status === 401 || status === 429) {
+      reconnectSuspended = true;
+    }
     console.warn('[WebSocket] 获取 ticket 失败', err);
     return null;
   }
@@ -44,9 +52,9 @@ async function fetchWsTicket(): Promise<string | null> {
 
 async function globalConnect() {
   // 防止并发触发多次握手
-  if (connecting || globalWs) return;
+  if (connecting || globalWs || reconnectSuspended) return;
   const token = localStorage.getItem('token');
-  if (!token) return;
+  if (!token || token === 'GUEST_TOKEN') return;
 
   connecting = true;
   try {
@@ -95,6 +103,7 @@ async function globalConnect() {
 }
 
 function scheduleReconnect() {
+  if (reconnectSuspended) return;
   if (globalReconnectTimer) return;
   globalReconnectTimer = setTimeout(() => {
     globalReconnectTimer = null;
@@ -117,6 +126,7 @@ export function disconnectGlobalWebSocket() {
     globalWs = null;
   }
   globalConnected = false;
+  reconnectSuspended = true;
   globalListeners.clear();
 }
 
@@ -124,7 +134,11 @@ export function disconnectGlobalWebSocket() {
  * 确保全局 WebSocket 已连接（首次调用时建立连接）。
  */
 export function ensureGlobalWebSocket() {
-  if (!globalWs && !connecting && localStorage.getItem('token')) {
+  const token = localStorage.getItem('token');
+  if (token && token !== 'GUEST_TOKEN') {
+    reconnectSuspended = false;
+  }
+  if (!globalWs && !connecting && !reconnectSuspended && token && token !== 'GUEST_TOKEN') {
     globalConnect();
   }
 }

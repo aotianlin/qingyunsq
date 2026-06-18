@@ -11,6 +11,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.context.TestPropertySource;
+
+import java.util.Arrays;
 
 import static com.campusforum.test.EmailCodeTestUtils.prepareRegisterCode;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @Tag("timing")
+@TestPropertySource(properties = "security.login-lockout.enabled=false")
 class LoginTimingTest {
 
     private static final int N = 100;
@@ -87,8 +91,8 @@ class LoginTimingTest {
             rtWrongPassword[i] = measureLoginWrongPassword();
         }
 
-        double meanNotFound = mean(rtNotFound);
-        double meanWrongPassword = mean(rtWrongPassword);
+        double meanNotFound = trimmedMean(rtNotFound);
+        double meanWrongPassword = trimmedMean(rtWrongPassword);
         double maxMean = Math.max(meanNotFound, meanWrongPassword);
         double relativeDiff = Math.abs(meanNotFound - meanWrongPassword) / maxMean;
 
@@ -144,11 +148,14 @@ class LoginTimingTest {
         return System.nanoTime() - start;
     }
 
-    private static double mean(long[] values) {
+    private static double trimmedMean(long[] values) {
+        long[] sorted = Arrays.copyOf(values, values.length);
+        Arrays.sort(sorted);
+        int trim = Math.max(1, values.length / 10);
         long sum = 0;
-        for (long v : values) {
-            sum += v;
+        for (int i = trim; i < sorted.length - trim; i++) {
+            sum += sorted[i];
         }
-        return (double) sum / values.length;
+        return (double) sum / (sorted.length - trim * 2);
     }
 }

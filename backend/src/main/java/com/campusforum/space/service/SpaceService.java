@@ -16,16 +16,29 @@ import com.campusforum.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SpaceService {
+
+    /** 公开空间：任何人可见、可直接加入（无需审核）。 */
+    private static final String VISIBILITY_PUBLIC = "PUBLIC";
+
+    /** 合法的空间可见性取值白名单（与 schema.sql 注释保持一致）。 */
+    private static final Set<String> VALID_VISIBILITIES = Set.of("PUBLIC", "REVIEW", "INVITE");
+
+    /** 合法的空间分类取值白名单。 */
+    private static final Set<String> VALID_CATEGORIES = Set.of("MAJOR", "CLASS", "CLUB", "INTEREST");
 
     private final SpaceMapper spaceMapper;
     private final SpaceMemberMapper memberMapper;
@@ -37,12 +50,22 @@ public class SpaceService {
 
     @Transactional
     public SpaceVO create(Long userId, CreateSpaceRequest req) {
+        // 校验分类与可见性取值合法（DTO 仅有 @NotBlank，未限定枚举）。
+        // 尤其是 visibility：传入非法值会让空间永远落入审核分支且绕过 checkMemberAccess 的预期语义。
+        String visibility = req.getVisibility() == null ? VISIBILITY_PUBLIC : req.getVisibility();
+        if (!VALID_CATEGORIES.contains(req.getCategory())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "无效的空间分类");
+        }
+        if (!VALID_VISIBILITIES.contains(visibility)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "无效的可见性设置");
+        }
+
         Space space = new Space();
         space.setOwnerId(userId);
         space.setName(req.getName());
         space.setDescription(req.getDescription());
         space.setCategory(req.getCategory());
-        space.setVisibility(req.getVisibility());
+        space.setVisibility(visibility);
         space.setMemberCount(1);
         space.setPostCount(0);
         space.setStatus(1);
@@ -101,7 +124,7 @@ public class SpaceService {
 
         List<Space> spaces = spaceMapper.selectList(qw);
         Long currentUserId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
-        return spaces.stream().map(s -> toVO(s, currentUserId, null, false)).toList();
+        return toVOList(spaces, currentUserId);
     }
 
     @Transactional
@@ -115,7 +138,12 @@ public class SpaceService {
 
         if (req.getName() != null) space.setName(req.getName());
         if (req.getDescription() != null) space.setDescription(req.getDescription());
-        if (req.getVisibility() != null) space.setVisibility(req.getVisibility());
+        if (req.getVisibility() != null) {
+            if (!VALID_VISIBILITIES.contains(req.getVisibility())) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "无效的可见性设置");
+            }
+            space.setVisibility(req.getVisibility());
+        }
         if (req.getSensitiveWords() != null) space.setSensitiveWords(req.getSensitiveWords());
         if (req.getPostNotice() != null) space.setPostNotice(req.getPostNotice());
 
@@ -149,7 +177,7 @@ public class SpaceService {
             }
         }
 
-        int memberStatus = "PUBLIC".equals(space.getVisibility()) ? 1 : 0;
+        int memberStatus = VISIBILITY_PUBLIC.equals(space.getVisibility()) ? 1 : 0;
 
         if (existing != null) {
             existing.setStatus(memberStatus);
@@ -162,7 +190,14 @@ public class SpaceService {
             member.setRole("MEMBER");
             member.setStatus(memberStatus);
             member.setJoinedAt(LocalDateTime.now());
-            memberMapper.insert(member);
+            try {
+                memberMapper.insert(member);
+            } catch (DuplicateKeyException e) {
+                // selectOne 预检查与 insert 之间存在并发窗口，最终由唯一索引
+                // uk_space_user (space_id, user_id) 兜底。命中说明并发重复加入，
+                // 转换为友好提示而非以 500 暴露底层异常。
+                throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "已是该空间成员或申请处理中");
+            }
         }
 
         // Bug fix 1.5: 原子更新成员数
@@ -221,23 +256,39 @@ public class SpaceService {
         qw.orderByAsc(SpaceMember::getId);
         qw.last("LIMIT " + size);
 
-        return memberMapper.selectList(qw).stream().map(m -> {
-            User user = userMapper.selectById(m.getUserId());
-            return SpaceMemberVO.builder()
-                    .id(m.getId())
-                    .spaceId(m.getSpaceId())
-                    .userId(m.getUserId())
-                    .user(PublicUserVO.from(user))
-                    .role(m.getRole())
-                    .status(m.getStatus())
-                    .joinedAt(m.getJoinedAt())
-                    .build();
-        }).toList();
+        List<SpaceMember> members = memberMapper.selectList(qw);
+        if (members.isEmpty()) {
+            return List.of();
+        }
+        // 优化：一次性批量加载成员用户，避免循环内逐个 selectById 造成的 N+1 查询。
+        List<Long> userIds = members.stream().map(SpaceMember::getUserId).distinct().toList();
+        Map<Long, User> userMap = userMapper.selectBatchIds(userIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
+
+        return members.stream().map(m -> SpaceMemberVO.builder()
+                .id(m.getId())
+                .spaceId(m.getSpaceId())
+                .userId(m.getUserId())
+                .user(PublicUserVO.from(userMap.get(m.getUserId())))
+                .role(m.getRole())
+                .status(m.getStatus())
+                .joinedAt(m.getJoinedAt())
+                .build()).toList();
     }
 
     @Transactional
     public void approveMember(Long spaceId, Long operatorId, Long targetUserId) {
-        checkOwnership(spaceId, operatorId, null);
+        // 显式校验空间存在且未被停用（status=1）。
+        // 注：已解散空间走逻辑删除，selectById 已自动过滤；此处补 status=0 的停用场景，
+        // 避免向已停用空间审批新成员。
+        Space space = spaceMapper.selectById(spaceId);
+        if (space == null || space.getDeleted() == 1) {
+            throw new BusinessException(ErrorCode.SPACE_NOT_FOUND);
+        }
+        if (space.getStatus() != null && space.getStatus() == 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "空间已停用，无法审批成员");
+        }
+        checkOwnership(spaceId, operatorId, space);
 
         SpaceMember member = memberMapper.selectOne(new LambdaQueryWrapper<SpaceMember>()
                 .eq(SpaceMember::getSpaceId, spaceId)
@@ -296,12 +347,18 @@ public class SpaceService {
 
     @Transactional
     public void setStatus(Long spaceId, Integer status) {
-        Space space = spaceMapper.selectById(spaceId);
-        if (space != null) {
-            space.setStatus(status);
-            spaceMapper.updateById(space);
-            log.info("Space status changed: id={}, status={}", spaceId, status);
+        // 校验 status 取值合法（仅 0 停用 / 1 正常），避免管理员误传 null 或任意值写脏数据。
+        if (status == null || (status != 0 && status != 1)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "无效的状态值");
         }
+        Space space = spaceMapper.selectById(spaceId);
+        if (space == null || space.getDeleted() == 1) {
+            // 原实现 if(space != null) 静默忽略不存在的空间，管理员得不到任何反馈。
+            throw new BusinessException(ErrorCode.SPACE_NOT_FOUND);
+        }
+        space.setStatus(status);
+        spaceMapper.updateById(space);
+        log.info("Space status changed: id={}, status={}", spaceId, status);
     }
 
     public List<SpaceVO> listSpacesForAdmin(String keyword, String category, Integer status, Long cursor, int limit) {
@@ -323,9 +380,7 @@ public class SpaceService {
         qw.last("LIMIT " + size);
 
         Long currentUserId = StpUtil.isLogin() ? StpUtil.getLoginIdAsLong() : null;
-        return spaceMapper.selectList(qw).stream()
-                .map(s -> toVO(s, currentUserId, null, false))
-                .toList();
+        return toVOList(spaceMapper.selectList(qw), currentUserId);
     }
 
     public void checkSpaceAdmin(Long spaceId, Long userId) {
@@ -340,15 +395,19 @@ public class SpaceService {
         }
     }
 
-    // Bug fix 1.6: 私有空间成员访问校验
+    // Bug fix 1.6 + 安全修复：非公开空间（REVIEW/INVITE）的帖子仅对成员可见。
+    // 历史 bug：此处曾判断 "PRIVATE".equals(visibility)，但系统中可见性取值只有
+    // PUBLIC/REVIEW/INVITE，根本不存在 PRIVATE，导致该校验恒为 false 而完全失效——
+    // 任何登录用户都能读取审核制/邀请制空间的全部帖子（越权读取）。
+    // 现改为"非 PUBLIC 即需成员校验"，与 join() 的 memberStatus 语义对齐。
     public void checkMemberAccess(Long spaceId, Long userId) {
         Space space = spaceMapper.selectById(spaceId);
         if (space == null || space.getDeleted() == 1) {
             throw new BusinessException(ErrorCode.SPACE_NOT_FOUND);
         }
-        if ("PRIVATE".equals(space.getVisibility())) {
+        if (!VISIBILITY_PUBLIC.equals(space.getVisibility())) {
             if (userId == null) {
-                throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "私有空间需登录访问");
+                throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "该空间需登录访问");
             }
             SpaceMember member = memberMapper.selectOne(new LambdaQueryWrapper<SpaceMember>()
                     .eq(SpaceMember::getSpaceId, spaceId)
@@ -377,10 +436,35 @@ public class SpaceService {
         }
     }
 
-    private SpaceVO toVO(Space space, Long currentUserId, String memberRole, boolean isMember) {
-        User owner = userMapper.selectById(space.getOwnerId());
-        PublicUserVO ownerVO = PublicUserVO.from(owner);
+    /**
+     * 批量构建 SpaceVO 列表（用于列表类接口）。
+     *
+     * <p>优化：一次性 selectBatchIds 加载所有 owner，避免每个空间各查一次 owner 的 N+1 问题。
+     * 列表场景下成员关系统一置为非成员视图（isMember=false / memberRole=null），
+     * 与原 {@code list} / {@code listSpacesForAdmin} 行为保持一致。</p>
+     */
+    private List<SpaceVO> toVOList(List<Space> spaces, Long currentUserId) {
+        if (spaces == null || spaces.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ownerIds = spaces.stream().map(Space::getOwnerId).distinct().toList();
+        Map<Long, PublicUserVO> ownerMap = userMapper.selectBatchIds(ownerIds).stream()
+                .collect(Collectors.toMap(User::getId, PublicUserVO::from));
+        return spaces.stream()
+                .map(s -> buildVO(s, ownerMap.get(s.getOwnerId()), null, false))
+                .toList();
+    }
 
+    private SpaceVO toVO(Space space, Long currentUserId, String memberRole, boolean isMember) {
+        PublicUserVO ownerVO = PublicUserVO.from(userMapper.selectById(space.getOwnerId()));
+        return buildVO(space, ownerVO, memberRole, isMember);
+    }
+
+    private SpaceVO buildVO(Space space, PublicUserVO ownerVO, String memberRole, boolean isMember) {
+        // 安全：sensitiveWords 是空间的敏感词屏蔽配置（审核用），属于管理配置，
+        // 不应对普通成员 / 非成员 / 匿名用户暴露——否则会帮助恶意用户规避内容过滤。
+        // 仅 OWNER / ADMIN 视图返回该字段，其余视图置空。
+        boolean isManager = "OWNER".equals(memberRole) || "ADMIN".equals(memberRole);
         return SpaceVO.builder()
                 .id(space.getId())
                 .ownerId(space.getOwnerId())
@@ -394,7 +478,7 @@ public class SpaceService {
                 .status(space.getStatus())
                 .isMember(isMember)
                 .memberRole(memberRole)
-                .sensitiveWords(space.getSensitiveWords())
+                .sensitiveWords(isManager ? space.getSensitiveWords() : null)
                 .postNotice(space.getPostNotice())
                 .createdAt(space.getCreatedAt())
                 .build();

@@ -22,6 +22,9 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class TenantAuditService {
+    /** 复用单例 ObjectMapper：线程安全且构造开销不低，避免每次审计都 new。 */
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final AuditLogMapper auditLogMapper;
 
     /**
@@ -53,7 +56,7 @@ public class TenantAuditService {
         d.put("detail", detail);
         d.put("actualTenantId", actualTenantId);
         try {
-            log.setDetail(new ObjectMapper().writeValueAsString(d));
+            log.setDetail(OBJECT_MAPPER.writeValueAsString(d));
         } catch (JsonProcessingException ignored) {
             // JSON 序列化失败时不阻塞主流程
         }
@@ -83,7 +86,7 @@ public class TenantAuditService {
         log.setTargetId(targetId);
         log.setIpAddress(ipAddress);
         try {
-            log.setDetail(new ObjectMapper().writeValueAsString(detail));
+            log.setDetail(OBJECT_MAPPER.writeValueAsString(detail));
         } catch (JsonProcessingException ignored) {
             // JSON 序列化失败时不阻塞主流程
         }

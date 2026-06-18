@@ -88,12 +88,12 @@ async function save() {
 </script>
 
 <template>
-  <div style="padding: 24px;">
-    <h2 style="margin-bottom: 16px;">
+  <div class="admin-page">
+    <h2>
       AI 配置管理
     </h2>
 
-    <NSpace style="margin-bottom: 16px;">
+    <NSpace class="admin-filterbar">
       <NSelect
         v-model:value="selectedTenantId"
         :options="tenants.map(t => ({ label: t.name, value: t.id }))"

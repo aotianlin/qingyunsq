@@ -162,7 +162,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/Messages.vue'),
         meta: { requiresAuth: true },
       },
-    ]
+    ],
   },
   {
     path: '/admin',
@@ -238,11 +238,28 @@ router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token');
   const role = localStorage.getItem('role');
 
+  const isGuest = role === 'GUEST';
+  const allowedGuestPaths = [
+    '/',
+    '/square',
+    '/spaces',
+    '/resources',
+    '/login',
+    '/register',
+    '/forgot-password',
+  ];
+  const isAllowedGuestPath =
+    allowedGuestPaths.includes(to.path) ||
+    (to.path.startsWith('/posts/') && to.path !== '/posts/new') ||
+    to.path.startsWith('/spaces/');
+
   if (to.meta.requiresAuth && !token) {
     next('/login');
-  } else if (to.meta.guest && token) {
+  } else if (isGuest && to.meta.requiresAuth && !isAllowedGuestPath) {
+    next('/login');
+  } else if (to.meta.guest && token && !isGuest) {
     next('/square');
-  } else if (to.path === '/' && token) {
+  } else if (to.path === '/' && token && !isGuest) {
     next('/square');
   } else if (to.meta.requiresAdmin && role !== 'TENANT_ADMIN' && role !== 'SUPER_ADMIN') {
     next('/');

@@ -15,6 +15,7 @@ declare module 'vue' {
     NIcon: typeof import('naive-ui')['NIcon']
     NMessageProvider: typeof import('naive-ui')['NMessageProvider']
     NNotificationProvider: typeof import('naive-ui')['NNotificationProvider']
+    NTag: typeof import('naive-ui')['NTag']
     PostAiCardLine: typeof import('./components/PostAiCardLine.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

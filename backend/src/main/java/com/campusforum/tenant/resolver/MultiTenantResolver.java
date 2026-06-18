@@ -52,13 +52,18 @@ public class MultiTenantResolver implements TenantResolver {
     public ResolutionResult resolve(HttpServletRequest request) {
         // ===== 1. 已认证请求：Sa-Token Session 是权威来源，但要与子域名做一致性比对 =====
         if (StpUtil.isLogin()) {
-            Long sessionTenantId = (Long) StpUtil.getSession().get("tenantId");
-            if (sessionTenantId == null) {
+            // 注意：项目使用 sa-token-redis-jackson，Long 是 final 类型不会写入 Jackson 类型标记，
+            // 小数值的 tenantId 反序列化回来可能是 Integer 而非 Long，直接 (Long) 强转会抛
+            // ClassCastException。这里统一按 Number 取值，与 AuthController.wsTicket /
+            // TenantHandshakeInterceptor 的防御写法保持一致。
+            Object rawTenantId = StpUtil.getSession().get("tenantId");
+            if (!(rawTenantId instanceof Number)) {
                 // 已认证但 session 丢失 tenantId（可能是 Session 序列化失败 / 历史 token），
                 // 强制要求重新登录，避免下游业务在 tenantId=null 的状态下越权读数据。
                 throw new TenantNotResolvedException(
                         TenantNotResolvedException.Reason.SESSION_MISSING_TENANT);
             }
+            long sessionTenantId = ((Number) rawTenantId).longValue();
 
             // 抽取出"按子域名解析 tenantId"为独立步骤；若 host 没有命中 rootDomain 或
             // code 在缓存中找不到，subdomain 会是 null，此时不做不一致校验

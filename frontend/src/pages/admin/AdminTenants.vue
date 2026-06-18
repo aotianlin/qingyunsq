@@ -155,7 +155,7 @@ onMounted(load);
           <NFormItem label="域名">
             <NInput
               v-model:value="form.domain"
-              placeholder="如 hust.campusforum.com"
+              placeholder="如 hust.qingyunge.com"
             />
           </NFormItem>
         </NForm>
@@ -215,7 +215,7 @@ onMounted(load);
 
 <style scoped>
 .admin-tenants {
-  padding: 24px;
+  padding: 28px 32px 40px;
 }
 .header {
   display: flex;
@@ -227,21 +227,25 @@ onMounted(load);
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
   overflow: hidden;
+  box-shadow:
+    0 18px 55px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 .data-table th,
 .data-table td {
-  padding: 12px 16px;
+  padding: 14px 16px;
   text-align: left;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--cf-border);
 }
 .data-table th {
-  background: #fafafa;
-  font-weight: 600;
+  background: var(--cf-bg-soft);
+  font-weight: 800;
   font-size: 13px;
-  color: #666;
+  color: var(--cf-text-secondary);
 }
 .modal-body {
   padding: 16px 24px;

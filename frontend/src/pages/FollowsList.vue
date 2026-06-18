@@ -66,9 +66,14 @@ watch(
 
 <template>
   <div class="follows-page">
-    <h2>{{ pageTitle }}</h2>
+    <section class="follows-head">
+      <div>
+        <span>Connections</span>
+        <h1>{{ pageTitle }}</h1>
+      </div>
+    </section>
 
-    <NTabs v-model:value="activeTab">
+    <NTabs v-model:value="activeTab" class="follows-card">
       <NTabPane
         name="followers"
         :tab="`粉丝 (${followerCount})`"
@@ -140,31 +145,91 @@ watch(
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .follows-page {
-  max-width: 500px;
-  margin: 24px auto;
-  padding: 0 16px;
+  min-height: calc(100vh - 112px);
+  padding: 8px 0 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
-h2 {
-  margin: 0 0 8px;
+
+.follows-head,
+.follows-card {
+  width: min(100%, 880px);
+  margin: 0 auto;
+  background: var(--cf-card-bg);
+  border: 1px solid var(--cf-card-border);
+  border-radius: 20px;
+  box-shadow: var(--cf-card-shadow);
+  backdrop-filter: blur(24px) saturate(150%);
 }
+
+.follows-head {
+  padding: 24px;
+
+  span {
+    color: var(--cf-primary);
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  h1 {
+    margin: 8px 0 0;
+    font-size: 28px;
+    line-height: 1.25;
+  }
+}
+
+.follows-card {
+  padding: 10px 18px 18px;
+
+  :deep(.n-tabs-tab) {
+    font-weight: 850;
+  }
+
+  :deep(.n-list) {
+    background: transparent;
+  }
+
+  :deep(.n-list-item) {
+    padding: 0;
+    border: 0;
+  }
+}
+
 .empty {
   text-align: center;
-  color: #999;
-  margin-top: 32px;
+  color: var(--cf-text-muted);
+  margin: 40px 0;
 }
+
 .user-row {
+  min-height: 66px;
+  padding: 12px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   gap: 12px;
   cursor: pointer;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--cf-primary) 7%, transparent);
+  }
 }
+
 .nickname {
-  font-weight: 600;
+  font-weight: 850;
+  color: var(--cf-text-primary);
 }
+
 .bio {
-  color: #999;
+  min-width: 0;
+  color: var(--cf-text-muted);
   font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

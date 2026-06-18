@@ -17,15 +17,15 @@ spring:
       max-file-size: 50MB
       max-request-size: 60MB
   datasource:
-    url: jdbc:mysql://localhost:3306/campus_forum?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
-    username: ${MYSQL_USER:root}
-    password: ${MYSQL_PASSWORD:root}
+    url: jdbc:mysql://192.168.150.130:3306/campus_forum?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: 192.168.150.130
       port: 6379
-      password: ${REDIS_PASSWORD:123456}
+      password: 123456
   websocket:
     endpoint:
       path: /ws/notify
@@ -95,6 +95,13 @@ ai:
   base-url: https://api.deepseek.com
   api-key: ${AI_API_KEY:}
   model: deepseek-v4-flash
+  providers:
+    deepseek:
+      base-url: https://api.deepseek.com
+      api-key: ${DEEPSEEK_API_KEY:${AI_API_KEY:}}
+    mimo:
+      base-url: https://api.xiaomimimo.com/v1
+      api-key: ${MIMO_API_KEY:}
   rate-limit:
     per-user-per-min: 5
     per-tenant-per-day: 1000
@@ -104,12 +111,12 @@ ai:
 
 # ---------- 存储配置 ----------
 storage:
-  type: minio  # minio | oss
-  minio:
-    endpoint: http://localhost:9000
-    access-key: ${MINIO_ACCESS_KEY:minioadmin}
-    secret-key: ${MINIO_SECRET_KEY:minioadmin}
-    bucket: campusforum
+  type: oss  # oss | local
+  oss:
+    endpoint: ${STORAGE_OSS_ENDPOINT:oss-cn-hangzhou.aliyuncs.com}
+    access-key: ${OSS_ACCESS_KEY:}
+    secret-key: ${OSS_SECRET_KEY:}
+    bucket: ${OSS_BUCKET:mybucket01-qingyunge}
 
 # ---------- 搜索配置 ----------
 search:
@@ -230,6 +237,7 @@ rate-limit:
 
 # ---------- 邮件配置 ----------
 email:
+  mock-enabled: ${EMAIL_MOCK_ENABLED:false}
   from: ${EMAIL_FROM:noreply@campusforum.com}
   reset-link-base: ${RESET_LINK_BASE:https://localhost:3000/reset-password}
   app-name: CampusForum
@@ -295,11 +303,10 @@ security:
       - application/x-executable    # Linux ELF / 通用可执行
     # 头像 / 封面 URL 域名白名单，缺省允许本站存储域名（开发空，生产必填）
     allowed-asset-hosts: ${ALLOWED_ASSET_HOSTS:}
-    # 本站对象存储域名（漏洞 15）：从 storage.minio.endpoint 推导，
-    # 与 allowed-asset-hosts 合并作为头像/封面 URL 白名单；
-    # 此处仅放占位，dev/prod 各自通过 STORAGE_MINIO_ENDPOINT 实际覆盖。
+    # 本站对象存储域名（漏洞 15）：与 allowed-asset-hosts 合并作为头像/封面 URL 白名单；
+    # dev/prod 可通过 STORAGE_OSS_HOST 或 ALLOWED_ASSET_HOSTS 覆盖。
     self-hosts:
-      - ${STORAGE_MINIO_ENDPOINT:}
+      - ${STORAGE_OSS_HOST:mybucket01-qingyunge.oss-cn-beijing.aliyuncs.com}
   ws-ticket:
     ttl-seconds: 30
     enforced: false

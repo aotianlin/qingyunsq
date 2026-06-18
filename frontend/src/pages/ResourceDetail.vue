@@ -200,44 +200,119 @@ onMounted(load);
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .detail-page {
-  max-width: 640px;
-  margin: 40px auto;
-  padding: 0 16px;
+  min-height: calc(100vh - 112px);
+  padding: 8px 0 40px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
 }
-.loading { text-align: center; padding: 80px; }
-.empty { margin: 80px 0; }
+
+.resource-info {
+  width: min(100%, 880px);
+  background: var(--cf-card-bg);
+  border: 1px solid var(--cf-card-border);
+  border-radius: 20px;
+  box-shadow: var(--cf-card-shadow);
+  backdrop-filter: blur(24px) saturate(150%);
+
+  :deep(.n-card__content) {
+    padding: 26px;
+  }
+}
+
+.loading,
+.empty {
+  width: min(100%, 880px);
+  min-height: 360px;
+  padding: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cf-card-bg);
+  border: 1px solid var(--cf-card-border);
+  border-radius: 20px;
+}
+
 .info-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
+  gap: 18px;
+  margin-bottom: 18px;
 }
-.info-header h2 { margin: 0 0 6px; font-size: 18px; }
-.header-actions { display: flex; gap: 8px; }
-.resource-desc { color: #666; margin-bottom: 16px; font-size: 14px; }
+
+.info-header h2 {
+  margin: 0 0 10px;
+  font-size: 28px;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.resource-desc {
+  margin: 0 0 22px;
+  color: var(--cf-text-secondary);
+  font-size: 15px;
+  line-height: 1.8;
+}
+
 .info-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
+
 .info-item {
   display: flex;
   flex-direction: column;
-  font-size: 14px;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--cf-border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--cf-primary) 5%, var(--cf-bg-card));
+  font-size: 15px;
+  font-weight: 850;
 }
+
 .info-label {
   font-size: 12px;
-  color: #999;
-  margin-bottom: 2px;
+  color: var(--cf-text-muted);
+  font-weight: 700;
 }
+
 .info-tags {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
-.download-btn { margin-top: 8px; }
+
+.download-btn {
+  height: 46px;
+  margin-top: 4px;
+  border-radius: 12px;
+  font-weight: 900;
+}
+
+@media (max-width: 760px) {
+  .detail-page {
+    padding-bottom: 24px;
+  }
+
+  .info-header {
+    flex-direction: column;
+  }
+
+  .info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 </style>

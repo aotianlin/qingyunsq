@@ -35,10 +35,14 @@ public class RagChatService {
     private final SearchService searchService;
 
     public AiResponse chat(List<AiService.ChatMessage> messages, String manualContext) {
+        return chat(messages, manualContext, null, true);
+    }
+
+    public AiResponse chat(List<AiService.ChatMessage> messages, String manualContext, String model, boolean webSearchEnabled) {
         String question = latestUserQuestion(messages);
-        List<AiCitation> citations = retrieve(question);
+        List<AiCitation> citations = webSearchEnabled ? retrieve(question) : List.of();
         String ragContext = buildContext(manualContext, citations);
-        String reply = aiService.chat(messages, ragContext);
+        String reply = aiService.chat(messages, ragContext, model);
 
         return AiResponse.builder()
                 .reply(reply)
@@ -95,7 +99,7 @@ public class RagChatService {
 
     private String buildContext(String manualContext, List<AiCitation> citations) {
         StringBuilder context = new StringBuilder();
-        context.append("你是 CampusForum 的检索增强问答助手。回答必须优先依据【用户提供上下文】和【站内检索资料】。")
+        context.append("你叫小青，是青云阁网站的检索增强问答助手。青云阁是当前高校学习交流社区网站的名称，不是你的名字，也不要把它解释成其他类型的网站。回答必须优先依据【用户提供上下文】和【站内检索资料】。")
                 .append("如果资料不足，请明确说明无法从现有资料确认，不要编造。回答末尾用“参考来源”列出用到的编号。\n\n");
 
         if (manualContext != null && !manualContext.isBlank()) {

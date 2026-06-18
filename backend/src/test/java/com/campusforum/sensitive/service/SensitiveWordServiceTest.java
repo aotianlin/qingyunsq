@@ -79,4 +79,46 @@ class SensitiveWordServiceTest {
         List<SensitiveWord> after = service.listAll();
         assertThat(after.stream().noneMatch(w -> w.getWord().equals(word))).isTrue();
     }
+
+    // ========== 回归：isRegex 录入与校验（API 缺口修复 + 缓存路径） ==========
+
+    @Test
+    void shouldAddRegexWordAndMatch() {
+        // 正则词条：以 "诈骗-" + 时间戳开头后接任意数字
+        String prefix = "fraud" + System.currentTimeMillis();
+        service.add(prefix + "\\d{2,}", 3, true);
+
+        // 命中：前缀后跟 2 位以上数字
+        assertThat(service.getRiskLevel("内容含 " + prefix + "123 字样")).isEqualTo(3);
+        // 不命中：前缀后无数字
+        assertThat(service.getRiskLevel("内容仅含 " + prefix)).isEqualTo(0);
+    }
+
+    @Test
+    void shouldRejectIllegalRegexOnAdd() {
+        // "[" 是不平衡方括号 → 录入时即应被拒（而非到匹配时才静默跳过）
+        assertThatThrownBy(() -> service.add("bad[regex" + System.currentTimeMillis(), 2, true))
+                .isInstanceOf(com.campusforum.common.BusinessException.class)
+                .hasMessageContaining("正则");
+    }
+
+    @Test
+    void shouldRejectBlankWordOnAdd() {
+        assertThatThrownBy(() -> service.add("   ", 1, false))
+                .isInstanceOf(com.campusforum.common.BusinessException.class)
+                .hasMessageContaining("不能为空");
+    }
+
+    @Test
+    void shouldReflectAddAndDeleteImmediatelyViaCacheEvict() {
+        // 验证缓存在增删后即时失效：add 后立刻命中，delete 后立刻不命中。
+        String word = "cacheword" + System.currentTimeMillis();
+        service.add(word, 2);
+        assertThat(service.getRiskLevel("x " + word + " y")).isEqualTo(2);
+
+        SensitiveWord added = service.listAll().stream()
+                .filter(w -> w.getWord().equals(word)).findFirst().orElseThrow();
+        service.delete(added.getId());
+        assertThat(service.getRiskLevel("x " + word + " y")).isEqualTo(0);
+    }
 }

@@ -1,22 +1,32 @@
 # ===== 开发环境配置 =====
-# 说明：开发态必须复用已经存在并挂好历史数据卷的 Docker 容器，禁止为了启动后端新建或重建数据库/缓存容器。
-# 当前有历史测试数据的是 my-mysql/my-redis，它们通过宿主机端口映射暴露为 localhost:3306/6379。
-# 这里的 localhost 是 Docker 端口映射入口，不代表在宿主机裸跑 MySQL/Redis；不要擅自改到 deploy-mysql-1 这类空库容器。
-# MinIO/MeiliSearch 也复用已有容器，当前没有宿主机端口映射，宿主机 JVM 通过 Docker bridge IP 访问。
-# 如果这两个容器重启后 IP 变化，先用 docker inspect 确认现有容器地址，再改环境变量或本文件默认值；不要新建容器。
+# 所有中间件（MySQL、Redis、MinIO、MeiliSearch）均通过虚拟机IP（192.168.150.130）统一访问。
 server:
   port: 8080
 
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/campus_forum?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://192.168.150.130:3306/campus_forum?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:123456}
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST:192.168.150.130}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:123456}
+  # 开发环境 SMTP：使用 QQ 邮箱发件（465 端口走 SSL）
+  # 注意：password 是 QQ 邮箱「授权码」，不是登录密码；建议生产用环境变量注入，勿提交真实凭据
+  mail:
+    host: ${SMTP_HOST:smtp.qq.com}
+    port: ${SMTP_PORT:465}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: false
+      mail.smtp.ssl.enable: true
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
 
 logging:
   level:
@@ -29,30 +39,29 @@ ai:
 
 # 开发环境复用已有的 MeiliSearch 容器：af601f217946_deploy-meilisearch-1
 search:
-  type: meilisearch
+  type: ${SEARCH_TYPE:mysql}
   meilisearch:
-    host: ${SEARCH_MEILISEARCH_HOST:http://172.18.0.2:7700}
+    host: ${SEARCH_MEILISEARCH_HOST:http://192.168.150.130:7700}
     api-key: ${MEILI_MASTER_KEY:ChangeMe123}
 
-# 开发环境复用已有的 MinIO 容器：b7cce17dbd43_deploy-minio-1
+# 开发环境使用阿里云 OSS
 storage:
-  type: minio
-  minio:
-    endpoint: ${STORAGE_MINIO_ENDPOINT:http://172.18.0.3:9000}
-    access-key: ${MINIO_ACCESS_KEY:minioadmin}
-    secret-key: ${MINIO_SECRET_KEY:ChangeMe123}
-    bucket: ${MINIO_BUCKET:campusforum}
+  type: ${STORAGE_TYPE:local}
+  oss:
+    endpoint: ${STORAGE_OSS_ENDPOINT:oss-cn-beijing.aliyuncs.com}
+    access-key: ${OSS_ACCESS_KEY:}
+    secret-key: ${OSS_SECRET_KEY:}
+    bucket: ${OSS_BUCKET:}
 
-# 开发环境 SMTP 默认是占位配置，关闭邮件健康检查，避免影响整体健康状态
-management:
-  health:
-    mail:
-      enabled: false
+# 开发环境邮件配置：发件人必须与 SMTP 登录账号一致，否则 QQ 邮箱会拒发
+email:
+  mock-enabled: ${EMAIL_MOCK_ENABLED:true}
+  from: ${EMAIL_FROM:morose_haha@qq.com}
 
 # ===== 开发环境安全密钥默认值（仅 dev profile 生效） =====
 # 这两个值必须 ≥ 32 字节，且必须包含 `dev-only-change-me` 前缀：
 #   - SecurityStartupValidator 在 dev profile 下命中该 token 仅 WARN，不阻断启动；
-#   - 同样的值若被复制到 prod，则会因命中 forbidden token 直接抛错阻止启动，
+#   - 同样的值若被复制 to prod，则会因命中 forbidden token 直接抛错阻止启动，
 #     形成"dev 零摩擦 + prod 严格"的双重保障。
 # 生产部署必须通过 SIGNED_URL_SECRET / CRYPTO_MASTER_KEY 环境变量覆盖（见 application-prod.yml）。
 security:
@@ -66,6 +75,9 @@ security:
   ws-ticket:
     # 同理：dev 远未来日期，避免本地起服务踩到 ws-ticket cutover 抛错路径。
     enforced-cutover-date: 2030-01-01
+  upload:
+    self-hosts:
+      - ${STORAGE_UPLOAD_SELF_HOST:localhost}
 
 # ===== API 文档暴露开关（对应 bugfix.md 漏洞 2 / T2.3） =====
 # 开发环境默认开启 swagger UI 便于本地调试；
