@@ -10,7 +10,6 @@ import com.campusforum.infra.metrics.SecurityMetrics;
 import com.campusforum.infra.security.LoginLockoutService;
 import com.campusforum.infra.security.SecurityProperties;
 import com.campusforum.infra.security.TrustedProxyResolver;
-import com.campusforum.points.service.PointsService;
 import com.campusforum.tenant.TenantContext;
 import com.campusforum.tenant.cache.ActiveTenantCache;
 import com.campusforum.user.config.StudentNoMappingProperties;
@@ -100,7 +99,6 @@ class UserServiceSensitiveChangeKickoutTest {
         // 其他 UserService 依赖在本场景不会被触达，给空 mock 即可
         userService = new UserService(
                 userMapper,
-                mock(PointsService.class),
                 mock(StudentNoMappingProperties.class),
                 mock(ActiveTenantCache.class),
                 mock(LoginLockoutService.class),

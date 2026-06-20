@@ -20,7 +20,6 @@ public class UserVO {
     private String major;
     private String grade;
     private String role;
-    private Long points;
     private Integer status;
     private Long tenantId;
     private String tenantCode;

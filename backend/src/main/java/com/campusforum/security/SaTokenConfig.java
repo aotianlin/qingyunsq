@@ -41,7 +41,6 @@ public class SaTokenConfig implements WebMvcConfigurer {
                             if (path.startsWith("/api/v1/auth/me") ||
                                 path.startsWith("/api/v1/notifications") ||
                                 path.startsWith("/api/v1/messages") ||
-                                path.startsWith("/api/v1/points") ||
                                 path.contains("/follow")) {
                                 StpUtil.checkLogin();
                             }

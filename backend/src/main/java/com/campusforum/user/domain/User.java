@@ -23,7 +23,6 @@ public class User extends BaseEntity {
     private String major;
     private String grade;
     private String role;
-    private Long points;
     private Integer status;
     private LocalDateTime lastLoginAt;
     private String resetToken;

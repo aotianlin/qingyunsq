@@ -1,7 +1,7 @@
--- ============================================================
+﻿-- ============================================================
 -- CampusForum Database Schema
--- 版本: v1.0
--- 字符集: utf8mb4 + utf8mb4_0900_ai_ci
+-- 鐗堟湰: v1.0
+-- 瀛楃闆? utf8mb4 + utf8mb4_0900_ai_ci
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS campus_forum
@@ -11,56 +11,55 @@ CREATE DATABASE IF NOT EXISTS campus_forum
 USE campus_forum;
 
 -- ============================================================
--- 1. tenants 租户/学校
+-- 1. tenants 绉熸埛/瀛︽牎
 -- ============================================================
 CREATE TABLE tenants (
   id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  code         VARCHAR(32)  NOT NULL COMMENT '租户编码（用于子域名）',
-  name         VARCHAR(128) NOT NULL COMMENT '学校全称',
+  code         VARCHAR(32)  NOT NULL COMMENT '绉熸埛缂栫爜锛堢敤浜庡瓙鍩熷悕锛?,
+  name         VARCHAR(128) NOT NULL COMMENT '瀛︽牎鍏ㄧО',
   logo_url     VARCHAR(255) DEFAULT NULL,
   domain       VARCHAR(128) DEFAULT NULL,
-  status       TINYINT NOT NULL DEFAULT 1 COMMENT '1启用 0停用',
-  ai_config    JSON DEFAULT NULL COMMENT 'AI 配置',
-  announcement VARCHAR(500) DEFAULT NULL COMMENT '租户公告',
+  status       TINYINT NOT NULL DEFAULT 1 COMMENT '1鍚敤 0鍋滅敤',
+  ai_config    JSON DEFAULT NULL COMMENT 'AI 閰嶇疆',
+  announcement VARCHAR(500) DEFAULT NULL COMMENT '绉熸埛鍏憡',
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_code (code)
-) ENGINE=InnoDB COMMENT='租户/学校';
+) ENGINE=InnoDB COMMENT='绉熸埛/瀛︽牎';
 
 -- ============================================================
--- 2. users 用户
+-- 2. users 鐢ㄦ埛
 -- ============================================================
 CREATE TABLE users (
   id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id       BIGINT UNSIGNED NOT NULL,
-  student_no      VARCHAR(32)  DEFAULT NULL COMMENT '学号',
+  student_no      VARCHAR(32)  DEFAULT NULL COMMENT '瀛﹀彿',
   email           VARCHAR(128) NOT NULL,
   password_hash   VARCHAR(128) NOT NULL,
   nickname        VARCHAR(64)  NOT NULL,
   avatar_url      VARCHAR(255) DEFAULT NULL,
-  profile_cover_url VARCHAR(255) DEFAULT NULL COMMENT '个人主页封面图',
+  profile_cover_url VARCHAR(255) DEFAULT NULL COMMENT '涓汉涓婚〉灏侀潰鍥?,
   bio             VARCHAR(255) DEFAULT NULL,
-  college         VARCHAR(64)  DEFAULT NULL COMMENT '学院',
-  major           VARCHAR(64)  DEFAULT NULL COMMENT '专业',
-  grade           VARCHAR(8)   DEFAULT NULL COMMENT '年级',
+  college         VARCHAR(64)  DEFAULT NULL COMMENT '瀛﹂櫌',
+  major           VARCHAR(64)  DEFAULT NULL COMMENT '涓撲笟',
+  grade           VARCHAR(8)   DEFAULT NULL COMMENT '骞寸骇',
   role            VARCHAR(32)  NOT NULL DEFAULT 'USER' COMMENT 'USER/TENANT_ADMIN/SUPER_ADMIN',
-  points          BIGINT NOT NULL DEFAULT 0 COMMENT '积分',
-  status          TINYINT NOT NULL DEFAULT 1 COMMENT '1正常 0封禁',
+  status          TINYINT NOT NULL DEFAULT 1 COMMENT '1姝ｅ父 0灏佺',
   last_login_at   DATETIME DEFAULT NULL,
-  reset_token     VARCHAR(64)  DEFAULT NULL COMMENT '密码重置令牌 SHA-256 哈希（hex）',
-  reset_token_expires DATETIME DEFAULT NULL COMMENT '密码重置令牌过期时间',
-  mute_settings   JSON DEFAULT NULL COMMENT '消息免打扰设置',
-  tag_subscriptions JSON DEFAULT NULL COMMENT '问答标签订阅',
+  reset_token     VARCHAR(64)  DEFAULT NULL COMMENT '瀵嗙爜閲嶇疆浠ょ墝 SHA-256 鍝堝笇锛坔ex锛?,
+  reset_token_expires DATETIME DEFAULT NULL COMMENT '瀵嗙爜閲嶇疆浠ょ墝杩囨湡鏃堕棿',
+  mute_settings   JSON DEFAULT NULL COMMENT '娑堟伅鍏嶆墦鎵拌缃?,
+  tag_subscriptions JSON DEFAULT NULL COMMENT '闂瓟鏍囩璁㈤槄',
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted         TINYINT NOT NULL DEFAULT 0,
   UNIQUE KEY uk_tenant_email (tenant_id, email),
   UNIQUE KEY uk_tenant_student (tenant_id, student_no),
   KEY idx_tenant (tenant_id)
-) ENGINE=InnoDB COMMENT='用户';
+) ENGINE=InnoDB COMMENT='鐢ㄦ埛';
 
 -- ============================================================
--- 3. spaces 学习空间
+-- 3. spaces 瀛︿範绌洪棿
 -- ============================================================
 CREATE TABLE spaces (
   id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -71,8 +70,8 @@ CREATE TABLE spaces (
   category      VARCHAR(16)  NOT NULL COMMENT 'MAJOR/CLASS/CLUB/INTEREST',
   visibility    VARCHAR(16)  NOT NULL DEFAULT 'PUBLIC' COMMENT 'PUBLIC/REVIEW/INVITE',
   cover_url     VARCHAR(255) DEFAULT NULL,
-  sensitive_words TEXT DEFAULT NULL COMMENT '空间自定义敏感词',
-  post_notice   VARCHAR(500) DEFAULT NULL COMMENT '发帖须知',
+  sensitive_words TEXT DEFAULT NULL COMMENT '绌洪棿鑷畾涔夋晱鎰熻瘝',
+  post_notice   VARCHAR(500) DEFAULT NULL COMMENT '鍙戝笘椤荤煡',
   member_count  INT NOT NULL DEFAULT 0,
   post_count    INT NOT NULL DEFAULT 0,
   status        TINYINT NOT NULL DEFAULT 1,
@@ -81,10 +80,10 @@ CREATE TABLE spaces (
   deleted       TINYINT NOT NULL DEFAULT 0,
   KEY idx_tenant_category (tenant_id, category),
   KEY idx_owner (owner_id)
-) ENGINE=InnoDB COMMENT='学习空间';
+) ENGINE=InnoDB COMMENT='瀛︿範绌洪棿';
 
 -- ============================================================
--- 4. space_members 空间成员
+-- 4. space_members 绌洪棿鎴愬憳
 -- ============================================================
 CREATE TABLE space_members (
   id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -92,15 +91,15 @@ CREATE TABLE space_members (
   space_id    BIGINT UNSIGNED NOT NULL,
   user_id     BIGINT UNSIGNED NOT NULL,
   role        VARCHAR(16) NOT NULL DEFAULT 'MEMBER' COMMENT 'OWNER/ADMIN/MEMBER',
-  status      TINYINT NOT NULL DEFAULT 0 COMMENT '0待审核 1已加入 2已退出 3已拒绝',
+  status      TINYINT NOT NULL DEFAULT 0 COMMENT '0寰呭鏍?1宸插姞鍏?2宸查€€鍑?3宸叉嫆缁?,
   joined_at   DATETIME DEFAULT NULL,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_space_user (space_id, user_id),
   KEY idx_user (user_id)
-) ENGINE=InnoDB COMMENT='空间成员';
+) ENGINE=InnoDB COMMENT='绌洪棿鎴愬憳';
 
 -- ============================================================
--- 5. posts 帖子（统一表）
+-- 5. posts 甯栧瓙锛堢粺涓€琛級
 -- ============================================================
 CREATE TABLE posts (
   id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -112,17 +111,17 @@ CREATE TABLE posts (
   title         VARCHAR(255) DEFAULT NULL,
   content       MEDIUMTEXT NOT NULL,
   attachments   JSON DEFAULT NULL,
-  topics        JSON DEFAULT NULL COMMENT '话题',
+  topics        JSON DEFAULT NULL COMMENT '璇濋',
   tags          JSON DEFAULT NULL,
-  ai_summary    TEXT DEFAULT NULL COMMENT 'AI 生成摘要',
-  ai_risk_level TINYINT DEFAULT 0 COMMENT '0正常 1中风险 2高风险',
+  ai_summary    TEXT DEFAULT NULL COMMENT 'AI 鐢熸垚鎽樿',
+  ai_risk_level TINYINT DEFAULT 0 COMMENT '0姝ｅ父 1涓闄?2楂橀闄?,
   view_count    INT NOT NULL DEFAULT 0,
   like_count    INT NOT NULL DEFAULT 0,
   comment_count INT NOT NULL DEFAULT 0,
   is_pinned     TINYINT NOT NULL DEFAULT 0,
   is_essence    TINYINT NOT NULL DEFAULT 0,
-  status        TINYINT NOT NULL DEFAULT 1 COMMENT '0待审 1正常 2隐藏',
-  pinned_at     DATETIME DEFAULT NULL COMMENT '置顶时间',
+  status        TINYINT NOT NULL DEFAULT 1 COMMENT '0寰呭 1姝ｅ父 2闅愯棌',
+  pinned_at     DATETIME DEFAULT NULL COMMENT '缃《鏃堕棿',
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted       TINYINT NOT NULL DEFAULT 0,
@@ -130,10 +129,10 @@ CREATE TABLE posts (
   KEY idx_space_time (space_id, created_at),
   KEY idx_author (author_id),
   FULLTEXT KEY ft_title_content (title, content) /*!50700 WITH PARSER ngram */
-) ENGINE=InnoDB COMMENT='帖子';
+) ENGINE=InnoDB COMMENT='甯栧瓙';
 
 -- ============================================================
--- 6. comments 评论
+-- 6. comments 璇勮
 -- ============================================================
 CREATE TABLE comments (
   id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -146,14 +145,14 @@ CREATE TABLE comments (
   like_count  INT NOT NULL DEFAULT 0,
   status      TINYINT NOT NULL DEFAULT 1,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at  DATETIME DEFAULT NULL COMMENT '最后编辑时间',
+  updated_at  DATETIME DEFAULT NULL COMMENT '鏈€鍚庣紪杈戞椂闂?,
   deleted     TINYINT NOT NULL DEFAULT 0,
   KEY idx_post (post_id, created_at),
   KEY idx_author (author_id)
-) ENGINE=InnoDB COMMENT='评论';
+) ENGINE=InnoDB COMMENT='璇勮';
 
 -- ============================================================
--- 7. reactions 点赞/收藏
+-- 7. reactions 鐐硅禐/鏀惰棌
 -- ============================================================
 CREATE TABLE reactions (
   id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -165,24 +164,23 @@ CREATE TABLE reactions (
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_user_target (user_id, target_type, target_id, type),
   KEY idx_target (target_type, target_id)
-) ENGINE=InnoDB COMMENT='点赞收藏';
+) ENGINE=InnoDB COMMENT='鐐硅禐鏀惰棌';
 
 -- ============================================================
--- 8. qa_questions 问答扩展
+-- 8. qa_questions 闂瓟鎵╁睍
 -- ============================================================
 CREATE TABLE qa_questions (
   id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id       BIGINT UNSIGNED NOT NULL,
   post_id         BIGINT UNSIGNED NOT NULL,
-  bounty_points   INT NOT NULL DEFAULT 0,
   is_solved       TINYINT NOT NULL DEFAULT 0,
   accepted_comment_id BIGINT UNSIGNED DEFAULT NULL,
   solved_at       DATETIME DEFAULT NULL,
   UNIQUE KEY uk_post (post_id)
-) ENGINE=InnoDB COMMENT='问答扩展';
+) ENGINE=InnoDB COMMENT='闂瓟鎵╁睍';
 
 -- ============================================================
--- 9. checkin_challenges 打卡挑战
+-- 9. checkin_challenges 鎵撳崱鎸戞垬
 -- ============================================================
 CREATE TABLE checkin_challenges (
   id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -197,10 +195,10 @@ CREATE TABLE checkin_challenges (
   member_count  INT NOT NULL DEFAULT 0,
   status        TINYINT NOT NULL DEFAULT 1,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB COMMENT='打卡挑战';
+) ENGINE=InnoDB COMMENT='鎵撳崱鎸戞垬';
 
 -- ============================================================
--- 10. checkin_records 打卡记录
+-- 10. checkin_records 鎵撳崱璁板綍
 -- ============================================================
 CREATE TABLE checkin_records (
   id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -210,14 +208,14 @@ CREATE TABLE checkin_records (
   checkin_date  DATE NOT NULL,
   content       TEXT DEFAULT NULL,
   image_urls    JSON DEFAULT NULL,
-  ai_check      TINYINT DEFAULT 0 COMMENT 'AI 内容合规校验',
+  ai_check      TINYINT DEFAULT 0 COMMENT 'AI 鍐呭鍚堣鏍￠獙',
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_user_date (challenge_id, user_id, checkin_date),
   KEY idx_user (user_id, checkin_date)
-) ENGINE=InnoDB COMMENT='打卡记录';
+) ENGINE=InnoDB COMMENT='鎵撳崱璁板綍';
 
 -- ============================================================
--- 11. resources 资源
+-- 11. resources 璧勬簮
 -- ============================================================
 CREATE TABLE resources (
   id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -227,8 +225,8 @@ CREATE TABLE resources (
   file_name     VARCHAR(255) NOT NULL,
   file_size     BIGINT UNSIGNED NOT NULL,
   file_type     VARCHAR(32)  NOT NULL,
-  file_md5      VARCHAR(64)  DEFAULT NULL COMMENT '@Deprecated - 保留至历史数据 100% 迁移到 file_sha256（spec T8.10）',
-  file_sha256   VARCHAR(64)  DEFAULT NULL COMMENT 'SHA-256 hex 指纹',
+  file_md5      VARCHAR(64)  DEFAULT NULL COMMENT '@Deprecated - 淇濈暀鑷冲巻鍙叉暟鎹?100% 杩佺Щ鍒?file_sha256锛坰pec T8.10锛?,
+  file_sha256   VARCHAR(64)  DEFAULT NULL COMMENT 'SHA-256 hex 鎸囩汗',
   storage_key   VARCHAR(255) NOT NULL,
   visibility    VARCHAR(16)  NOT NULL DEFAULT 'PUBLIC' COMMENT 'PUBLIC/SPACE/PRIVATE',
   college       VARCHAR(64)  DEFAULT NULL,
@@ -249,10 +247,10 @@ CREATE TABLE resources (
   KEY idx_space (space_id),
   KEY idx_md5 (file_md5),
   KEY idx_resources_file_sha256 (file_sha256)
-) ENGINE=InnoDB COMMENT='资源';
+) ENGINE=InnoDB COMMENT='璧勬簮';
 
 -- ============================================================
--- 12. notifications 通知
+-- 12. notifications 閫氱煡
 -- ============================================================
 CREATE TABLE notifications (
   id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -266,10 +264,10 @@ CREATE TABLE notifications (
   is_read      TINYINT NOT NULL DEFAULT 0,
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_receiver_read_time (receiver_id, is_read, created_at)
-) ENGINE=InnoDB COMMENT='通知';
+) ENGINE=InnoDB COMMENT='閫氱煡';
 
 -- ============================================================
--- 13. messages 私信
+-- 13. messages 绉佷俊
 -- ============================================================
 CREATE TABLE messages (
   id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -278,34 +276,34 @@ CREATE TABLE messages (
   receiver_id BIGINT UNSIGNED NOT NULL,
   content     TEXT DEFAULT NULL,
   image_url   VARCHAR(255) DEFAULT NULL,
-  ai_risk_level TINYINT NOT NULL DEFAULT 0 COMMENT '0=安全 1=疑似 2=违规（来自 SensitiveWordService.getRiskLevel，spec T8.10）',
+  ai_risk_level TINYINT NOT NULL DEFAULT 0 COMMENT '0=瀹夊叏 1=鐤戜技 2=杩濊锛堟潵鑷?SensitiveWordService.getRiskLevel锛宻pec T8.10锛?,
   is_read     TINYINT NOT NULL DEFAULT 0,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_conversation (sender_id, receiver_id, created_at),
   KEY idx_receiver_read (receiver_id, is_read, created_at)
-) ENGINE=InnoDB COMMENT='私信';
+) ENGINE=InnoDB COMMENT='绉佷俊';
 
 -- ============================================================
--- 14. audit_logs 审计日志
+-- 14. audit_logs 瀹¤鏃ュ織
 -- ============================================================
 CREATE TABLE audit_logs (
   id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id    BIGINT UNSIGNED NOT NULL,
   operator_id  BIGINT UNSIGNED DEFAULT NULL,
-  action       VARCHAR(64)  NOT NULL COMMENT '操作类型',
+  action       VARCHAR(64)  NOT NULL COMMENT '鎿嶄綔绫诲瀷',
   target_type  VARCHAR(32)  DEFAULT NULL,
   target_id    BIGINT UNSIGNED DEFAULT NULL,
-  detail       JSON DEFAULT NULL COMMENT '操作详情',
+  detail       JSON DEFAULT NULL COMMENT '鎿嶄綔璇︽儏',
   ip_address   VARCHAR(64)  DEFAULT NULL,
-  user_agent   VARCHAR(255) DEFAULT NULL COMMENT '客户端 UA（含异步线程上下文，T9.2）',
+  user_agent   VARCHAR(255) DEFAULT NULL COMMENT '瀹㈡埛绔?UA锛堝惈寮傛绾跨▼涓婁笅鏂囷紝T9.2锛?,
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_tenant_time (tenant_id, created_at),
   KEY idx_operator (operator_id),
   KEY idx_audit_log_action_created (action, created_at)
-) ENGINE=InnoDB COMMENT='审计日志';
+) ENGINE=InnoDB COMMENT='瀹¤鏃ュ織';
 
 -- ============================================================
--- 15. reports 举报
+-- 15. reports 涓炬姤
 -- ============================================================
 CREATE TABLE reports (
   id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -315,40 +313,40 @@ CREATE TABLE reports (
   target_id    BIGINT UNSIGNED NOT NULL,
   reason       VARCHAR(32)  NOT NULL,
   description  TEXT DEFAULT NULL,
-  status       TINYINT NOT NULL DEFAULT 0 COMMENT '0待处理 1已处理 2已驳回',
+  status       TINYINT NOT NULL DEFAULT 0 COMMENT '0寰呭鐞?1宸插鐞?2宸查┏鍥?,
   handler_id   BIGINT UNSIGNED DEFAULT NULL,
   handle_note  TEXT DEFAULT NULL,
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   handled_at   DATETIME DEFAULT NULL,
   KEY idx_tenant_status (tenant_id, status)
-) ENGINE=InnoDB COMMENT='举报';
+) ENGINE=InnoDB COMMENT='涓炬姤';
 
 -- ============================================================
--- 16. sensitive_words 敏感词
+-- 16. sensitive_words 鏁忔劅璇?
 -- ============================================================
 CREATE TABLE sensitive_words (
   id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id   BIGINT UNSIGNED NOT NULL,
   word        VARCHAR(64) NOT NULL,
-  level       TINYINT NOT NULL DEFAULT 1 COMMENT '1低 2中 3高',
-  is_regex    TINYINT NOT NULL DEFAULT 0 COMMENT '0=普通词 1=正则表达式（漏洞 27 / T8.5）',
+  level       TINYINT NOT NULL DEFAULT 1 COMMENT '1浣?2涓?3楂?,
+  is_regex    TINYINT NOT NULL DEFAULT 0 COMMENT '0=鏅€氳瘝 1=姝ｅ垯琛ㄨ揪寮忥紙婕忔礊 27 / T8.5锛?,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_tenant_word (tenant_id, word)
-) ENGINE=InnoDB COMMENT='敏感词';
+) ENGINE=InnoDB COMMENT='鏁忔劅璇?;
 
 -- ============================================================
--- 17. achievements 成就
+-- 17. achievements 鎴愬氨
 -- ============================================================
 CREATE TABLE achievements (
   id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  code        VARCHAR(32)  NOT NULL COMMENT '成就编码',
+  code        VARCHAR(32)  NOT NULL COMMENT '鎴愬氨缂栫爜',
   name        VARCHAR(64)  NOT NULL,
   description VARCHAR(255) DEFAULT NULL,
   icon_url    VARCHAR(255) DEFAULT NULL,
-  rule        JSON DEFAULT NULL COMMENT '触发规则',
+  rule        JSON DEFAULT NULL COMMENT '瑙﹀彂瑙勫垯',
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_code (code)
-) ENGINE=InnoDB COMMENT='成就定义';
+) ENGINE=InnoDB COMMENT='鎴愬氨瀹氫箟';
 
 CREATE TABLE user_achievements (
   id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -357,38 +355,24 @@ CREATE TABLE user_achievements (
   achievement_id BIGINT UNSIGNED NOT NULL,
   awarded_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_user_achieve (user_id, achievement_id)
-) ENGINE=InnoDB COMMENT='用户成就';
+) ENGINE=InnoDB COMMENT='鐢ㄦ埛鎴愬氨';
 
 -- ============================================================
--- 18. points_log 积分流水
--- ============================================================
-CREATE TABLE points_logs (
-  id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  tenant_id   BIGINT UNSIGNED NOT NULL,
-  user_id     BIGINT UNSIGNED NOT NULL,
-  amount      BIGINT NOT NULL COMMENT '正=获得 负=消耗',
-  type        VARCHAR(32) NOT NULL COMMENT 'LOGIN/POST/ACCEPTED/LIKED/CHECKIN/BOUNTY',
-  reference   VARCHAR(255) DEFAULT NULL COMMENT '关联说明',
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_user_time (user_id, created_at)
-) ENGINE=InnoDB COMMENT='积分流水';
-
--- ============================================================
--- 19. follows 用户关注
+-- 19. follows 鐢ㄦ埛鍏虫敞
 -- ============================================================
 CREATE TABLE follows (
   id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id   BIGINT UNSIGNED NOT NULL,
-  follower_id BIGINT UNSIGNED NOT NULL COMMENT '关注者',
-  followee_id BIGINT UNSIGNED NOT NULL COMMENT '被关注者',
+  follower_id BIGINT UNSIGNED NOT NULL COMMENT '鍏虫敞鑰?,
+  followee_id BIGINT UNSIGNED NOT NULL COMMENT '琚叧娉ㄨ€?,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_follow (follower_id, followee_id),
   KEY idx_followee (followee_id)
-) ENGINE=InnoDB COMMENT='用户关注';
+) ENGINE=InnoDB COMMENT='鐢ㄦ埛鍏虫敞';
 
 -- ============================================================
--- 初始数据：默认租户（standalone 模式必需）
+-- 鍒濆鏁版嵁锛氶粯璁ょ鎴凤紙standalone 妯″紡蹇呴渶锛?
 -- ============================================================
 INSERT INTO tenants (id, code, name, status, created_at, updated_at)
-VALUES (1, 'default', '默认租户', 1, NOW(), NOW())
+VALUES (1, 'default', '榛樿绉熸埛', 1, NOW(), NOW())
 ON DUPLICATE KEY UPDATE status = 1;

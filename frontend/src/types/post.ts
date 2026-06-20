@@ -49,7 +49,6 @@ export interface CreatePostRequest {
   content: string;
   topics?: string[];
   tags?: string[];
-  bountyPoints?: number;
   quotePostId?: number;
 }
 

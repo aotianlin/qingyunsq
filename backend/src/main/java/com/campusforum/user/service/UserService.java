@@ -12,7 +12,6 @@ import com.campusforum.infra.metrics.SecurityMetrics;
 import com.campusforum.infra.security.LoginLockoutService;
 import com.campusforum.infra.security.SecurityProperties;
 import com.campusforum.infra.security.TrustedProxyResolver;
-import com.campusforum.points.service.PointsService;
 import com.campusforum.tenant.TenantContext;
 import com.campusforum.tenant.cache.ActiveTenantCache;
 import com.campusforum.user.config.StudentNoMappingProperties;
@@ -36,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.net.URI;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -62,7 +60,6 @@ public class UserService {
     );
 
     private final UserMapper userMapper;
-    private final PointsService pointsService;
     private final StudentNoMappingProperties studentNoMapping;
     private final ActiveTenantCache activeTenantCache;
     private final LoginLockoutService loginLockoutService;
@@ -107,7 +104,6 @@ public class UserService {
         user.setNickname(req.getNickname());
         user.setRole("USER");
         user.setStatus(1);
-        user.setPoints(0L);
 
         // 学号自动识别学院/专业/年级
         if (req.getStudentNo() != null && !req.getStudentNo().isBlank()) {
@@ -244,18 +240,9 @@ public class UserService {
         session.set("tenantId", user.getTenantId());
         session.set("tenantCode", activeTenantCache.getCode(user.getTenantId()));
 
-        // 每日首次登录奖励 1 积分（检查旧登录日期）
-        LocalDate today = LocalDate.now();
-        boolean firstLoginToday = user.getLastLoginAt() == null
-                || user.getLastLoginAt().toLocalDate().isBefore(today);
-
         // 更新最后登录时间
         user.setLastLoginAt(LocalDateTime.now());
         userMapper.updateById(user);
-
-        if (firstLoginToday) {
-            pointsService.award(user.getId(), 1, "LOGIN", "每日登录");
-        }
 
         log.info("User logged in: id={}", user.getId());
 
@@ -330,7 +317,7 @@ public class UserService {
      * 查看他人公开资料（最小披露）。
      *
      * <p>安全加固：原 {@code GET /api/v1/users/{id}} 直接返回完整 {@link UserVO}，
-     * 其中含 {@code email}/{@code studentNo}/{@code role}/{@code points}/{@code status}
+     * 其中含 {@code email}/{@code studentNo}/{@code role}/{@code status}
      * 等敏感字段，任何登录用户都可遍历 id 收集同租户全部用户的邮箱与学号（PII 泄露）。
      * 这与缺陷 1.21 引入 {@link PublicUserVO} 的"最小披露"初衷自相矛盾。</p>
      *
@@ -730,7 +717,6 @@ public class UserService {
                 .major(user.getMajor())
                 .grade(user.getGrade())
                 .role(user.getRole())
-                .points(user.getPoints())
                 .status(user.getStatus())
                 .lastLoginAt(user.getLastLoginAt())
                 .createdAt(user.getCreatedAt())

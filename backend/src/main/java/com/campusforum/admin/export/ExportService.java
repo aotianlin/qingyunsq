@@ -108,7 +108,7 @@ public class ExportService {
     }
 
     private void exportUsersCsv(PrintWriter writer, boolean fullPii) {
-        writer.println("id,email,nickname,student_no,college,major,grade,role,points,status,created_at");
+        writer.println("id,email,nickname,student_no,college,major,grade,role,status,created_at");
         Long lastId = null;
         // 已写入数据行计数（不含表头），命中 MAX_ROWS 时抛错
         int written = 0;
@@ -122,10 +122,10 @@ public class ExportService {
                 checkRowLimit(++written);
                 String email = fullPii ? u.getEmail() : maskEmail(u.getEmail());
                 String studentNo = fullPii ? u.getStudentNo() : maskStudentNo(u.getStudentNo());
-                writer.printf("%d,%s,%s,%s,%s,%s,%s,%s,%d,%d,%s%n",
+                writer.printf("%d,%s,%s,%s,%s,%s,%s,%s,%d,%s%n",
                         u.getId(), esc(email), esc(u.getNickname()), esc(studentNo),
                         esc(u.getCollege()), esc(u.getMajor()), esc(u.getGrade()),
-                        u.getRole(), u.getPoints(), u.getStatus(), u.getCreatedAt());
+                        u.getRole(), u.getStatus(), u.getCreatedAt());
             }
             lastId = batch.get(batch.size() - 1).getId();
         }
@@ -218,7 +218,7 @@ public class ExportService {
 
     private void exportUsersXlsx(Sheet sheet, boolean fullPii) {
         Row header = sheet.createRow(0);
-        String[] cols = {"id", "email", "nickname", "student_no", "college", "major", "grade", "role", "points", "status", "created_at"};
+        String[] cols = {"id", "email", "nickname", "student_no", "college", "major", "grade", "role", "status", "created_at"};
         for (int i = 0; i < cols.length; i++) header.createCell(i).setCellValue(cols[i]);
 
         int rowNum = 1;
@@ -240,9 +240,8 @@ public class ExportService {
                 row.createCell(5).setCellValue(str(u.getMajor()));
                 row.createCell(6).setCellValue(str(u.getGrade()));
                 row.createCell(7).setCellValue(str(u.getRole()));
-                row.createCell(8).setCellValue(u.getPoints());
-                row.createCell(9).setCellValue(u.getStatus());
-                row.createCell(10).setCellValue(u.getCreatedAt() != null ? u.getCreatedAt().toString() : "");
+                row.createCell(8).setCellValue(u.getStatus());
+                row.createCell(9).setCellValue(u.getCreatedAt() != null ? u.getCreatedAt().toString() : "");
             }
             lastId = batch.get(batch.size() - 1).getId();
         }

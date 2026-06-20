@@ -73,7 +73,6 @@ class ExportRowsLimitTest {
             u.setNickname("nick" + i);
             u.setStudentNo("2023" + String.format("%05d", i));
             u.setRole("USER");
-            u.setPoints(0L);
             u.setStatus(1);
             u.setCreatedAt(LocalDateTime.now());
             list.add(u);
