@@ -32,35 +32,6 @@
 > - 实际守护 token → loginId 映射的密钥是 `REDIS_PASSWORD`，请按 §1.1 中的运维操作清单执行检查与轮转。
 > - **Knife4j / OpenAPI 文档双重屏蔽（漏洞 2，security-audit-hardening T2.2/T2.4）**：生产部署必须保证 `SPRINGDOC_ENABLED=false`（应用层默认即 `false`，由 `application.yml` 的 `springdoc.api-docs.enabled` / `springdoc.swagger-ui.enabled` 共同控制）；同时 `deploy/nginx/nginx.conf` 已在 `server` 块内对 `/swagger-ui|v3/api-docs|swagger-resources|doc.html|webjars` 路径返回 404，作为边缘纵深防御。即便运维误开启应用层开关，外部仍无法读取接口契约。
 
-### 1.2 uni-app 移动端与第三方登录升级
-
-`D:\develop\qingyun_app` 的 uni-app 迁移工程已经接入微信小程序登录、安卓 App QQ 登录、GitHub Device Flow 登录。云服务器通过拉取远程代码更新时，请按下面顺序执行：
-
-```bash
-mysql -u $MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE \
-  < db/migrations/V20260620_01__wechat_login_users.sql
-
-mysql -u $MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE \
-  < db/migrations/V20260620_02__qq_github_login_users.sql
-```
-
-后端环境变量：
-
-| 变量 | 用途 | 获取位置 |
-|---|---|---|
-| `WECHAT_MINI_PROGRAM_APP_ID` | 微信小程序登录 AppID | 微信公众平台 -> 开发管理 -> 开发设置 |
-| `WECHAT_MINI_PROGRAM_APP_SECRET` | 微信小程序登录 AppSecret | 微信公众平台 -> 开发管理 -> 开发设置 |
-| `QQ_CONNECT_APP_ID` | 安卓 App QQ 登录 AppID | QQ 互联 -> 应用管理 -> 移动应用 |
-| `QQ_CONNECT_APP_KEY` | QQ 互联 AppKey，当前仅用于凭证留档 | QQ 互联 -> 应用管理 -> 移动应用 |
-| `GITHUB_OAUTH_CLIENT_ID` | GitHub Device Flow Client ID | GitHub -> Settings -> Developer settings -> OAuth Apps |
-| `GITHUB_OAUTH_CLIENT_SECRET` | GitHub Device Flow Client Secret | GitHub -> Settings -> Developer settings -> OAuth Apps |
-
-客户端打包注意：
-
-- 微信登录使用小程序 `uni.login({ provider: "weixin" })`，AppID 仍以微信开发者工具和小程序后台配置为准，前端代码不硬编码。
-- QQ 登录只在 App 端启用。HBuilderX / uni-app `manifest.json` 必须启用 App OAuth 模块，并把 QQ 互联移动应用的 AppID 写入 `app-plus.distribute.sdkConfigs.oauth.qq.appid`；真机调试需要自定义基座。
-- GitHub 登录使用 OAuth Device Flow。创建 GitHub OAuth App 后，需要在 OAuth App 设置中启用 Device Flow；GitHub 表单要求 Homepage URL / Authorization callback URL，可填你的 HTTPS 官网或 App 介绍页，当前 App 端实际不依赖回调地址。
-
 ### 1.1 Token 持久化方式说明（澄清 Sa-Token 当前并非 JWT 模式）
 
 为了避免运维基于"用了 Sa-Token = 必然有 JWT"的惯性误判而产生**虚假安全感**，特别澄清：

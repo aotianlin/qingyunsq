@@ -12,11 +12,6 @@ import com.campusforum.infra.metrics.SecurityMetrics;
 import com.campusforum.infra.security.LoginLockoutService;
 import com.campusforum.infra.security.SecurityProperties;
 import com.campusforum.infra.security.TrustedProxyResolver;
-import com.campusforum.social.service.GithubOAuthClient;
-import com.campusforum.social.service.GithubTokenPollResult;
-import com.campusforum.social.service.GithubUserInfo;
-import com.campusforum.social.service.QqOAuthClient;
-import com.campusforum.social.service.QqUserInfo;
 import com.campusforum.tenant.TenantContext;
 import com.campusforum.tenant.cache.ActiveTenantCache;
 import com.campusforum.user.config.StudentNoMappingProperties;
@@ -27,8 +22,6 @@ import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UpdateProfileRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
-import com.campusforum.wechat.service.WechatCodeSession;
-import com.campusforum.wechat.service.WechatMiniProgramClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -72,9 +64,6 @@ public class UserService {
     private final ActiveTenantCache activeTenantCache;
     private final LoginLockoutService loginLockoutService;
     private final EmailVerificationCodeService emailVerificationCodeService;
-    private final WechatMiniProgramClient wechatMiniProgramClient;
-    private final QqOAuthClient qqOAuthClient;
-    private final GithubOAuthClient githubOAuthClient;
     private final TrustedProxyResolver trustedProxyResolver;
     private final HttpServletRequest httpRequest;
     private final SecurityProperties securityProperties;
@@ -240,55 +229,6 @@ public class UserService {
 
         loginLockoutService.recordSuccess(tid, email);
         return completeLogin(user);
-    }
-
-    @Transactional
-    public UserVO loginByWechatCode(String code) {
-        if (!StringUtils.hasText(code)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "微信登录凭证不能为空");
-        }
-        long tid = requireTenantId();
-        WechatCodeSession session = wechatMiniProgramClient.code2Session(code);
-        User user = findTenantUserByWechatOpenid(tid, session.openid());
-        if (user == null) {
-            user = createWechatUser(tid, session);
-        }
-        ensureActive(user);
-        return completeLogin(user);
-    }
-
-    @Transactional
-    public UserVO loginByQq(String openid, String accessToken) {
-        long tid = requireTenantId();
-        QqUserInfo qqUser = qqOAuthClient.getUserInfo(openid, accessToken);
-        User user = findTenantUserByQqOpenid(tid, qqUser.openid());
-        if (user == null) {
-            user = createQqUser(tid, qqUser);
-        } else {
-            refreshSocialProfile(user, qqUser.nickname(), qqUser.avatarUrl());
-        }
-        ensureActive(user);
-        return completeLogin(user);
-    }
-
-    @Transactional
-    public GithubTokenPollResult pollGithubLogin(String deviceCode) {
-        GithubTokenPollResult pollResult = githubOAuthClient.pollToken(deviceCode);
-        if (pollResult.pending()) {
-            return pollResult;
-        }
-
-        long tid = requireTenantId();
-        GithubUserInfo githubUser = githubOAuthClient.getUserInfo(pollResult.accessToken());
-        User user = findTenantUserByGithubId(tid, githubUser.id());
-        if (user == null) {
-            user = createGithubUser(tid, githubUser);
-        } else {
-            refreshSocialProfile(user, githubNickname(githubUser), githubUser.avatarUrl());
-        }
-        ensureActive(user);
-        completeLogin(user);
-        return pollResult;
     }
 
     private UserVO completeLogin(User user) {
@@ -750,125 +690,6 @@ public class UserService {
         return userMapper.selectOne(new LambdaQueryWrapper<User>()
                 .eq(User::getTenantId, tenantId)
                 .eq(User::getEmail, email));
-    }
-
-    private User findTenantUserByWechatOpenid(long tenantId, String openid) {
-        return userMapper.selectOne(new LambdaQueryWrapper<User>()
-                .eq(User::getTenantId, tenantId)
-                .eq(User::getWechatOpenid, openid));
-    }
-
-    private User findTenantUserByQqOpenid(long tenantId, String openid) {
-        return userMapper.selectOne(new LambdaQueryWrapper<User>()
-                .eq(User::getTenantId, tenantId)
-                .eq(User::getQqOpenid, openid));
-    }
-
-    private User findTenantUserByGithubId(long tenantId, String githubId) {
-        return userMapper.selectOne(new LambdaQueryWrapper<User>()
-                .eq(User::getTenantId, tenantId)
-                .eq(User::getGithubId, githubId));
-    }
-
-    private User createWechatUser(long tenantId, WechatCodeSession session) {
-        User user = createSocialUser(tenantId, buildInternalSocialEmail("wx", tenantId, session.openid()),
-                "微信用户", null);
-        user.setWechatOpenid(session.openid());
-        user.setWechatUnionid(session.unionid());
-
-        try {
-            userMapper.insert(user);
-            return user;
-        } catch (DuplicateKeyException e) {
-            User existing = findTenantUserByWechatOpenid(tenantId, session.openid());
-            if (existing != null) {
-                return existing;
-            }
-            log.warn("Wechat user unique-key conflict for tenantId={}, openid={}: {}",
-                    tenantId, session.openid(), e.getMessage());
-            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "微信账号创建失败，请稍后重试");
-        }
-    }
-
-    private User createQqUser(long tenantId, QqUserInfo qqUser) {
-        User user = createSocialUser(tenantId, buildInternalSocialEmail("qq", tenantId, qqUser.openid()),
-                qqUser.nickname(), qqUser.avatarUrl());
-        user.setQqOpenid(qqUser.openid());
-
-        try {
-            userMapper.insert(user);
-            return user;
-        } catch (DuplicateKeyException e) {
-            User existing = findTenantUserByQqOpenid(tenantId, qqUser.openid());
-            if (existing != null) {
-                return existing;
-            }
-            log.warn("QQ user unique-key conflict for tenantId={}, openid={}: {}",
-                    tenantId, qqUser.openid(), e.getMessage());
-            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "QQ 账号创建失败，请稍后重试");
-        }
-    }
-
-    private User createGithubUser(long tenantId, GithubUserInfo githubUser) {
-        User user = createSocialUser(tenantId, buildInternalSocialEmail("github", tenantId, githubUser.id()),
-                githubNickname(githubUser), githubUser.avatarUrl());
-        user.setGithubId(githubUser.id());
-
-        try {
-            userMapper.insert(user);
-            return user;
-        } catch (DuplicateKeyException e) {
-            User existing = findTenantUserByGithubId(tenantId, githubUser.id());
-            if (existing != null) {
-                return existing;
-            }
-            log.warn("GitHub user unique-key conflict for tenantId={}, githubId={}: {}",
-                    tenantId, githubUser.id(), e.getMessage());
-            throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "GitHub 账号创建失败，请稍后重试");
-        }
-    }
-
-    private User createSocialUser(long tenantId, String email, String nickname, String avatarUrl) {
-        User user = new User();
-        user.setTenantId(tenantId);
-        user.setEmail(email);
-        user.setPasswordHash(BCrypt.hashpw(UUID.randomUUID().toString(), BCrypt.gensalt(10)));
-        user.setNickname(StringUtils.hasText(nickname) ? nickname : "社交用户");
-        user.setAvatarUrl(avatarUrl);
-        user.setRole("USER");
-        user.setStatus(1);
-        return user;
-    }
-
-    private void refreshSocialProfile(User user, String nickname, String avatarUrl) {
-        boolean changed = false;
-        if (!StringUtils.hasText(user.getNickname()) && StringUtils.hasText(nickname)) {
-            user.setNickname(nickname);
-            changed = true;
-        }
-        if (!StringUtils.hasText(user.getAvatarUrl()) && StringUtils.hasText(avatarUrl)) {
-            user.setAvatarUrl(avatarUrl);
-            changed = true;
-        }
-        if (changed) {
-            userMapper.updateById(user);
-        }
-    }
-
-    private void ensureActive(User user) {
-        if (user.getStatus() == 0) {
-            throw new BusinessException(ErrorCode.USER_BANNED);
-        }
-    }
-
-    private String buildInternalSocialEmail(String provider, long tenantId, String providerUserId) {
-        return provider + "_" + tenantId + "_" + providerUserId + "@social.local";
-    }
-
-    private String githubNickname(GithubUserInfo githubUser) {
-        if (StringUtils.hasText(githubUser.name())) return githubUser.name();
-        if (StringUtils.hasText(githubUser.login())) return githubUser.login();
-        return "GitHub用户";
     }
 
     private long requireTenantId() {

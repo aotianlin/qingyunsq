@@ -6,19 +6,13 @@ import com.campusforum.common.ErrorCode;
 import com.campusforum.common.R;
 import com.campusforum.infra.email.EmailCodeScene;
 import com.campusforum.infra.security.WsTicketService;
-import com.campusforum.social.service.GithubDeviceCodeSession;
-import com.campusforum.social.service.GithubOAuthClient;
-import com.campusforum.social.service.GithubTokenPollResult;
 import com.campusforum.user.dto.ChangePasswordRequest;
 import com.campusforum.user.dto.EmailCodeRequest;
 import com.campusforum.user.dto.EmailOnlyRequest;
-import com.campusforum.user.dto.GithubDeviceLoginRequest;
 import com.campusforum.user.dto.LoginRequest;
-import com.campusforum.user.dto.QqLoginRequest;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.ResetPasswordRequest;
 import com.campusforum.user.dto.UserVO;
-import com.campusforum.user.dto.WechatLoginRequest;
 import com.campusforum.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +28,6 @@ public class AuthController {
 
     private final UserService userService;
     private final WsTicketService wsTicketService;
-    private final GithubOAuthClient githubOAuthClient;
 
     @PostMapping("/register")
     public R<UserVO> register(@Valid @RequestBody RegisterRequest req) {
@@ -58,40 +51,10 @@ public class AuthController {
     public R<Map<String, Object>> login(@Valid @RequestBody LoginRequest req) {
         UserVO user = userService.login(req);
         String token = StpUtil.getTokenValue();
-        return R.ok(loginPayload(token, user));
-    }
-
-    @PostMapping("/wechat-login")
-    public R<Map<String, Object>> wechatLogin(@Valid @RequestBody WechatLoginRequest req) {
-        UserVO user = userService.loginByWechatCode(req.getCode());
-        String token = StpUtil.getTokenValue();
-        return R.ok(loginPayload(token, user));
-    }
-
-    @PostMapping("/qq-login")
-    public R<Map<String, Object>> qqLogin(@Valid @RequestBody QqLoginRequest req) {
-        UserVO user = userService.loginByQq(req.getOpenid(), req.getAccessToken());
-        String token = StpUtil.getTokenValue();
-        return R.ok(loginPayload(token, user));
-    }
-
-    @PostMapping("/github/device-code")
-    public R<GithubDeviceCodeSession> githubDeviceCode() {
-        return R.ok(githubOAuthClient.startDeviceLogin());
-    }
-
-    @PostMapping("/github/device-login")
-    public R<Map<String, Object>> githubDeviceLogin(@Valid @RequestBody GithubDeviceLoginRequest req) {
-        GithubTokenPollResult result = userService.pollGithubLogin(req.getDeviceCode());
-        if (result.pending()) {
-            return R.ok(Map.of(
-                    "pending", true,
-                    "retryAfterSeconds", result.retryAfterSeconds()
-            ));
-        }
-        String token = StpUtil.getTokenValue();
-        UserVO user = userService.getById(StpUtil.getLoginIdAsLong());
-        return R.ok(loginPayload(token, user));
+        return R.ok(Map.of(
+                "token", token,
+                "user", user
+        ));
     }
 
     @PostMapping("/logout")
@@ -154,14 +117,5 @@ public class AuthController {
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.BAD_REQUEST.getCode(), "验证码用途不正确");
         }
-    }
-
-    private Map<String, Object> loginPayload(String token, UserVO user) {
-        return Map.of(
-                "token", token,
-                "user", user,
-                "tenantId", user.getTenantId(),
-                "tenantCode", user.getTenantCode()
-        );
     }
 }

@@ -17,10 +17,6 @@ public class User extends BaseEntity {
     private String passwordHash;
     private String nickname;
     private String avatarUrl;
-    private String wechatOpenid;
-    private String wechatUnionid;
-    private String qqOpenid;
-    private String githubId;
     private String profileCoverUrl;
     private String bio;
     private String college;

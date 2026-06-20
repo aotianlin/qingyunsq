@@ -8,8 +8,6 @@ import com.campusforum.infra.metrics.SecurityMetrics;
 import com.campusforum.infra.security.LoginLockoutService;
 import com.campusforum.infra.security.SecurityProperties;
 import com.campusforum.infra.security.TrustedProxyResolver;
-import com.campusforum.social.service.GithubOAuthClient;
-import com.campusforum.social.service.QqOAuthClient;
 import com.campusforum.tenant.cache.ActiveTenantCache;
 import com.campusforum.user.config.StudentNoMappingProperties;
 import com.campusforum.user.domain.User;
@@ -17,7 +15,6 @@ import com.campusforum.user.dto.UpdateProfileRequest;
 import com.campusforum.user.mapper.UserMapper;
 import com.campusforum.user.service.EmailVerificationCodeService;
 import com.campusforum.user.service.UserService;
-import com.campusforum.wechat.service.WechatMiniProgramClient;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,9 +79,6 @@ class UserAvatarHostAllowlistTest {
                 mock(ActiveTenantCache.class),
                 mock(LoginLockoutService.class),
                 mock(EmailVerificationCodeService.class),
-                mock(WechatMiniProgramClient.class),
-                mock(QqOAuthClient.class),
-                mock(GithubOAuthClient.class),
                 mock(TrustedProxyResolver.class),
                 mock(HttpServletRequest.class),
                 securityProperties,

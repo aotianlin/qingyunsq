@@ -10,9 +10,6 @@
 > ⚠️ **生产部署前必读：[deploy/SECURITY.md](deploy/SECURITY.md)**
 > 自 commit `39875dc` 起完成了一轮全面安全加固。`application-prod.yml` 已移除多个弱默认值，缺失关键环境变量时后端会启动失败。请按 SECURITY.md 与 `deploy/.env.example` 完整配置。
 
-> 🚚 **移动端迁移与第三方登录部署提醒**
-> `D:\develop\qingyun_app` 为 uni-app 迁移工程，当前已接入微信小程序登录、安卓 App QQ 登录、GitHub Device Flow 登录。云服务器拉取远程代码更新时，必须先执行 `db/migrations/V20260620_01__wechat_login_users.sql` 和 `db/migrations/V20260620_02__qq_github_login_users.sql`，并在部署环境设置 `WECHAT_MINI_PROGRAM_APP_ID`、`WECHAT_MINI_PROGRAM_APP_SECRET`、`QQ_CONNECT_APP_ID`、`GITHUB_OAUTH_CLIENT_ID`、`GITHUB_OAUTH_CLIENT_SECRET`；QQ 的 AppID 还需要同步写入 uni-app `manifest.json` 的 App OAuth 配置后再云打包。
-
 ## 项目简介
 
 CampusForum 是一款面向全国高校、以学习互助为核心、采用"全校广场 + 专业学习空间"双层架构的开源轻量化校园学习社群平台。

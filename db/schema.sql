@@ -38,17 +38,12 @@ CREATE TABLE users (
   password_hash   VARCHAR(128) NOT NULL,
   nickname        VARCHAR(64)  NOT NULL,
   avatar_url      VARCHAR(255) DEFAULT NULL,
-  wechat_openid   VARCHAR(64)  DEFAULT NULL COMMENT '微信小程序 openid',
-  wechat_unionid  VARCHAR(64)  DEFAULT NULL COMMENT '微信 unionid',
-  qq_openid       VARCHAR(64)  DEFAULT NULL COMMENT 'QQ openid',
-  github_id       VARCHAR(64)  DEFAULT NULL COMMENT 'GitHub 用户 id',
   profile_cover_url VARCHAR(255) DEFAULT NULL COMMENT '个人主页封面图',
   bio             VARCHAR(255) DEFAULT NULL,
   college         VARCHAR(64)  DEFAULT NULL COMMENT '学院',
   major           VARCHAR(64)  DEFAULT NULL COMMENT '专业',
   grade           VARCHAR(8)   DEFAULT NULL COMMENT '年级',
   role            VARCHAR(32)  NOT NULL DEFAULT 'USER' COMMENT 'USER/TENANT_ADMIN/SUPER_ADMIN',
-  points          BIGINT NOT NULL DEFAULT 0 COMMENT '积分',
   status          TINYINT NOT NULL DEFAULT 1 COMMENT '1正常 0封禁',
   last_login_at   DATETIME DEFAULT NULL,
   reset_token     VARCHAR(64)  DEFAULT NULL COMMENT '密码重置令牌 SHA-256 哈希（hex）',
@@ -60,9 +55,6 @@ CREATE TABLE users (
   deleted         TINYINT NOT NULL DEFAULT 0,
   UNIQUE KEY uk_tenant_email (tenant_id, email),
   UNIQUE KEY uk_tenant_student (tenant_id, student_no),
-  UNIQUE KEY uk_tenant_wechat_openid (tenant_id, wechat_openid),
-  UNIQUE KEY uk_tenant_qq_openid (tenant_id, qq_openid),
-  UNIQUE KEY uk_tenant_github_id (tenant_id, github_id),
   KEY idx_tenant (tenant_id)
 ) ENGINE=InnoDB COMMENT='用户';
 
