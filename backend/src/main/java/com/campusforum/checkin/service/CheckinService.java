@@ -11,7 +11,6 @@ import com.campusforum.common.BusinessException;
 import com.campusforum.common.ErrorCode;
 import com.campusforum.achievement.service.AchievementService;
 import com.campusforum.ai.service.AiService;
-import com.campusforum.points.service.PointsService;
 import com.campusforum.post.domain.Post;
 import com.campusforum.post.mapper.PostMapper;
 import com.campusforum.user.domain.User;
@@ -37,7 +36,6 @@ public class CheckinService {
     private final CheckinChallengeMapper challengeMapper;
     private final CheckinRecordMapper recordMapper;
     private final UserMapper userMapper;
-    private final PointsService pointsService;
     private final AchievementService achievementService;
     private final PostMapper postMapper;
     private final ObjectMapper objectMapper;
@@ -187,8 +185,6 @@ public class CheckinService {
             challengeMapper.updateById(challenge);
         }
 
-        // 打卡奖励 2 积分
-        pointsService.award(userId, 2, "CHECKIN", "打卡挑战 #" + challengeId);
         achievementService.onCheckin(userId);
 
         log.info("User {} checked in to challenge {}", userId, challengeId);

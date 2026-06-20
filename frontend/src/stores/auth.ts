@@ -7,7 +7,6 @@ interface UserInfo {
   avatarUrl: string;
   email: string;
   role: string;
-  points: number;
 }
 
 interface AuthState {
@@ -31,7 +30,6 @@ export const useAuthStore = defineStore('auth', {
             avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=Guest',
             email: 'guest@campus.edu',
             role: 'GUEST',
-            points: 0,
           }
         : null,
       isLoggedIn: !!token,
@@ -52,7 +50,6 @@ export const useAuthStore = defineStore('auth', {
           avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=Guest',
           email: 'guest@campus.edu',
           role: 'GUEST',
-          points: 0,
         };
         localStorage.setItem('role', 'GUEST');
       }

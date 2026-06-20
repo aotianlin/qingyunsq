@@ -11,7 +11,6 @@ import {
   DocumentTextOutline,
   HomeOutline,
   CalendarOutline,
-  CashOutline,
   ChevronDownOutline,
   ChevronForwardOutline,
   StarOutline,
@@ -75,7 +74,6 @@ const hotTopics: Array<[string, number]> = [
   ['实习求职', 543],
 ];
 
-const myPoints = computed(() => authStore.user?.points ?? 0);
 const posts = ref<PostVO[]>([]);
 const aiCards = ref<Record<string, PostAiCard>>({});
 const loading = ref(false);
@@ -251,14 +249,6 @@ function handleGoCheckin() {
   router.push('/checkin');
 }
 
-function handleGoPoints() {
-  if (authStore.user?.role === 'GUEST') {
-    message.warning('请先登录以查看积分明细');
-    return;
-  }
-  router.push('/points');
-}
-
 function handleQuickLink(path: string) {
   if (authStore.user?.role === 'GUEST') {
     message.warning('请先登录以查看您的个人空间');
@@ -370,19 +360,6 @@ onMounted(() => loadPosts(true));
         <button class="mini-primary" @click="handleGoCheckin">去打卡</button>
       </section>
 
-      <section class="apple-card stat-card points-card">
-        <h3>我的积分</h3>
-        <strong>{{ myPoints }}</strong>
-        <button @click="handleGoPoints">
-          积分明细
-          <n-icon size="14">
-            <ChevronForwardOutline />
-          </n-icon>
-        </button>
-        <n-icon class="coin-icon" size="58">
-          <CashOutline />
-        </n-icon>
-      </section>
     </aside>
 
     <main class="feed-column">
@@ -722,8 +699,7 @@ onMounted(() => loadPosts(true));
   font-weight: 700;
 }
 
-.streak-row strong,
-.points-card > strong {
+.streak-row strong {
   font-size: 32px;
   line-height: 0.9;
   letter-spacing: 0;
@@ -746,17 +722,6 @@ onMounted(() => loadPosts(true));
   padding: 0 18px;
 }
 
-.points-card {
-  position: relative;
-  overflow: hidden;
-}
-
-.points-card > strong {
-  display: block;
-  margin: 14px 0 10px;
-}
-
-.points-card button,
 .panel-title-row button {
   border: 0;
   background: transparent;
@@ -766,14 +731,6 @@ onMounted(() => loadPosts(true));
   gap: 4px;
   padding: 0;
   cursor: pointer;
-}
-
-.coin-icon {
-  position: absolute;
-  right: 16px;
-  bottom: 14px;
-  color: #f5b52e;
-  opacity: 0.82;
 }
 
 .filter-bar {

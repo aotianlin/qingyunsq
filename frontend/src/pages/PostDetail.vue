@@ -540,7 +540,7 @@ onMounted(loadPost);
 
             <div v-if="post.type === 'QA' && qa" class="qa-strip">
               <div>
-                <strong>悬赏 {{ qa.bountyPoints }} 积分</strong>
+                <strong>问答</strong>
                 <span>{{ qa.isSolved ? '已解决' : '等待高质量回答' }}</span>
               </div>
               <n-tag :type="qa.isSolved ? 'success' : 'info'" round>

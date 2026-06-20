@@ -14,7 +14,6 @@ public class QaQuestion {
     private Long id;
     private Long tenantId;
     private Long postId;
-    private Integer bountyPoints;
     private Integer isSolved;
     private Long acceptedCommentId;
     private LocalDateTime solvedAt;

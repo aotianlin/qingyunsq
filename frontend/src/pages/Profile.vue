@@ -20,14 +20,12 @@ import { changePassword } from '@/api/auth';
 import { getUserAchievements } from '@/api/achievement';
 import { getChallenges } from '@/api/checkin';
 import { getFollowCounts, getUserFollowers, getUserFollowing } from '@/api/follows';
-import { getBalance, getPointsLogs } from '@/api/points';
 import { getPosts } from '@/api/posts';
 import { getMyProfile, updateProfile, uploadProfileAsset } from '@/api/users';
 import { getPasswordStrength, validateConfirmPassword, validateNickname, validatePassword } from '@/utils/authValidation';
 import { copyTextToClipboard } from '@/utils/clipboard';
 import type { AchievementVO } from '@/types/achievement';
 import type { CheckinChallengeVO } from '@/types/checkin';
-import type { PointsLogVO } from '@/types/points';
 import type { PostVO } from '@/types/post';
 import type { UserVO } from '@/types/user';
 import auroraBg from '@/assets/images/aurora_bg.png';
@@ -50,10 +48,6 @@ const followsLoading = ref(false);
 const followsTab = ref<'followers' | 'following'>('following');
 const followUsers = ref<UserVO[]>([]);
 const likesVisible = ref(false);
-const pointsVisible = ref(false);
-const pointsLoading = ref(false);
-const pointsBalance = ref<number | null>(null);
-const pointLogs = ref<PointsLogVO[]>([]);
 const avatarInputRef = ref<HTMLInputElement | null>(null);
 const coverInputRef = ref<HTMLInputElement | null>(null);
 
@@ -80,14 +74,6 @@ const passwordState = ref({
 });
 
 const tabs = ['动态', '帖子', '打卡', '成就'];
-const pointTypeLabels: Record<string, string> = {
-  LOGIN: '每日登录',
-  POST: '发表帖子',
-  LIKED: '收到点赞',
-  ACCEPTED: '回答被采纳',
-  CHECKIN: '每日打卡',
-  BOUNTY: '悬赏支出',
-};
 const avatarText = computed(() => user.value?.nickname?.charAt(0)?.toUpperCase() || 'U');
 const profilePasswordStrength = computed(() => getPasswordStrength(passwordForm.value.newPassword));
 const profileTitle = computed(() => {
@@ -353,27 +339,6 @@ function openLikes() {
   likesVisible.value = true;
 }
 
-async function openPoints() {
-  const userId = user.value?.id;
-  if (!userId) return;
-  pointsVisible.value = true;
-  pointsLoading.value = true;
-  try {
-    const [balance, logs] = await Promise.all([
-      getBalance(userId).catch(() => user.value?.points ?? 0),
-      getPointsLogs(userId, undefined, 30).catch(() => []),
-    ]);
-    pointsBalance.value = balance;
-    pointLogs.value = logs;
-  } catch {
-    pointsBalance.value = user.value?.points ?? 0;
-    pointLogs.value = [];
-    message.error('积分明细加载失败');
-  } finally {
-    pointsLoading.value = false;
-  }
-}
-
 function goPost(postId: number) {
   router.push(`/posts/${postId}`);
 }
@@ -418,14 +383,6 @@ function formatCompactNumber(value?: number | null) {
   if (count >= 10000) return `${(count / 10000).toFixed(1)}万`;
   if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
   return String(count);
-}
-
-function pointTypeLabel(type: string) {
-  return pointTypeLabels[type] || type || '积分变动';
-}
-
-function pointReferenceText(reference?: string | null) {
-  return reference?.trim() || '系统结算';
 }
 
 function postTitle(post: PostVO) {
@@ -559,15 +516,6 @@ onMounted(loadProfile);
                   <span class="label">获赞</span>
                   <span class="val">{{ formatCompactNumber(likeCount) }}</span>
                 </button>
-                <button
-                  class="stat"
-                  type="button"
-                  @click="openPoints"
-                >
-                  <span class="label">积分</span>
-                  <span class="val">{{ formatCompactNumber(user.points) }}</span>
-                </button>
-
                 <button
                   class="outline-btn edit-btn"
                   type="button"
@@ -1103,52 +1051,6 @@ onMounted(loadProfile);
       </div>
     </NModal>
 
-    <NModal
-      v-model:show="pointsVisible"
-      preset="card"
-      title="积分明细"
-      class="profile-modal"
-      transform-origin="center"
-      :style="{ width: '440px' }"
-    >
-      <div class="stat-summary points">
-        <span>当前可用积分</span>
-        <strong>{{ formatCompactNumber(pointsBalance ?? user?.points ?? 0) }}</strong>
-        <p>来自登录、发帖、被点赞、打卡等积分记录。</p>
-      </div>
-      <div class="stat-list">
-        <article
-          v-if="pointsLoading"
-          class="stat-empty"
-        >
-          积分明细加载中...
-        </article>
-        <article
-          v-else-if="pointLogs.length === 0"
-          class="stat-empty"
-        >
-          <strong>暂无积分记录</strong>
-          <p>参与社区互动后，积分变化会同步到这里。</p>
-        </article>
-        <article
-          v-for="entry in pointLogs"
-          v-else
-          :key="entry.id"
-          class="points-detail-item"
-        >
-          <span class="stat-item-copy">
-            <strong>{{ pointTypeLabel(entry.type) }}</strong>
-            <small>{{ pointReferenceText(entry.reference) }} · {{ formatTime(entry.createdAt) }}</small>
-          </span>
-          <span
-            class="stat-item-value"
-            :class="{ negative: entry.amount < 0 }"
-          >
-            {{ entry.amount > 0 ? '+' : '' }}{{ entry.amount }}
-          </span>
-        </article>
-      </div>
-    </NModal>
   </div>
 </template>
 
@@ -1780,12 +1682,6 @@ onMounted(loadProfile);
   padding: 16px;
   margin-bottom: 12px;
 
-  &.points {
-    background:
-      linear-gradient(135deg, color-mix(in srgb, var(--cf-warning) 18%, transparent), transparent 68%),
-      var(--cf-bg-glass);
-  }
-
   span {
     color: var(--cf-text-secondary);
     display: block;
@@ -1815,8 +1711,7 @@ onMounted(loadProfile);
 }
 
 .stat-empty,
-.stat-detail-item,
-.points-detail-item {
+.stat-detail-item {
   border: 1px solid var(--cf-border-glass);
   border-radius: 12px;
   background: var(--cf-bg-glass);
@@ -1838,8 +1733,7 @@ onMounted(loadProfile);
   }
 }
 
-.stat-detail-item,
-.points-detail-item {
+.stat-detail-item {
   width: 100%;
   align-items: center;
   display: flex;

@@ -29,7 +29,6 @@ import { getMyProfile, getUserById, updateProfile, uploadProfileAsset } from '@/
 import { follow, getFollowCounts, getUserFollowers, getUserFollowing, isFollowing, unfollow } from '@/api/follows';
 import { getUserAchievements } from '@/api/achievement';
 import { getNotifications, getUnreadCount, markRead } from '@/api/notifications';
-import { getBalance, getPointsLogs } from '@/api/points';
 import { acceptAnswer, getQaInfo } from '@/api/qa';
 import { validateNickname } from '@/utils/authValidation';
 import { copyTextToClipboard } from '@/utils/clipboard';
@@ -44,7 +43,6 @@ import type { UserVO } from '@/types/user';
 import type { CheckinChallengeVO } from '@/types/checkin';
 import type { AchievementVO } from '@/types/achievement';
 import type { NotificationVO } from '@/types/notification';
-import type { PointsLogVO } from '@/types/points';
 import type { QaQuestionVO } from '@/types/qa';
 import auroraBg from '@/assets/images/aurora_bg.png';
 
@@ -169,10 +167,6 @@ const profileFollowsTab = ref<'followers' | 'following'>('following');
 const profileFollowsLoading = ref(false);
 const profileFollowUsers = ref<UserVO[]>([]);
 const profileLikesVisible = ref(false);
-const profilePointsVisible = ref(false);
-const profilePointsLoading = ref(false);
-const profilePointsBalance = ref<number | null>(null);
-const profilePointLogs = ref<PointsLogVO[]>([]);
 const postDetailVisible = ref(false);
 const postDetailLoading = ref(false);
 const postDetail = ref<PostVO | null>(null);
@@ -217,15 +211,6 @@ const activeTab = ref('首页');
 const profileTabs = ['动态', '帖子', '打卡', '成就'];
 const uploadAccept = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp,.md,.markdown';
 const maxUploadSize = 50 * 1024 * 1024;
-const pointTypeLabels: Record<string, string> = {
-  LOGIN: '每日登录',
-  POST: '发表帖子',
-  LIKED: '收到点赞',
-  ACCEPTED: '回答被采纳',
-  CHECKIN: '每日打卡',
-  BOUNTY: '悬赏支出',
-};
-
 type ProfileFeedItem = {
   id: string;
   title: string;
@@ -442,7 +427,6 @@ const profileDisplay = computed(() => {
     initial: (user?.nickname || '学').charAt(0).toUpperCase(),
     title: [user?.college, user?.major, user?.grade].filter(Boolean).join(' · ') || '正在完善学习档案',
     bio: user?.bio || '还没有写下个人简介。',
-    points: user?.points ?? 0,
     role: user?.role || 'USER',
     email: user?.email || '未绑定邮箱',
   };
@@ -529,7 +513,6 @@ const memberProfileDisplay = computed(() => {
     initial: (user?.nickname || '学').charAt(0).toUpperCase(),
     title: [user?.college, user?.major, user?.grade].filter(Boolean).join(' · ') || '正在完善学习档案',
     bio: user?.bio || '还没有写下个人简介。',
-    points: user?.points ?? 0,
     role: user?.role || 'USER',
     joinedAt: user?.createdAt,
   };
@@ -1135,27 +1118,6 @@ function openProfileLikes() {
   profileLikesVisible.value = true;
 }
 
-async function openProfilePoints() {
-  const userId = myProfile.value?.id;
-  if (!userId) return;
-  profilePointsVisible.value = true;
-  profilePointsLoading.value = true;
-  try {
-    const [balance, logs] = await Promise.all([
-      getBalance(userId).catch(() => profileDisplay.value.points),
-      getPointsLogs(userId, undefined, 30).catch(() => []),
-    ]);
-    profilePointsBalance.value = balance;
-    profilePointLogs.value = logs;
-  } catch {
-    profilePointLogs.value = [];
-    profilePointsBalance.value = profileDisplay.value.points;
-    message.error('积分明细加载失败');
-  } finally {
-    profilePointsLoading.value = false;
-  }
-}
-
 function syncPostInLists(updatedPost: PostVO) {
   posts.value = posts.value.map((item) => (item.id === updatedPost.id ? { ...item, ...updatedPost } : item));
   if (postDetail.value?.id === updatedPost.id) {
@@ -1594,14 +1556,6 @@ function formatCompactNumber(value?: number | null) {
   return String(count);
 }
 
-function pointTypeLabel(type: string) {
-  return pointTypeLabels[type] || type || '积分变动';
-}
-
-function pointReferenceText(reference?: string | null) {
-  return reference?.trim() || '系统结算';
-}
-
 function postTitle(post: PostVO) {
   return post.title || '无标题帖子';
 }
@@ -1805,13 +1759,6 @@ watch(() => route.params.id, () => loadSpace());
                 >
                   <span>获赞</span>
                   <strong>{{ formatCompactNumber(profileLikeCount) }}</strong>
-                </button>
-                <button
-                  type="button"
-                  @click="openProfilePoints"
-                >
-                  <span>积分</span>
-                  <strong>{{ formatCompactNumber(profileDisplay.points) }}</strong>
                 </button>
               </div>
 
@@ -2189,53 +2136,6 @@ watch(() => route.params.id, () => loadSpace());
       </NModal>
 
       <NModal
-        v-model:show="profilePointsVisible"
-        preset="card"
-        title="积分明细"
-        class="space-modal compact-modal"
-        transform-origin="center"
-        :style="{ width: '440px' }"
-      >
-        <div class="profile-stat-summary points">
-          <span>当前可用积分</span>
-          <strong>{{ formatCompactNumber(profilePointsBalance ?? profileDisplay.points) }}</strong>
-        <p>来自登录、发帖、被点赞、打卡等积分记录。</p>
-        </div>
-        <div class="profile-stat-list">
-          <article
-            v-if="profilePointsLoading"
-            class="notice-modal-item"
-          >
-            <p>积分明细加载中...</p>
-          </article>
-          <article
-            v-else-if="profilePointLogs.length === 0"
-            class="notice-modal-item"
-          >
-            <strong>暂无积分记录</strong>
-            <p>参与学习圈互动后，积分变化会同步到这里。</p>
-          </article>
-          <article
-            v-for="entry in profilePointLogs"
-            v-else
-            :key="entry.id"
-            class="profile-points-item"
-          >
-            <span class="stat-item-copy">
-              <strong>{{ pointTypeLabel(entry.type) }}</strong>
-              <small>{{ pointReferenceText(entry.reference) }} · {{ formatTime(entry.createdAt) }}</small>
-            </span>
-            <span
-              class="stat-item-value"
-              :class="{ negative: entry.amount < 0 }"
-            >
-              {{ entry.amount > 0 ? '+' : '' }}{{ entry.amount }}
-            </span>
-          </article>
-        </div>
-      </NModal>
-
-      <NModal
         v-model:show="memberProfileVisible"
         preset="card"
         title="圈内成员资料"
@@ -2289,10 +2189,6 @@ watch(() => route.params.id, () => loadSpace());
               <article>
                 <span>圈内获赞</span>
                 <strong>{{ formatCompactNumber(memberProfileLikeCount) }}</strong>
-              </article>
-              <article>
-                <span>积分</span>
-                <strong>{{ formatCompactNumber(memberProfileDisplay.points) }}</strong>
               </article>
             </div>
 
@@ -2429,7 +2325,7 @@ watch(() => route.params.id, () => loadSpace());
                 v-if="postDetail.type === 'QA' && postDetailQa"
                 class="detail-qa-strip"
               >
-                <strong>悬赏 {{ postDetailQa.bountyPoints }} 积分</strong>
+                <strong>问答</strong>
                 <span>{{ postDetailQa.isSolved ? '已采纳答案' : '等待回答' }}</span>
               </div>
               <div class="detail-actions">
@@ -5843,12 +5739,6 @@ watch(() => route.params.id, () => loadSpace());
   padding: 16px;
   margin-bottom: 12px;
 
-  &.points {
-    background:
-      linear-gradient(135deg, color-mix(in srgb, var(--cf-warning) 18%, transparent), transparent 68%),
-      var(--cf-bg-glass);
-  }
-
   span {
     color: var(--cf-text-secondary);
     display: block;
@@ -5877,8 +5767,7 @@ watch(() => route.params.id, () => loadSpace());
   gap: 9px;
 }
 
-.profile-stat-item,
-.profile-points-item {
+.profile-stat-item {
   width: 100%;
   border: 1px solid var(--cf-border-glass);
   border-radius: 12px;

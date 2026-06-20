@@ -9,7 +9,6 @@ import com.campusforum.follow.service.FollowService;
 import com.campusforum.infra.sanitize.HtmlSanitizerService;
 import com.campusforum.infra.security.TrustedProxyResolver;
 import com.campusforum.notify.service.NotifyService;
-import com.campusforum.points.service.PointsService;
 import com.campusforum.post.domain.Post;
 import com.campusforum.search.service.MeiliSearchClient;
 import com.campusforum.sensitive.service.SensitiveWordService;
@@ -55,7 +54,6 @@ public class PostService {
     private final UserMapper userMapper;
     private final QaQuestionMapper qaQuestionMapper;
     private final NotifyService notifyService;
-    private final PointsService pointsService;
     private final AchievementService achievementService;
     private final MeiliSearchClient meiliSearchClient;
     private final SensitiveWordService sensitiveWordService;
@@ -152,13 +150,11 @@ public class PostService {
         if ("QA".equals(req.getType())) {
             QaQuestion qa = new QaQuestion();
             qa.setPostId(post.getId());
-            qa.setBountyPoints(req.getBountyPoints() != null ? req.getBountyPoints() : 0);
             qa.setIsSolved(0);
             qaQuestionMapper.insert(qa);
         }
 
         log.info("Post created: id={}, authorId={}", post.getId(), userId);
-        pointsService.award(userId, 5, "POST", "发表帖子 #" + post.getId());
         achievementService.onPostCreated(userId);
         meiliSearchClient.indexDocument("posts", buildPostDoc(post));
 
@@ -404,10 +400,7 @@ public class PostService {
                     throw new BusinessException(ErrorCode.POST_NOT_FOUND);
                 }
 
-                // 帖子作者获得 1 积分（不自赞）
                 if (!post.getAuthorId().equals(userId)) {
-                    pointsService.award(post.getAuthorId(), 1, "LIKED",
-                            "帖子 #" + post.getId() + " 被点赞");
                     achievementService.onPostLiked(post.getAuthorId());
                 }
                 // 通知帖子作者（不通知自己）

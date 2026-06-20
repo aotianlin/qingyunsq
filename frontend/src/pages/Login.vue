@@ -183,7 +183,6 @@ function handleGuestLogin() {
     avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=Guest',
     email: 'guest@campus.edu',
     role: 'GUEST',
-    points: 0,
   });
   message.success('已以游客身份进入社区');
   router.push('/square');

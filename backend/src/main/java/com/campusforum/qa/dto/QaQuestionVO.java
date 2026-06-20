@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
 public class QaQuestionVO {
     private Long id;
     private Long postId;
-    private Integer bountyPoints;
     private Boolean isSolved;
     private Long acceptedCommentId;
     private LocalDateTime solvedAt;

@@ -5,18 +5,11 @@ import com.campusforum.user.domain.User;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
 @Mapper
 public interface UserMapper extends BaseMapper<User> {
-
-    @Update("UPDATE users SET points = points + #{amount} WHERE id = #{userId}")
-    int incrementPoints(@Param("userId") Long userId, @Param("amount") long amount);
-
-    @Update("UPDATE users SET points = points - #{amount} WHERE id = #{userId} AND points >= #{amount}")
-    int decrementPoints(@Param("userId") Long userId, @Param("amount") long amount);
 
     @Select("<script>" +
             "SELECT id FROM users WHERE tenant_id = #{tenantId} " +

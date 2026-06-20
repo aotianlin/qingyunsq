@@ -23,7 +23,6 @@ import {
   SendOutline,
   SettingsOutline,
   SparklesOutline,
-  StarOutline,
   BonfireOutline,
   AddOutline,
   TrashOutline,
@@ -159,11 +158,9 @@ const navLinks = [
   { name: '学习圈', path: '/spaces', icon: BonfireOutline, back: false },
   { name: '资源库', path: '/resources', icon: DocumentTextOutline, back: false },
   { name: '打卡', path: '/checkin', icon: CheckmarkCircleOutline, back: false },
-  { name: '积分中心', path: '/points', icon: StarOutline, back: false },
   { name: 'AI 助手', path: '/ai', icon: SparklesOutline, back: false },
 ];
 
-const isPointsPage = computed(() => route.path.startsWith('/points'));
 const isAiPage = computed(() => route.path.startsWith('/ai'));
 const aiSections = ['chat', 'agents', 'plugins', 'knowledge'] as const;
 type AiSection = (typeof aiSections)[number];
@@ -189,12 +186,10 @@ const searchPlaceholder = computed(() =>
         plugins: '搜索插件名称或功能，例如：天气、翻译',
         knowledge: '搜索知识库、文档或内容',
       }[currentAiSection.value])
-    : isPointsPage.value
-      ? '搜索积分规则、任务、商品等'
-      : '搜索帖子、用户、资源或话题',
+    : '搜索帖子、用户、资源或话题',
 );
-const primaryActionLabel = computed(() => (isPointsPage.value ? '赚积分' : '发布'));
-const primaryActionPath = computed(() => (isPointsPage.value ? '/points' : '/posts/new'));
+const primaryActionLabel = computed(() => '发布');
+const primaryActionPath = computed(() => '/posts/new');
 const brandSubtitle = computed(() => (isAiPage.value ? 'AI 助手' : '智慧校园社区'));
 
 const userDropdownOptions = [
@@ -742,7 +737,7 @@ async function scrollFloatingAiToBottom() {
     </div>
 
     <div
-      v-if="authStore.isLoggedIn && !isPointsPage && !isAiPage"
+      v-if="authStore.isLoggedIn && !isAiPage"
       ref="floatingAiRef"
       class="floating-ai"
       :class="{ open: floatingAiOpen, hidden: floatingAiHidden, dragging: floatingAiDragging }"

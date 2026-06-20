@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { NAlert, NButton, NIcon, NInput, NInputNumber, NSelect, NTag, useMessage } from 'naive-ui';
+import { NAlert, NButton, NIcon, NInput, NSelect, NTag, useMessage } from 'naive-ui';
 import { createPost, getPostById } from '@/api/posts';
 import type { PostVO } from '@/types/post';
 import { ArrowForwardOutline, ChatbubbleEllipsesOutline, CloseOutline, PricetagOutline, SparklesOutline } from '@vicons/ionicons5';
@@ -13,7 +13,6 @@ const message = useMessage();
 const title = ref('');
 const content = ref('');
 const postType = ref('NORMAL');
-const bountyPoints = ref(0);
 const topicInput = ref('');
 const topics = ref<string[]>([]);
 const loading = ref(false);
@@ -31,7 +30,6 @@ interface DraftData {
   content: string;
   postType: string;
   topics: string[];
-  bountyPoints: number;
   savedAt: number;
 }
 
@@ -50,7 +48,6 @@ function loadDraft() {
     content.value = draft.content || '';
     postType.value = draft.postType || 'NORMAL';
     topics.value = draft.topics || [];
-    bountyPoints.value = draft.bountyPoints || 0;
     message.info('已恢复上次未发布的草稿');
   } catch {
     localStorage.removeItem(DRAFT_KEY);
@@ -69,7 +66,6 @@ function saveDraft() {
     content: content.value,
     postType: postType.value,
     topics: topics.value,
-    bountyPoints: bountyPoints.value,
     savedAt: Date.now(),
   };
   localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -82,7 +78,7 @@ function clearDraft() {
 
 // 监听内容变化，自动保存草稿（防抖）
 let draftTimer: ReturnType<typeof setTimeout> | null = null;
-watch([title, content, postType, topics, bountyPoints], () => {
+watch([title, content, postType, topics], () => {
   if (draftTimer) clearTimeout(draftTimer);
   draftTimer = setTimeout(saveDraft, 1000);
 }, { deep: true });
@@ -98,7 +94,7 @@ onUnmounted(() => {
 
 const typeOptions = [
   { label: '普通帖子', value: 'NORMAL' },
-  { label: '悬赏问答', value: 'QA' },
+  { label: '问答', value: 'QA' },
 ];
 
 const isQa = computed(() => postType.value === 'QA');
@@ -151,7 +147,7 @@ async function submit() {
     return;
   }
   if (isQa.value && !title.value.trim()) {
-    message.warning('悬赏问答需要填写标题');
+    message.warning('问答需要填写标题');
     return;
   }
 
@@ -164,7 +160,6 @@ async function submit() {
       scope: publishScope.value,
       spaceId: publishScope.value === 'SPACE' ? spaceId.value : undefined,
       type: postType.value,
-      bountyPoints: isQa.value ? bountyPoints.value : undefined,
       quotePostId: quotePostId.value,
     });
     clearDraft();
@@ -218,18 +213,6 @@ async function submit() {
             v-model:value="title"
             placeholder="普通帖子可选；问答贴建议写清问题背景"
             maxlength="255"
-          />
-        </div>
-
-        <div v-if="isQa" class="bounty-box">
-          <div class="bounty-text">
-            <strong>设置悬赏积分</strong>
-            <span>更具体的问题与合理悬赏，更容易获得高质量回答。</span>
-          </div>
-          <n-input-number
-            v-model:value="bountyPoints"
-            :min="0"
-            :max="1000"
           />
         </div>
 
@@ -295,7 +278,7 @@ async function submit() {
 
         <div class="side-panel cf-surface accent-panel">
           <h3>当前草稿概览</h3>
-          <div class="overview-row"><span>类型</span><strong>{{ isQa ? '悬赏问答' : '普通帖子' }}</strong></div>
+          <div class="overview-row"><span>类型</span><strong>{{ isQa ? '问答' : '普通帖子' }}</strong></div>
           <div class="overview-row"><span>标题</span><strong>{{ title.trim() || '未填写' }}</strong></div>
           <div class="overview-row"><span>字数</span><strong>{{ contentCount }}</strong></div>
           <div class="overview-row"><span>话题数</span><strong>{{ topics.length }}</strong></div>
@@ -394,29 +377,6 @@ async function submit() {
   }
 }
 
-.bounty-box {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-  padding: 18px;
-  border-radius: 18px;
-  background: var(--cf-bg-soft);
-}
-
-.bounty-text {
-  strong {
-    display: block;
-    margin-bottom: 6px;
-  }
-
-  span {
-    color: var(--cf-text-muted);
-    font-size: 13px;
-    line-height: 1.7;
-  }
-}
-
 .topic-input-row {
   display: flex;
   gap: 10px;
@@ -484,7 +444,6 @@ async function submit() {
 
 @media (max-width: 720px) {
   .editor-head,
-  .bounty-box,
   .topic-input-row,
   .editor-actions {
     flex-direction: column;

@@ -5,7 +5,6 @@ import com.campusforum.follow.service.FollowService;
 import com.campusforum.infra.sanitize.HtmlSanitizerService;
 import com.campusforum.infra.security.TrustedProxyResolver;
 import com.campusforum.notify.service.NotifyService;
-import com.campusforum.points.service.PointsService;
 import com.campusforum.post.domain.Post;
 import com.campusforum.post.dto.CreatePostRequest;
 import com.campusforum.post.mapper.PostMapper;
@@ -74,9 +73,6 @@ class PostServiceXssAndQuoteEscapeTest {
     private NotifyService notifyService;
 
     @Mock
-    private PointsService pointsService;
-
-    @Mock
     private AchievementService achievementService;
 
     @Mock
@@ -113,12 +109,12 @@ class PostServiceXssAndQuoteEscapeTest {
     void setUp() {
         // Lombok @RequiredArgsConstructor 生成构造器，参数顺序与字段声明顺序严格一致：
         // postMapper / reactionMapper / userMapper / qaQuestionMapper / notifyService /
-        // pointsService / achievementService / meiliSearchClient / sensitiveWordService /
+        // achievementService / meiliSearchClient / sensitiveWordService /
         // followService / userService / spaceMemberMapper / postViewDeduper /
         // trustedProxyResolver / httpRequest / htmlSanitizerService
         postService = new PostService(
                 postMapper, reactionMapper, userMapper, qaQuestionMapper, notifyService,
-                pointsService, achievementService, meiliSearchClient, sensitiveWordService,
+                achievementService, meiliSearchClient, sensitiveWordService,
                 followService, userService, spaceMemberMapper, postViewDeduper,
                 trustedProxyResolver, httpRequest, htmlSanitizerService);
 

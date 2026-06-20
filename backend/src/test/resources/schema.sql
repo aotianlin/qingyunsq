@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS users (
   major           VARCHAR(64)  DEFAULT NULL COMMENT '专业',
   grade           VARCHAR(8)   DEFAULT NULL COMMENT '年级',
   role            VARCHAR(32)  NOT NULL DEFAULT 'USER' COMMENT 'USER/TENANT_ADMIN/SUPER_ADMIN',
-  points          BIGINT NOT NULL DEFAULT 0 COMMENT '积分',
   status          TINYINT NOT NULL DEFAULT 1 COMMENT '1正常 0封禁',
   last_login_at   DATETIME DEFAULT NULL,
   reset_token     VARCHAR(64)  DEFAULT NULL COMMENT '密码重置令牌 SHA-256 哈希（hex）',
@@ -166,7 +165,6 @@ CREATE TABLE IF NOT EXISTS qa_questions (
   id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id       BIGINT UNSIGNED NOT NULL,
   post_id         BIGINT UNSIGNED NOT NULL,
-  bounty_points   INT NOT NULL DEFAULT 0,
   is_solved       TINYINT NOT NULL DEFAULT 0,
   accepted_comment_id BIGINT UNSIGNED DEFAULT NULL,
   solved_at       DATETIME DEFAULT NULL,
@@ -348,19 +346,6 @@ CREATE TABLE IF NOT EXISTS user_achievements (
   UNIQUE KEY uk_user_achieve (user_id, achievement_id)
 ) ENGINE=InnoDB COMMENT='用户成就';
 
--- ============================================================
--- 18. points_log 积分流水
--- ============================================================
-CREATE TABLE IF NOT EXISTS points_logs (
-  id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  tenant_id   BIGINT UNSIGNED NOT NULL,
-  user_id     BIGINT UNSIGNED NOT NULL,
-  amount      BIGINT NOT NULL COMMENT '正=获得 负=消耗',
-  type        VARCHAR(32) NOT NULL COMMENT 'LOGIN/POST/ACCEPTED/LIKED/CHECKIN/BOUNTY',
-  reference   VARCHAR(255) DEFAULT NULL COMMENT '关联说明',
-  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_user_time (user_id, created_at)
-) ENGINE=InnoDB COMMENT='积分流水';
 
 -- ============================================================
 -- 19. follows 用户关注

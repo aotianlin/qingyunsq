@@ -264,11 +264,7 @@ function handleCheckin(challenge: ChallengeCard, event: MouseEvent) {
     challenge.progress = 100;
   }
 
-  if (authStore.user) {
-    authStore.user.points = (authStore.user.points || 0) + 20;
-  }
-
-  message.success('打卡成功！积分 +20');
+  message.success('打卡成功！');
 }
 
 function goCreate() {
@@ -428,7 +424,7 @@ onMounted(load);
             <div><strong>{{ visibleChallenges.length }}</strong><span>今日目标</span></div>
             <div><strong>{{ totalCompleted }}</strong><span>已完成</span></div>
             <div><strong>{{ completionRate }}%</strong><span>完成度</span></div>
-            <div><strong>+120</strong><span>今日积分</span></div>
+            <div><strong>{{ totalCompleted }}</strong><span>累计完成</span></div>
           </div>
         </div>
         <div class="hero-date">{{ heroDateLabel }}</div>
@@ -643,7 +639,6 @@ onMounted(load);
         <div class="detail-meta" style="margin-bottom: 20px;">
           <div class="detail-tags">
             <NTag type="success" size="small">进行中</NTag>
-            <NTag type="info" size="small">积分 +20</NTag>
           </div>
           <div class="modal-actions">
             <NButton type="primary" :disabled="selectedMockChallenge.checkedToday" @click="handleCheckin(selectedMockChallenge, $event)">
@@ -673,7 +668,7 @@ onMounted(load);
                   {{ formatDate(Date.now() - dayOffset * 86400000) }}
                 </span>
                 <span :style="{ color: (dayOffset === 0 ? selectedMockChallenge.checkedToday : true) ? 'var(--cf-primary)' : 'var(--cf-text-muted)', fontSize: '12px', fontWeight: 'bold' }">
-                  {{ (dayOffset === 0 ? selectedMockChallenge.checkedToday : true) ? '已打卡 (+20)' : '未打卡' }}
+                  {{ (dayOffset === 0 ? selectedMockChallenge.checkedToday : true) ? '已打卡' : '未打卡' }}
                 </span>
               </div>
             </div>

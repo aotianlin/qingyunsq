@@ -11,7 +11,6 @@ interface UserVO {
   major: string;
   grade: string;
   role: string;
-  points: number;
   status: number;
   lastLoginAt: string;
   createdAt: string;

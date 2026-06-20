@@ -68,7 +68,6 @@ class QaServiceTest {
         postReq.setType("QA");
         postReq.setTitle("Java 怎么学？");
         postReq.setContent("求大佬指点");
-        postReq.setBountyPoints(10);
         PostVO post = postService.create(askerId, postReq);
         postId = post.getId();
 
@@ -89,7 +88,6 @@ class QaServiceTest {
     void shouldCreateQaPost() {
         QaQuestionVO qa = qaService.getByPostId(postId);
         assertThat(qa).isNotNull();
-        assertThat(qa.getBountyPoints()).isEqualTo(10);
         assertThat(qa.getIsSolved()).isFalse();
     }
 

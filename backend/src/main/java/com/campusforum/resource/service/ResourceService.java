@@ -219,7 +219,7 @@ public class ResourceService {
     public InputStream preview(Long resourceId) {
         Resource resource = getActiveResource(resourceId);
         ensureCanAccess(resource);
-        return storageService.download(resource.getStorageKey());
+        return downloadFromStorageOrThrow(resource);
     }
 
     public ResourcePreviewVO previewText(Long resourceId) {
@@ -227,7 +227,7 @@ public class ResourceService {
         ensureCanAccess(resource);
         String fileType = resource.getFileType() == null ? "" : resource.getFileType().toLowerCase();
 
-        try (InputStream is = storageService.download(resource.getStorageKey())) {
+        try (InputStream is = downloadFromStorageOrThrow(resource)) {
             String content;
             if ("md".equals(fileType) || "markdown".equals(fileType)) {
                 content = readUtf8Text(is);
@@ -252,6 +252,19 @@ public class ResourceService {
         Resource resource = getActiveResource(resourceId);
         ensureCanAccess(resource);
         return resource.getFileName();
+    }
+
+    private InputStream downloadFromStorageOrThrow(Resource resource) {
+        try {
+            return storageService.download(resource.getStorageKey());
+        } catch (BusinessException e) {
+            if (e.getCode() == ErrorCode.NOT_FOUND.getCode() || e.getCode() == ErrorCode.RESOURCE_NOT_FOUND.getCode()) {
+                log.warn("Resource storage object missing: resourceId={}, storageKey={}",
+                        resource.getId(), resource.getStorageKey());
+                throw new BusinessException(ErrorCode.STORAGE_ERROR.getCode(), "源文件不存在或对象存储不可读，请重新上传资源");
+            }
+            throw e;
+        }
     }
 
     public String getFileType(Long resourceId) {

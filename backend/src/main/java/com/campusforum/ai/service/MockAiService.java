@@ -86,9 +86,6 @@ public class MockAiService implements AiService {
         if (question.contains("发帖") || question.contains("发布") || question.contains("创建")) {
             return "点击页面上的「发帖」按钮，选择帖子类型（普通/问答/资源/打卡），填写标题和内容后即可发布。";
         }
-        if (question.contains("积分") || question.contains("悬赏") || question.contains("奖励")) {
-            return "积分可以通过每日登录、发帖、回答问题被采纳、打卡等行为获得。悬赏积分会从你的账户中扣除并转给被采纳者。";
-        }
         if (question.contains("空间") || question.contains("加入")) {
             return "你可以在「学习空间」页面浏览和搜索感兴趣的空间。公开空间可以直接加入，审核制空间需要空间主或管理员审核。";
         }
