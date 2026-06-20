@@ -17,6 +17,7 @@ import com.campusforum.user.domain.User;
 import com.campusforum.user.mapper.UserMapper;
 import com.campusforum.user.service.EmailVerificationCodeService;
 import com.campusforum.user.service.UserService;
+import com.campusforum.wechat.service.WechatMiniProgramClient;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -107,7 +108,8 @@ class UserServiceSensitiveChangeKickoutTest {
                 httpRequest,
                 mock(SecurityProperties.class),
                 auditLogService,
-                securityMetrics);
+                securityMetrics,
+                mock(WechatMiniProgramClient.class));
 
         // 静态 mock：StpUtil + BCrypt
         stpUtilMock = mockStatic(StpUtil.class);

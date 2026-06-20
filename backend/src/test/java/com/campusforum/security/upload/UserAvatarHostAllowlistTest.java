@@ -15,6 +15,7 @@ import com.campusforum.user.dto.UpdateProfileRequest;
 import com.campusforum.user.mapper.UserMapper;
 import com.campusforum.user.service.EmailVerificationCodeService;
 import com.campusforum.user.service.UserService;
+import com.campusforum.wechat.service.WechatMiniProgramClient;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,7 +84,8 @@ class UserAvatarHostAllowlistTest {
                 mock(HttpServletRequest.class),
                 securityProperties,
                 mock(AuditLogService.class),
-                mock(SecurityMetrics.class));
+                mock(SecurityMetrics.class),
+                mock(WechatMiniProgramClient.class));
 
         // updateProfile 主流程读 / 写不依赖 Sa-Token Session，但保险起见仍 mock 静态依赖
         stpUtilMock = mockStatic(StpUtil.class);

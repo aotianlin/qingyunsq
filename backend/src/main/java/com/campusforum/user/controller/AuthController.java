@@ -13,6 +13,7 @@ import com.campusforum.user.dto.LoginRequest;
 import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.ResetPasswordRequest;
 import com.campusforum.user.dto.UserVO;
+import com.campusforum.user.dto.WechatLoginRequest;
 import com.campusforum.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +54,18 @@ public class AuthController {
         String token = StpUtil.getTokenValue();
         return R.ok(Map.of(
                 "token", token,
+                "user", user
+        ));
+    }
+
+    @PostMapping("/wechat-login")
+    public R<Map<String, Object>> wechatLogin(@Valid @RequestBody WechatLoginRequest req) {
+        UserVO user = userService.loginByWechatMiniProgramCode(req.getCode());
+        String token = StpUtil.getTokenValue();
+        return R.ok(Map.of(
+                "token", token,
+                "tenantId", user.getTenantId(),
+                "tenantCode", user.getTenantCode(),
                 "user", user
         ));
     }

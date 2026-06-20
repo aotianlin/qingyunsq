@@ -74,6 +74,15 @@ export async function loginWithEmailCode(data: { email: string; emailCode: strin
   return res.data;
 }
 
+export async function loginWithWechatCode(code: string): Promise<LoginResponse> {
+  const res = await request<LoginResponse>({
+    method: 'POST',
+    url: '/auth/wechat-login',
+    data: { code },
+  });
+  return res.data;
+}
+
 export async function sendEmailCode(email: string, scene: 'REGISTER' | 'LOGIN' | 'RESET_PASSWORD'): Promise<{ message: string }> {
   const res = await request<{ message: string }>({
     method: 'POST',

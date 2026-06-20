@@ -3,7 +3,13 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMessage } from 'naive-ui';
 import { ArrowForwardOutline, LogoWechat, LogoGithub } from '@vicons/ionicons5';
-import { checkEmailExists, login, loginWithEmailCode, sendEmailCode } from '@/api/auth';
+import {
+  checkEmailExists,
+  login,
+  loginWithEmailCode,
+  loginWithWechatCode,
+  sendEmailCode,
+} from '@/api/auth';
 import { useAuthStore } from '@/stores/auth';
 import { validateEmail, validatePassword } from '@/utils/authValidation';
 
@@ -17,6 +23,7 @@ const emailCode = ref('');
 const loginMode = ref<'password' | 'code'>('password');
 const loading = ref(false);
 const codeLoading = ref(false);
+const wechatLoading = ref(false);
 const codeCountdown = ref(0);
 let codeTimer: number | undefined;
 const fieldState = ref({
@@ -35,6 +42,11 @@ onMounted(() => {
   }
   if (savedPassword) {
     password.value = savedPassword;
+  }
+  const params = new URLSearchParams(window.location.search);
+  const wechatCode = params.get('wechat_code') || params.get('code');
+  if (wechatCode && params.get('source') === 'wechat-mini-program') {
+    void completeWechatLogin(wechatCode);
   }
 });
 
@@ -172,7 +184,55 @@ async function handleLogin() {
 }
 
 function handleSocialLogin(provider: string) {
-  message.info(`${provider} 登录正在接入中，请先使用邮箱登录或验证码登录`);
+  if (provider === '微信') {
+    void handleWechatLogin();
+    return;
+  }
+  message.info(`${provider} 登录暂未开放，请先使用邮箱登录或验证码登录`);
+}
+
+async function completeWechatLogin(code: string) {
+  wechatLoading.value = true;
+  try {
+    const res = await loginWithWechatCode(code);
+    authStore.setToken(res.token);
+    authStore.setUser(res.user);
+    if (res.tenantId && res.tenantCode) {
+      authStore.setTenant(res.tenantId, res.tenantCode);
+    }
+    message.success('微信登录成功');
+    router.push('/square');
+  } catch (err: unknown) {
+    message.error(err instanceof Error ? err.message : '微信登录失败，请重新尝试');
+  } finally {
+    wechatLoading.value = false;
+  }
+}
+
+async function handleWechatLogin() {
+  const params = new URLSearchParams(window.location.search);
+  const wechatCode = params.get('wechat_code') || params.get('code');
+  if (wechatCode && params.get('source') === 'wechat-mini-program') {
+    await completeWechatLogin(wechatCode);
+    return;
+  }
+
+  const wxMiniProgram = window.wx?.miniProgram;
+  if (!wxMiniProgram) {
+    message.warning('网页端无法直接获取小程序登录凭证，请在微信小程序内使用微信登录');
+    return;
+  }
+
+  wxMiniProgram.getEnv((env) => {
+    if (!env.miniprogram) {
+      message.warning('请在微信小程序内使用微信登录');
+      return;
+    }
+    wxMiniProgram.navigateTo({
+      url: `/pages/login/index?redirect=${encodeURIComponent('/login?source=wechat-mini-program')}`,
+      fail: () => message.warning('小程序登录页未配置，请先在小程序端接入 wx.login'),
+    });
+  });
 }
 
 function handleGuestLogin() {
@@ -439,6 +499,7 @@ onBeforeUnmount(() => {
         <div class="flex justify-center gap-4 mb-8">
           <button
             aria-label="WeChat Login"
+            :disabled="wechatLoading"
             class="w-12 h-12 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-container-low transition-colors group"
             @click="handleSocialLogin('微信')"
           >

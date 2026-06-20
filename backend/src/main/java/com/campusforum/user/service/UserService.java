@@ -22,6 +22,8 @@ import com.campusforum.user.dto.RegisterRequest;
 import com.campusforum.user.dto.UpdateProfileRequest;
 import com.campusforum.user.dto.UserVO;
 import com.campusforum.user.mapper.UserMapper;
+import com.campusforum.wechat.service.WechatCodeSession;
+import com.campusforum.wechat.service.WechatMiniProgramClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.net.URI;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -71,6 +74,8 @@ public class UserService {
     private final AuditLogService auditLogService;
     /** 安全监控埋点（敏感凭证变更后强制踢下线计数）。 */
     private final SecurityMetrics securityMetrics;
+    private final WechatMiniProgramClient wechatMiniProgramClient;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     /**
      * 固定 BCrypt hash，仅用于用户不存在时消耗等量 CPU 时间，防止时序攻击。
@@ -78,6 +83,42 @@ public class UserService {
      */
     private static final String DUMMY_BCRYPT_HASH =
             "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
+    @Transactional
+    public UserVO loginByWechatMiniProgramCode(String code) {
+        long tid = requireTenantId();
+        WechatCodeSession session = wechatMiniProgramClient.code2Session(code);
+        User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getTenantId, tid)
+                .eq(User::getWechatOpenid, session.openid()));
+
+        if (user == null) {
+            user = new User();
+            user.setTenantId(tid);
+            user.setEmail("wechat_" + session.openid() + "@wechat.local");
+            user.setPasswordHash(BCrypt.hashpw(randomPassword(), BCrypt.gensalt(10)));
+            user.setNickname("微信用户");
+            user.setAvatarUrl("https://api.dicebear.com/7.x/initials/svg?seed=WeChat");
+            user.setWechatOpenid(session.openid());
+            user.setWechatUnionid(session.unionid());
+            user.setRole("USER");
+            user.setStatus(1);
+            try {
+                userMapper.insert(user);
+            } catch (DuplicateKeyException e) {
+                log.warn("Wechat login unique-key conflict for openid={}: {}", session.openid(), e.getMessage());
+                throw new BusinessException(ErrorCode.INVALID_CREDENTIALS.getCode(), "微信登录失败，请稍后重试");
+            }
+        } else if (user.getStatus() == 0) {
+            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS.getCode(), "账号不可用");
+        } else if (StringUtils.hasText(session.unionid())
+                && !session.unionid().equals(user.getWechatUnionid())) {
+            user.setWechatUnionid(session.unionid());
+            userMapper.updateById(user);
+        }
+
+        return completeLogin(user);
+    }
 
     @Transactional
     public UserVO register(RegisterRequest req) {
@@ -702,6 +743,12 @@ public class UserService {
 
     private String normalizeEmail(String email) {
         return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String randomPassword() {
+        byte[] bytes = new byte[32];
+        secureRandom.nextBytes(bytes);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     private UserVO toVO(User user) {
