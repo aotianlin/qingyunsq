@@ -641,7 +641,15 @@ async function scrollFloatingAiToBottom() {
 
 <template>
   <div class="main-layout">
-    <nav class="apple-topbar" :class="{ 'is-scrolled': headerScrolled }">
+    <div v-if="isAiPage" class="ai-fullscreen-wrapper">
+      <router-view v-slot="{ Component }">
+        <transition name="fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
+    </div>
+
+    <nav v-else class="apple-topbar" :class="{ 'is-scrolled': headerScrolled }">
       <div class="apple-topbar-inner">
         <button class="brand-lockup" @click="navigate('/square')">
           <span class="brand-mark" :class="{ ai: isAiPage }">
@@ -726,7 +734,7 @@ async function scrollFloatingAiToBottom() {
       </div>
     </nav>
 
-    <div class="content-wrapper pt-16">
+    <div v-if="!isAiPage" class="content-wrapper pt-16">
       <main class="page-content">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
@@ -934,6 +942,10 @@ async function scrollFloatingAiToBottom() {
   background: transparent;
   display: flex;
   flex-direction: column;
+}
+
+.ai-fullscreen-wrapper {
+  min-height: 100vh;
 }
 
 .brand {
