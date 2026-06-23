@@ -9,8 +9,8 @@ declare module '*.vue' {
 interface Window {
   wx?: {
     miniProgram?: {
-      navigateTo(options: { url: string; success?: () => void; fail?: () => void }): void;
       getEnv(callback: (env: { miniprogram: boolean }) => void): void;
+      navigateTo(options: { url: string; fail?: () => void }): void;
     };
   };
 }

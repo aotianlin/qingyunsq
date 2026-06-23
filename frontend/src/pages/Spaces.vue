@@ -653,11 +653,11 @@ onMounted(loadSpaces);
 .discover-card,
 .activity-card {
   background: var(--cf-card-bg);
-  border: 1px solid var(--cf-card-border);
+  border: 0;
   border-radius: 20px;
   box-shadow: var(--cf-card-shadow);
-  backdrop-filter: blur(24px) saturate(150%);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
 }
 
 .left-nav-card,
@@ -715,7 +715,7 @@ onMounted(loadSpaces);
 .left-link:hover,
 .left-link.active {
   color: var(--cf-primary);
-  background: rgba(0, 216, 191, 0.08);
+  background: var(--cf-primary-soft);
 }
 
 .joined-card h3,
@@ -765,8 +765,10 @@ onMounted(loadSpaces);
   padding: 22px;
   border-radius: 20px;
   background: linear-gradient(145deg, color-mix(in srgb, var(--cf-primary) 12%, var(--cf-bg-card)), var(--cf-bg-glass-soft));
-  border: 1px solid var(--cf-card-border);
+  border: 0;
   box-shadow: var(--cf-card-shadow);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
 }
 
 .create-card h3,
@@ -784,7 +786,7 @@ onMounted(loadSpaces);
   height: 36px;
   margin-top: 32px;
   padding: 0 18px;
-  border: 1px solid var(--cf-border-strong);
+  border: 0;
   border-radius: 10px;
   background: var(--cf-bg-readable);
   color: var(--cf-primary);
@@ -828,10 +830,12 @@ onMounted(loadSpaces);
 
 .spaces-main {
   min-width: 0;
-  border: 1px solid var(--cf-column-border);
+  border: 0;
   border-radius: 22px;
   background: var(--cf-column-bg);
   box-shadow: var(--cf-column-shadow);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
   overflow: hidden;
 }
 
@@ -841,7 +845,7 @@ onMounted(loadSpaces);
 }
 
 .discover-section {
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-bottom: 0;
 }
 
 .section-head {
@@ -889,13 +893,13 @@ onMounted(loadSpaces);
 
 .discover-tabs button.active {
   color: var(--cf-primary);
-  background: rgba(0, 216, 191, 0.1);
-  border: 1px solid rgba(0, 216, 191, 0.18);
+  background: var(--cf-primary-soft);
+  border: 0;
 }
 
 .discover-tabs .tab-select {
   margin-left: auto;
-  border: 1px solid var(--cf-border);
+  border: 0;
   background: var(--cf-bg-glass);
 }
 
@@ -913,8 +917,8 @@ onMounted(loadSpaces);
 }
 
 .discover-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.1);
+  transform: translateY(-2px);
+  box-shadow: var(--cf-shadow-card-hover);
 }
 
 .discover-cover {

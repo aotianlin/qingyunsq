@@ -5,6 +5,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
+import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.mock.env.MockEnvironment;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -57,6 +60,23 @@ class SecurityPropertiesBindingTest {
         SecurityProperties bound = bindEmpty();
         assertThat(bound.getDocs().getEnabledProfiles())
                 .containsExactlyInAnyOrder("dev", "test");
+    }
+
+    @Test
+    @DisplayName("application.yml default CORS origins include dev port 3001")
+    void cors_defaultOrigins_includeDevPort3001() throws Exception {
+        MockEnvironment env = new MockEnvironment();
+        YamlPropertySourceLoader loader = new YamlPropertySourceLoader();
+        loader.load("application", new ClassPathResource("application.yml"))
+                .forEach(propertySource -> env.getPropertySources().addLast(propertySource));
+
+        assertThat(env.getProperty("security.cors.allowed-origins"))
+                .contains(
+                        "http://localhost:3000",
+                        "http://127.0.0.1:3000",
+                        "http://localhost:3001",
+                        "http://127.0.0.1:3001"
+                );
     }
 
     @Test

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, type CSSProperties } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NDatePicker, NIcon, NInput, NModal, NSpin, useMessage } from 'naive-ui';
 import {
@@ -27,12 +27,6 @@ import { useTheme } from '@/composables/useTheme';
 import { useAuthStore } from '@/stores/auth';
 
 type FeedTab = 'all' | 'follow' | 'friends' | 'group';
-type ParticleStyle = CSSProperties & Record<'--dx' | '--dy' | '--rot', string>;
-type Particle = { id: number; style: ParticleStyle };
-type ChallengeCard = CheckinChallengeVO & {
-  checkedToday?: boolean;
-  progress?: number;
-};
 
 const router = useRouter();
 const message = useMessage();
@@ -45,9 +39,9 @@ const activeFeedTab = ref<FeedTab>('all');
 const activeNavIndex = ref(0);
 const feedSort = ref<'latest' | 'hot'>('latest');
 
-const particles = ref<Particle[]>([]);
+const particles = ref<Array<{ id: number; style: any }>>([]);
 const mockDetailVisible = ref(false);
-const selectedMockChallenge = ref<ChallengeCard | null>(null);
+const selectedMockChallenge = ref<any>(null);
 const likedActivities = ref(new Set<string>());
 const dataDetailVisible = ref(false);
 const rankExpanded = ref(false);
@@ -208,7 +202,7 @@ function goDetail(id: number) {
   router.push(`/checkin/${id}`);
 }
 
-function handleCardClick(challenge: ChallengeCard) {
+function handleCardClick(challenge: any) {
   if (challenge.id < 0) {
     selectedMockChallenge.value = challenge;
     mockDetailVisible.value = true;
@@ -219,7 +213,7 @@ function handleCardClick(challenge: ChallengeCard) {
 
 function triggerConfetti(clientX: number, clientY: number) {
   const colors = ['#00f5d4', '#7b61ff', '#ffd93d', '#ff7aa2', '#38bdf8'];
-  const newParticles: Particle[] = Array.from({ length: 30 }).map((_, i) => {
+  const newParticles = Array.from({ length: 30 }).map((_, i) => {
     const angle = Math.random() * Math.PI * 2;
     const velocity = 50 + Math.random() * 100;
     const size = 6 + Math.random() * 8;
@@ -249,22 +243,26 @@ function triggerConfetti(clientX: number, clientY: number) {
   }, 1000);
 }
 
-function handleCheckin(challenge: ChallengeCard, event: MouseEvent) {
+function handleCheckin(challenge: any, event: MouseEvent) {
   if (challenge.checkedToday) {
     message.info('今天已经打过卡了，明天继续加油！');
     return;
   }
-
+  
   triggerConfetti(event.clientX, event.clientY);
-
+  
   challenge.checkedToday = true;
   challenge.myTotalDays = (challenge.myTotalDays || 0) + 1;
   challenge.myConsecutiveDays = (challenge.myConsecutiveDays || 0) + 1;
   if (challenge.progress !== undefined) {
     challenge.progress = 100;
   }
-
-  message.success('打卡成功！');
+  
+  if (authStore.user) {
+    authStore.user.points = (authStore.user.points || 0) + 20;
+  }
+  
+  message.success('打卡成功！积分 +20');
 }
 
 function goCreate() {
@@ -424,7 +422,7 @@ onMounted(load);
             <div><strong>{{ visibleChallenges.length }}</strong><span>今日目标</span></div>
             <div><strong>{{ totalCompleted }}</strong><span>已完成</span></div>
             <div><strong>{{ completionRate }}%</strong><span>完成度</span></div>
-            <div><strong>{{ totalCompleted }}</strong><span>累计完成</span></div>
+            <div><strong>+120</strong><span>今日积分</span></div>
           </div>
         </div>
         <div class="hero-date">{{ heroDateLabel }}</div>
@@ -454,8 +452,8 @@ onMounted(load);
             </span>
             <h3>{{ challenge.name }}</h3>
             <p>{{ challenge.description || '30 分钟' }}</p>
-            <div
-              class="check-state"
+            <div 
+              class="check-state" 
               :class="{ progress: challenge.progress !== undefined && !challenge.checkedToday, pending: !challenge.checkedToday && challenge.progress === undefined }"
               @click.stop="handleCheckin(challenge, $event)"
             >
@@ -571,7 +569,7 @@ onMounted(load);
       <section class="quote-card">
         <span>“</span>
         <p>自律给我自由，<br />坚持成就更好的自己。</p>
-        <strong>— 青云阁</strong>
+        <strong>— CampusForum</strong>
       </section>
     </aside>
 
@@ -639,6 +637,7 @@ onMounted(load);
         <div class="detail-meta" style="margin-bottom: 20px;">
           <div class="detail-tags">
             <NTag type="success" size="small">进行中</NTag>
+            <NTag type="info" size="small">积分 +20</NTag>
           </div>
           <div class="modal-actions">
             <NButton type="primary" :disabled="selectedMockChallenge.checkedToday" @click="handleCheckin(selectedMockChallenge, $event)">
@@ -646,7 +645,7 @@ onMounted(load);
             </NButton>
           </div>
         </div>
-
+        
         <p class="resource-desc" style="font-size: 15px; margin-bottom: 24px; color: var(--cf-text-secondary);">
           {{ selectedMockChallenge.description || '精选打卡习惯，帮助你建立健康的日常作息与生活习惯。' }}
         </p>
@@ -668,7 +667,7 @@ onMounted(load);
                   {{ formatDate(Date.now() - dayOffset * 86400000) }}
                 </span>
                 <span :style="{ color: (dayOffset === 0 ? selectedMockChallenge.checkedToday : true) ? 'var(--cf-primary)' : 'var(--cf-text-muted)', fontSize: '12px', fontWeight: 'bold' }">
-                  {{ (dayOffset === 0 ? selectedMockChallenge.checkedToday : true) ? '已打卡' : '未打卡' }}
+                  {{ (dayOffset === 0 ? selectedMockChallenge.checkedToday : true) ? '已打卡 (+20)' : '未打卡' }}
                 </span>
               </div>
             </div>

@@ -4,79 +4,143 @@
 @tailwind utilities;
 
 :root {
-  --cf-font-heading: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', sans-serif;
-  --cf-font-body: 'Inter', 'Segoe UI', sans-serif;
+  --cf-font-heading:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --cf-font-body:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
 
-  --cf-bg-base: #ffffff;
-  --cf-bg-elevated: #ffffff;
-  --cf-bg-card: #ffffff;
-  --cf-bg-soft: #f6f8fb;
-  --cf-bg-muted: #eef2f7;
-  --cf-bg-strong: #dde6f2;
-  --cf-bg-glass: rgba(255, 255, 255, 0.1);
-  --cf-bg-glass-strong: rgba(255, 255, 255, 0.18);
-  --cf-bg-glass-soft: rgba(255, 255, 255, 0.06);
-  --cf-bg-readable: rgba(255, 255, 255, 0.22);
-  --cf-header-bg: rgba(255, 255, 255, 0.1);
+  --cf-bg-base: #f5f9fb;
+  --cf-bg-elevated: rgba(255, 255, 255, 0.72);
+  --cf-bg-card: rgba(255, 255, 255, 0.72);
+  --cf-bg-soft: #f2f7fa;
+  --cf-bg-muted: #e9f1f5;
+  --cf-bg-strong: #dfe9f0;
+  --cf-bg-glass: rgba(255, 255, 255, 0.72);
+  --cf-bg-glass-strong: rgba(255, 255, 255, 0.82);
+  --cf-bg-glass-soft: rgba(255, 255, 255, 0.56);
+  --cf-bg-readable: rgba(255, 255, 255, 0.78);
+  --cf-header-bg: rgba(255, 255, 255, 0.72);
   --body-color: var(--cf-bg-base);
 
-  --cf-primary: #00d8bf;
-  --cf-primary-hover: #00bfa8;
-  --cf-primary-soft: rgba(0, 216, 191, 0.12);
-  --cf-secondary: #7b61ff;
-  --cf-secondary-soft: rgba(123, 97, 255, 0.12);
-  --cf-warning: #f59e0b;
-  --cf-danger: #dc2626;
-  --cf-accent-warm: #ffd93d;
-  --cf-accent-sky: #38bdf8;
-  --cf-accent-rose: #ff7aa2;
+  --cf-primary: #34d0bc;
+  --cf-primary-hover: #2abfac;
+  --cf-primary-soft: rgba(52, 208, 188, 0.12);
+  --cf-secondary: #8eb9ee;
+  --cf-secondary-soft: rgba(142, 185, 238, 0.12);
+  --cf-warning: #f1b94e;
+  --cf-danger: #d96f72;
+  --cf-accent-warm: #efc969;
+  --cf-accent-sky: #78bfe7;
+  --cf-accent-rose: #df8b9d;
 
-  --cf-text-primary: #07111f;
-  --cf-text-secondary: #334155;
-  --cf-text-muted: #64748b;
-  --cf-text-inverse: #041311;
+  --cf-text-primary: #1a1d24;
+  --cf-text-secondary: #444854;
+  --cf-text-muted: #8a91a2;
+  --cf-text-inverse: #ffffff;
 
-  --cf-border: rgba(15, 23, 42, 0.1);
-  --cf-border-strong: rgba(0, 216, 191, 0.36);
-  --cf-border-glass: rgba(255, 255, 255, 0.46);
-  --cf-surface-highlight: rgba(255, 255, 255, 0.18);
-  --cf-surface-shade: rgba(15, 23, 42, 0.045);
-  --cf-backdrop-blur: 0px;
-  --cf-card-transform: translate3d(0, -5px, 0);
-  --cf-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --cf-border: rgba(15, 23, 42, 0.06);
+  --cf-border-strong: rgba(52, 208, 188, 0.28);
+  --cf-border-glass: rgba(255, 255, 255, 0.58);
+  --cf-surface-highlight: rgba(255, 255, 255, 0.48);
+  --cf-surface-shade: rgba(26, 29, 36, 0.035);
+  --cf-backdrop-blur: 12px;
+  --cf-hairline: 1px;
+  --cf-card-transform: translate3d(0, -2px, 0);
+  --cf-motion-duration-fast: 0.2s;
+  --cf-motion-duration-standard: 0.22s;
+  --cf-motion-duration-medium: 0.28s;
+  --cf-motion-duration-slow: 0.36s;
+  --cf-motion-duration-emphasis: 0.48s;
+  --cf-motion-ease: ease-out;
+  --cf-announcement-interval: 4200ms;
+  --cf-announcement-float-duration: 6s;
+  --cf-announcement-secondary-float-duration: calc(var(--cf-announcement-float-duration) * 1.45);
+  --cf-announcement-hero-radius: calc(var(--cf-radius-xl) + var(--cf-radius-md));
+  --cf-announcement-hero-padding: clamp(calc(var(--cf-content-padding) / 1.5), 4vw, calc(var(--cf-content-padding) * 1.75));
+  --cf-announcement-hero-background: linear-gradient(135deg, var(--cf-surface-highlight), transparent),
+    linear-gradient(315deg, var(--cf-primary-soft), var(--cf-secondary-soft)), var(--cf-card-bg);
+  --cf-announcement-ambient-size: min(48%, calc(var(--cf-content-padding) * 12));
+  --cf-announcement-ambient-opacity: 0.9;
+  --cf-announcement-ambient-transform: translate(18%, 18%);
+  --cf-announcement-layout-max-width: min(100%, calc(var(--cf-content-padding) * 34));
+  --cf-announcement-layout-min-block: clamp(
+    calc(var(--cf-content-padding) * 6),
+    24vw,
+    calc(var(--cf-content-padding) * 10)
+  );
+  --cf-announcement-layout-columns: minmax(0, 1fr) minmax(
+      min(38%, calc(var(--cf-content-padding) * 9)),
+      0.82fr
+    );
+  --cf-announcement-layout-gap: clamp(var(--cf-radius-xl), 3vw, calc(var(--cf-content-padding) * 1.35));
+  --cf-announcement-content-gap: clamp(var(--cf-radius-md), 2vw, var(--cf-content-padding));
+  --cf-announcement-inline-gap: calc(var(--cf-radius-sm) / 1.5);
+  --cf-announcement-badge-padding-block: calc(var(--cf-radius-sm) * 0.75);
+  --cf-announcement-badge-padding-inline: var(--cf-radius-md);
+  --cf-announcement-title-width: 12ch;
+  --cf-announcement-title-size: clamp(1.65rem, 5vw, 3.25rem);
+  --cf-announcement-title-line-height: 1.08;
+  --cf-announcement-body-width: 56ch;
+  --cf-announcement-body-size: clamp(0.95rem, 1.8vw, 1.08rem);
+  --cf-announcement-body-line-height: 1.75;
+  --cf-announcement-body-opacity: 0.94;
+  --cf-announcement-cta-min-block: calc(var(--cf-content-padding) + var(--cf-radius-lg));
+  --cf-announcement-cta-padding-inline: calc(var(--cf-content-padding) / 1.25);
+  --cf-announcement-cta-transform-hover: scale(1.02);
+  --cf-announcement-cta-filter-hover: brightness(1.03);
+  --cf-announcement-cta-shadow: var(--cf-shadow-card), var(--cf-shadow-glow);
+  --cf-announcement-cta-shadow-hover: var(--cf-shadow-card-hover), var(--cf-shadow-glow);
+  --cf-announcement-visual-size: min(100%, calc(var(--cf-content-padding) * 9));
+  --cf-announcement-visual-glass: color-mix(in srgb, var(--cf-bg-glass-strong) 76%, transparent);
+  --cf-announcement-visual-glow: color-mix(in srgb, var(--cf-primary) 18%, transparent);
+  --cf-announcement-visual-glow-secondary: color-mix(in srgb, var(--cf-secondary) 18%, transparent);
+  --cf-announcement-orbit-inset: 8%;
+  --cf-announcement-orbit-dot-size: 18%;
+  --cf-announcement-orbit-dot-small-size: 12%;
+  --cf-announcement-core-size: 42%;
+  --cf-announcement-core-icon-size: clamp(2rem, 5vw, 4rem);
+  --cf-announcement-dots-offset: calc(var(--cf-content-padding) / 2);
+  --cf-announcement-dot-size: calc(var(--cf-radius-sm) * 0.85);
+  --cf-announcement-dot-active-size: calc(var(--cf-radius-lg) * 1.8);
+  --cf-announcement-slide-blur: calc(var(--cf-backdrop-blur) / 3);
+  --cf-announcement-slide-enter-transform: translateY(calc(var(--cf-radius-lg) * 0.75));
+  --cf-announcement-slide-leave-transform: translateY(calc(var(--cf-radius-lg) * -0.5));
+  --cf-announcement-float-transform: translateY(calc(var(--cf-radius-md) * -1));
 
   --cf-radius-sm: 8px;
   --cf-radius-md: 12px;
-  --cf-radius-lg: 18px;
-  --cf-radius-xl: 24px;
+  --cf-radius-lg: 16px;
+  --cf-radius-xl: 20px;
   --cf-radius-pill: 999px;
 
-  --cf-shadow-card: 0 30px 90px rgba(15, 23, 42, 0.18), 0 12px 30px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.62) inset;
-  --cf-shadow-card-hover: 0 44px 130px rgba(15, 23, 42, 0.24), 0 18px 42px rgba(15, 23, 42, 0.12), 0 1px 0 rgba(255, 255, 255, 0.74) inset;
-  --cf-shadow-soft: 0 20px 58px rgba(15, 23, 42, 0.13), 0 8px 20px rgba(15, 23, 42, 0.06);
-  --cf-shadow-float: 0 36px 110px rgba(15, 23, 42, 0.22), 0 16px 38px rgba(15, 23, 42, 0.1), 0 14px 34px rgba(0, 216, 191, 0.08);
-  --cf-shadow-glow: 0 16px 46px rgba(0, 216, 191, 0.2);
-  --cf-gradient-primary: linear-gradient(135deg, var(--cf-primary), var(--cf-secondary));
+  --cf-shadow-card: 0 14px 38px rgba(15, 23, 42, 0.055), 0 2px 8px rgba(15, 23, 42, 0.025);
+  --cf-shadow-card-hover: 0 18px 46px rgba(15, 23, 42, 0.075), 0 4px 14px rgba(15, 23, 42, 0.035);
+  --cf-shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.045), 0 1px 6px rgba(15, 23, 42, 0.02);
+  --cf-shadow-float: 0 18px 48px rgba(15, 23, 42, 0.08), 0 6px 18px rgba(52, 208, 188, 0.08);
+  --cf-shadow-glow: 0 10px 24px rgba(52, 208, 188, 0.16);
+  --cf-gradient-primary: var(--cf-primary);
   --cf-bg-environment:
     radial-gradient(color-mix(in srgb, var(--cf-text-primary) 34%, transparent) 1.05px, transparent 1.05px),
     linear-gradient(135deg, color-mix(in srgb, var(--cf-primary) 7%, transparent), transparent 42%),
     linear-gradient(315deg, color-mix(in srgb, var(--cf-secondary) 7%, transparent), transparent 46%);
 
-  --cf-page-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(246, 248, 251, 0.96)),
-    radial-gradient(circle at 18% 8%, rgba(0, 216, 191, 0.13), transparent 28%),
-    radial-gradient(circle at 82% 18%, rgba(90, 200, 250, 0.12), transparent 30%);
+  --cf-page-bg:
+    linear-gradient(180deg, rgba(52, 208, 188, 0.06), transparent 260px),
+    #f5f9fb;
   --cf-card-bg: rgba(255, 255, 255, 0.82);
-  --cf-card-border: rgba(15, 23, 42, 0.08);
-  --cf-card-shadow: 0 18px 55px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  --cf-column-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(238, 246, 247, 0.74)), rgba(240, 247, 248, 0.72);
-  --cf-column-border: rgba(15, 23, 42, 0.06);
-  --cf-column-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 18px 48px rgba(15, 23, 42, 0.05);
-  --cf-glass-btn-bg: rgba(255, 255, 255, 0.1);
+  --cf-card-border: transparent;
+  --cf-card-shadow: var(--cf-shadow-card);
+  --cf-column-bg: rgba(255, 255, 255, 0.54);
+  --cf-column-border: transparent;
+  --cf-column-shadow: var(--cf-shadow-card);
+  --cf-glass-btn-bg: rgba(255, 255, 255, 0.62);
 
-  --cf-max-width: 1200px;
-  --cf-header-height: 72px;
-  --cf-sidebar-width: 248px;
-  --cf-content-padding: 24px;
+  --cf-max-width: 1800px;
+  --cf-header-height: 80px;
+  --cf-sidebar-width: 230px;
+  --cf-content-padding: 32px;
 
   color: var(--cf-text-primary);
   background: var(--cf-bg-base);
@@ -84,26 +148,26 @@
 }
 
 html[data-theme='dark'] {
-  --cf-bg-base: #050505;
-  --cf-bg-elevated: rgba(255, 255, 255, 0.045);
-  --cf-bg-card: #0c0c0d;
+  --cf-bg-base: #0d1118;
+  --cf-bg-elevated: rgba(22, 28, 38, 0.72);
+  --cf-bg-card: rgba(22, 28, 38, 0.72);
   --cf-bg-soft: rgba(255, 255, 255, 0.06);
   --cf-bg-muted: rgba(255, 255, 255, 0.09);
   --cf-bg-strong: rgba(255, 255, 255, 0.14);
-  --cf-bg-glass: rgba(10, 10, 10, 0.1);
-  --cf-bg-glass-strong: rgba(12, 12, 13, 0.18);
-  --cf-bg-glass-soft: rgba(255, 255, 255, 0.02);
-  --cf-bg-readable: rgba(12, 12, 13, 0.24);
-  --cf-header-bg: rgba(5, 5, 5, 0.1);
+  --cf-bg-glass: rgba(22, 28, 38, 0.72);
+  --cf-bg-glass-strong: rgba(30, 37, 50, 0.82);
+  --cf-bg-glass-soft: rgba(255, 255, 255, 0.07);
+  --cf-bg-readable: rgba(30, 37, 50, 0.78);
+  --cf-header-bg: rgba(13, 17, 24, 0.72);
   --body-color: var(--cf-bg-base);
 
-  --cf-primary: #00f5d4;
-  --cf-primary-hover: #4ef2a3;
-  --cf-primary-soft: rgba(0, 245, 212, 0.14);
-  --cf-secondary: #a78bfa;
-  --cf-secondary-soft: rgba(167, 139, 250, 0.14);
-  --cf-warning: #ffd93d;
-  --cf-danger: #ff6b6b;
+  --cf-primary: #5ddccd;
+  --cf-primary-hover: #71e8d8;
+  --cf-primary-soft: rgba(93, 220, 205, 0.14);
+  --cf-secondary: #9fbfe9;
+  --cf-secondary-soft: rgba(159, 191, 233, 0.14);
+  --cf-warning: #e8c46b;
+  --cf-danger: #e18a8c;
   --cf-accent-warm: #ffd93d;
   --cf-accent-sky: #5ac8fa;
   --cf-accent-rose: #ff7aa2;
@@ -113,31 +177,32 @@ html[data-theme='dark'] {
   --cf-text-muted: rgba(248, 250, 252, 0.52);
   --cf-text-inverse: #050505;
 
-  --cf-border: rgba(255, 255, 255, 0.08);
-  --cf-border-strong: rgba(255, 255, 255, 0.18);
-  --cf-border-glass: rgba(255, 255, 255, 0.12);
-  --cf-surface-highlight: rgba(255, 255, 255, 0.07);
+  --cf-border: rgba(255, 255, 255, 0.06);
+  --cf-border-strong: rgba(93, 220, 205, 0.2);
+  --cf-border-glass: rgba(255, 255, 255, 0.1);
+  --cf-surface-highlight: rgba(255, 255, 255, 0.08);
   --cf-surface-shade: rgba(0, 0, 0, 0.22);
 
-  --cf-shadow-card: 0 22px 74px rgba(0, 0, 0, 0.34), 0 1px 0 rgba(255, 255, 255, 0.08) inset;
-  --cf-shadow-card-hover: 0 34px 110px rgba(0, 0, 0, 0.48), 0 1px 0 rgba(255, 255, 255, 0.14) inset;
-  --cf-shadow-soft: 0 12px 44px rgba(0, 0, 0, 0.26);
-  --cf-shadow-float: 0 26px 90px rgba(0, 0, 0, 0.44), 0 12px 30px rgba(0, 245, 212, 0.08);
-  --cf-shadow-glow: 0 18px 64px rgba(0, 245, 212, 0.14);
+  --cf-shadow-card: 0 4px 16px rgba(0, 0, 0, 0.24), 0 1px 6px rgba(0, 0, 0, 0.16);
+  --cf-shadow-card-hover: 0 12px 30px rgba(0, 0, 0, 0.32), 0 4px 12px rgba(0, 0, 0, 0.2);
+  --cf-shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.24), 0 1px 6px rgba(0, 0, 0, 0.16);
+  --cf-shadow-float: 0 20px 54px rgba(0, 0, 0, 0.34), 0 6px 18px rgba(93, 220, 205, 0.06);
+  --cf-shadow-glow: 0 14px 34px rgba(93, 220, 205, 0.14);
   --cf-bg-environment:
     radial-gradient(color-mix(in srgb, var(--cf-text-primary) 28%, transparent) 1.05px, transparent 1.05px),
     linear-gradient(135deg, color-mix(in srgb, var(--cf-primary) 8%, transparent), transparent 44%),
     linear-gradient(315deg, color-mix(in srgb, var(--cf-secondary) 8%, transparent), transparent 48%);
 
-  --cf-page-bg: linear-gradient(180deg, #090e1a 0%, #05070c 100%),
-    radial-gradient(circle at 18% 8%, rgba(0, 245, 212, 0.15), transparent 28%),
-    radial-gradient(circle at 82% 18%, rgba(167, 139, 250, 0.12), transparent 30%);
-  --cf-card-bg: rgba(22, 28, 45, 0.72);
-  --cf-card-border: rgba(255, 255, 255, 0.07);
-  --cf-card-shadow: 0 24px 70px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --cf-column-bg: rgba(15, 23, 42, 0.35);
-  --cf-column-border: rgba(255, 255, 255, 0.04);
-  --cf-column-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02), 0 18px 54px rgba(0, 0, 0, 0.26);
+  --cf-page-bg:
+    radial-gradient(circle at 14% 8%, rgba(93, 220, 205, 0.12), transparent 30%),
+    radial-gradient(circle at 86% 12%, rgba(159, 191, 233, 0.1), transparent 30%),
+    #0d1118;
+  --cf-card-bg: rgba(22, 28, 38, 0.72);
+  --cf-card-border: transparent;
+  --cf-card-shadow: var(--cf-shadow-card);
+  --cf-column-bg: rgba(22, 28, 38, 0.54);
+  --cf-column-border: transparent;
+  --cf-column-shadow: var(--cf-shadow-card);
   --cf-glass-btn-bg: rgba(255, 255, 255, 0.05);
 
   /* Tailwind dark theme dynamic overrides */
@@ -173,16 +238,31 @@ body,
 #app {
   min-height: 100%;
   background-color: var(--cf-bg-base);
+  line-height: 1.6;
 }
 
 body {
   margin: 0;
   color: var(--cf-text-primary);
-  background-color: var(--cf-bg-base);
+  background: var(--cf-page-bg);
   font-family: var(--cf-font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.36s ease, color 0.36s ease;
+}
+
+* {
+  transition-property:
+    background-color,
+    background,
+    box-shadow,
+    color,
+    opacity,
+    transform,
+    border-color,
+    filter;
+  transition-duration: 0.2s;
+  transition-timing-function: ease-out;
 }
 
 @keyframes cfSlideEnter {
@@ -240,33 +320,32 @@ img {
 }
 
 .cf-surface {
-  background: var(--cf-bg-glass);
-  border: 1px solid var(--cf-border-glass);
-  border-radius: var(--cf-radius-lg);
+  background: var(--cf-card-bg);
+  border: 0;
+  border-radius: 20px;
   box-shadow: var(--cf-shadow-card);
-  backdrop-filter: blur(var(--cf-backdrop-blur)) saturate(138%);
-  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur)) saturate(138%);
-  background-image: linear-gradient(180deg, var(--cf-surface-highlight), transparent 46%);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
   transition: transform 0.28s var(--cf-motion-ease), box-shadow 0.28s var(--cf-motion-ease), border-color 0.28s ease,
     background 0.28s ease;
 }
 
 .cf-soft-surface {
-  background: var(--cf-bg-glass-soft);
-  border: 1px solid var(--cf-border);
-  border-radius: var(--cf-radius-lg);
-  backdrop-filter: blur(16px) saturate(125%);
-  -webkit-backdrop-filter: blur(16px) saturate(125%);
+  background: var(--cf-card-bg);
+  border: 0;
+  border-radius: 16px;
+  box-shadow: var(--cf-shadow-card);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
 }
 
 .cf-card {
-  background: var(--cf-bg-glass);
-  border: 1px solid var(--cf-border-glass);
-  border-radius: var(--cf-radius-lg);
+  background: var(--cf-card-bg);
+  border: 0;
+  border-radius: 20px;
   box-shadow: var(--cf-shadow-card);
-  backdrop-filter: blur(var(--cf-backdrop-blur)) saturate(142%);
-  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur)) saturate(142%);
-  background-image: linear-gradient(180deg, var(--cf-surface-highlight), transparent 48%);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
   transition: transform 0.3s var(--cf-motion-ease), box-shadow 0.3s var(--cf-motion-ease), border-color 0.3s ease,
     background 0.3s ease, filter 0.3s ease;
   will-change: transform;
@@ -275,33 +354,30 @@ img {
 .cf-card:hover {
   transform: var(--cf-card-transform);
   box-shadow: var(--cf-shadow-card-hover);
-  border-color: var(--cf-border-strong);
 }
 
 .glass-card {
-  background: var(--cf-bg-glass);
-  border: 1px solid var(--cf-border-glass);
-  border-radius: var(--cf-radius-lg);
-  box-shadow: var(--cf-shadow-soft);
-  backdrop-filter: blur(var(--cf-backdrop-blur)) saturate(138%);
-  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur)) saturate(138%);
-  background-image: linear-gradient(180deg, var(--cf-surface-highlight), transparent 46%);
+  background: var(--cf-card-bg);
+  border: 0;
+  border-radius: 20px;
+  box-shadow: var(--cf-shadow-card);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
   transition: transform 0.3s var(--cf-motion-ease), box-shadow 0.3s var(--cf-motion-ease), border-color 0.3s ease;
 }
 
 .cf-readable-surface {
   background: var(--cf-bg-readable);
-  border: 1px solid var(--cf-border-glass);
+  border: 0;
   border-radius: var(--cf-radius-lg);
   box-shadow: var(--cf-shadow-card);
-  backdrop-filter: blur(calc(var(--cf-backdrop-blur) + 4px)) saturate(130%);
-  -webkit-backdrop-filter: blur(calc(var(--cf-backdrop-blur) + 4px)) saturate(130%);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
 }
 
 .cf-lift:hover {
   transform: var(--cf-card-transform);
   box-shadow: var(--cf-shadow-card-hover);
-  border-color: var(--cf-border-strong);
 }
 
 .cf-section-title {
@@ -325,13 +401,295 @@ img {
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
-  border: 1px solid color-mix(in srgb, var(--cf-primary) 36%, transparent);
+  border: 0;
   border-radius: 10px;
   background: var(--cf-primary-soft);
   color: var(--cf-primary);
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
+}
+
+.apple-card,
+.apple-panel {
+  background: var(--cf-card-bg);
+  border: 0;
+  border-radius: 20px;
+  box-shadow: var(--cf-shadow-card);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
+}
+
+.apple-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--cf-shadow-card-hover);
+}
+
+.apple-btn-primary,
+.neon-btn,
+.cf-primary-btn {
+  border: 0;
+  border-radius: 9px;
+  background: var(--cf-primary);
+  color: var(--cf-text-inverse);
+  box-shadow: var(--cf-shadow-card);
+}
+
+.apple-btn-primary:hover,
+.neon-btn:hover:not(:disabled),
+.cf-primary-btn:hover {
+  transform: scale(1.02);
+  background: var(--cf-primary-hover);
+  box-shadow: var(--cf-shadow-card-hover);
+}
+
+.apple-tag,
+.cf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9px;
+  background: var(--cf-primary-soft);
+  color: var(--cf-primary);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.apple-tag:hover,
+.cf-pill:hover {
+  background: color-mix(in srgb, var(--cf-primary) 18%, transparent);
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  border-radius: 10px;
+  color: var(--cf-text-secondary);
+  background: transparent;
+}
+
+.sidebar-item:hover,
+.sidebar-item.active {
+  color: var(--cf-primary);
+  background: var(--cf-primary-soft);
+}
+
+.apple-input,
+.cf-input,
+.cf-textarea,
+.cf-select {
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.52), var(--cf-shadow-card);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
+}
+
+.apple-input:focus,
+.cf-input:focus,
+.cf-textarea:focus,
+.cf-select:focus {
+  outline: none;
+  transform: scale(1.01);
+  box-shadow: 0 0 0 4px rgba(52, 208, 188, 0.14), var(--cf-shadow-card);
+}
+
+.apple-panel-title {
+  margin: 0;
+  color: var(--cf-text-primary);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* User-facing Apple glass normalization */
+.home-page,
+.bg-background,
+.resources-page,
+.spaces-page,
+.checkin-page,
+.points-page,
+.ai-assistant-page,
+.search-page,
+.messages-page,
+.notifications-page,
+.profile-page,
+.user-page,
+.detail-page,
+.create-page {
+  background: var(--cf-page-bg) !important;
+  color: var(--cf-text-primary);
+}
+
+.glass-panel,
+.glass-surface,
+.glass-card,
+.soft-card,
+.nav-card,
+.storage-card,
+.left-nav-card,
+.joined-card,
+.ranking-card,
+.topics-card,
+.users-card,
+.history-card,
+.upgrade-card,
+.assistant-card,
+.input-panel,
+.right-card,
+.resource-card,
+.discover-card,
+.activity-card,
+.create-card,
+.task-card,
+.reward-card,
+.post-card,
+.comment-card,
+.widget-card,
+.profile-widget,
+.profile-feed-card,
+.empty-inline,
+.loading-state,
+.follows-card,
+.apple-card,
+.cf-card,
+.cf-surface,
+.cf-soft-surface,
+.cf-readable-surface {
+  background: var(--cf-card-bg) !important;
+  border: 0 !important;
+  border-radius: 20px !important;
+  box-shadow: var(--cf-shadow-card) !important;
+  backdrop-filter: blur(var(--cf-backdrop-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur)) !important;
+}
+
+.glass-panel:hover,
+.glass-surface:hover,
+.glass-card:hover,
+.soft-card:hover,
+.resource-card:hover,
+.discover-card:hover,
+.activity-card:hover,
+.task-card:hover,
+.reward-card:hover,
+.post-card:hover,
+.comment-card:hover,
+.widget-card:hover,
+.profile-widget:hover,
+.profile-feed-card:hover,
+.apple-card:hover,
+.cf-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--cf-shadow-card-hover) !important;
+}
+
+.n-card,
+.n-modal,
+.n-popover {
+  border: 0 !important;
+  box-shadow: var(--cf-shadow-card) !important;
+  backdrop-filter: blur(var(--cf-backdrop-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur)) !important;
+}
+
+.n-card {
+  background: var(--cf-card-bg) !important;
+  border-radius: 20px !important;
+}
+
+.n-input,
+.n-input .n-input-wrapper,
+.n-base-selection,
+.n-base-selection .n-base-selection-label,
+.n-upload-dragger {
+  background: var(--cf-bg-glass-soft) !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
+.n-input:focus-within,
+.n-base-selection:focus-within,
+.n-upload-dragger:hover {
+  transform: scale(1.01);
+  box-shadow: 0 0 0 4px rgba(52, 208, 188, 0.14) !important;
+}
+
+.n-button {
+  border-radius: 9px !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.n-button--primary-type,
+.n-button[type='primary'],
+.bg-primary,
+.primary-action,
+.nav-btn-primary,
+.publish-top-btn,
+.send-btn,
+.checkin-btn,
+.modal-btn.primary {
+  border: 0 !important;
+  background: var(--cf-primary) !important;
+  color: var(--cf-text-inverse) !important;
+  box-shadow: var(--cf-shadow-card) !important;
+}
+
+.n-button--primary-type:hover,
+.bg-primary:hover,
+.primary-action:hover,
+.nav-btn-primary:hover,
+.publish-top-btn:hover,
+.send-btn:hover,
+.checkin-btn:hover,
+.modal-btn.primary:hover {
+  transform: scale(1.02);
+  background: var(--cf-primary-hover) !important;
+  box-shadow: var(--cf-shadow-card-hover) !important;
+}
+
+.publish-top-btn {
+  background: var(--cf-primary-soft) !important;
+  color: var(--cf-primary) !important;
+  box-shadow: var(--cf-shadow-card) !important;
+}
+
+.publish-top-btn:hover {
+  background: color-mix(in srgb, var(--cf-primary) 18%, transparent) !important;
+  box-shadow: var(--cf-shadow-card-hover) !important;
+}
+
+.tag,
+.topic-tag,
+.mini-tag,
+.impact-pill,
+.section-kicker,
+.model-row em,
+.n-tag,
+.n-tabs-tab--active {
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: var(--cf-primary-soft) !important;
+  color: var(--cf-primary) !important;
+}
+
+input,
+textarea,
+select {
+  border-radius: 10px;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(52, 208, 188, 0.14) !important;
 }
 
 .cf-primary-btn,
@@ -353,17 +711,17 @@ img {
 .cf-primary-btn {
   background: var(--cf-primary);
   color: var(--cf-text-inverse);
-  box-shadow: var(--cf-shadow-glow);
+  box-shadow: var(--cf-shadow-card);
 }
 
 .cf-primary-btn:hover {
   background: var(--cf-primary-hover);
-  transform: translateY(-1px);
+  transform: scale(1.02);
 }
 
 .cf-secondary-btn {
   background: var(--cf-bg-glass);
-  border-color: var(--cf-border);
+  border-color: transparent;
   color: var(--cf-text-primary);
 }
 
@@ -412,23 +770,16 @@ img {
 }
 
 .gradient-text {
-  background: var(--cf-gradient-primary);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  background: none;
+  color: var(--cf-primary);
 }
 
 .cf-input,
 .cf-textarea,
 .cf-select {
   width: 100%;
-  border: 1px solid var(--cf-border);
-  background: var(--cf-bg-readable);
-  border-radius: 10px;
   color: var(--cf-text-primary);
-  backdrop-filter: blur(16px) saturate(126%);
-  -webkit-backdrop-filter: blur(16px) saturate(126%);
-  transition: border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+  transition: box-shadow 0.2s ease, background 0.2s ease, transform 0.2s ease;
 }
 
 .cf-input,
@@ -441,14 +792,6 @@ img {
   min-height: 140px;
   padding: 14px;
   resize: vertical;
-}
-
-.cf-input:focus,
-.cf-textarea:focus,
-.cf-select:focus {
-  outline: none;
-  border-color: color-mix(in srgb, var(--cf-primary) 54%, transparent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--cf-primary) 14%, transparent);
 }
 
 .cf-muted {

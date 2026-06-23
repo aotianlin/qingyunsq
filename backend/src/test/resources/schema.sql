@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash   VARCHAR(128) NOT NULL,
   nickname        VARCHAR(64)  NOT NULL,
   avatar_url      VARCHAR(255) DEFAULT NULL,
+  wechat_openid   VARCHAR(64)  DEFAULT NULL COMMENT '微信小程序 openid',
+  wechat_unionid  VARCHAR(64)  DEFAULT NULL COMMENT '微信开放平台 unionid',
+  qq_openid       VARCHAR(64)  DEFAULT NULL COMMENT 'QQ openid',
+  github_id       VARCHAR(64)  DEFAULT NULL COMMENT 'GitHub 用户 id',
   bio             VARCHAR(255) DEFAULT NULL,
   college         VARCHAR(64)  DEFAULT NULL COMMENT '学院',
   major           VARCHAR(64)  DEFAULT NULL COMMENT '专业',
@@ -47,6 +51,9 @@ CREATE TABLE IF NOT EXISTS users (
   deleted         TINYINT NOT NULL DEFAULT 0,
   UNIQUE KEY uk_tenant_email (tenant_id, email),
   UNIQUE KEY uk_tenant_student (tenant_id, student_no),
+  UNIQUE KEY uk_tenant_wechat_openid (tenant_id, wechat_openid),
+  UNIQUE KEY uk_tenant_qq_openid (tenant_id, qq_openid),
+  UNIQUE KEY uk_tenant_github_id (tenant_id, github_id),
   KEY idx_tenant (tenant_id)
 ) ENGINE=InnoDB COMMENT='用户';
 

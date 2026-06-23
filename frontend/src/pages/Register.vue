@@ -192,22 +192,26 @@ onBeforeUnmount(() => {
 <div class="bg-background text-on-surface min-h-screen flex flex-col relative overflow-hidden py-10">
   <!-- Background Abstract Pattern -->
   <div class="absolute inset-0 pointer-events-none opacity-20">
-    <div class="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-gradient-to-br from-blue-100 to-purple-100 blur-[100px]" />
-    <div class="absolute bottom-[10%] -right-[10%] w-[60%] h-[60%] rounded-full bg-gradient-to-tl from-indigo-50 to-cyan-50 blur-[120px]" />
+    <div class="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-gradient-to-br from-blue-100 to-purple-100 blur-[100px]"></div>
+    <div class="absolute bottom-[10%] -right-[10%] w-[60%] h-[60%] rounded-full bg-gradient-to-tl from-indigo-50 to-cyan-50 blur-[120px]"></div>
   </div>
-
+  
   <!-- TopNavBar -->
   <nav class="bg-transparent docked full-width top-0 z-50">
     <div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop w-full mx-auto">
       <div class="flex items-center gap-3">
-        <img src="@/assets/images/logo.png" alt="青云阁" class="w-8 h-8 rounded-lg object-cover" />
+        <svg class="w-8 h-8 text-gray-400/70 dark:text-gray-500/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
         <div class="font-headline-md text-[24px] font-extrabold tracking-tight h-[32px] overflow-hidden">
           <div class="flex flex-col rolling-text">
             <div class="h-[32px] flex items-center">
-              <span class="text-gray-400/70 dark:text-gray-500/70">青云阁</span>
+              <span class="text-gray-400/70 dark:text-gray-500/70">CampusForum</span>
             </div>
             <div class="h-[32px] flex items-center">
-              <span class="text-gray-400/70 dark:text-gray-500/70">青云阁</span>
+              <span class="text-gray-400/70 dark:text-gray-500/70">CampusForum</span>
             </div>
           </div>
         </div>
@@ -228,8 +232,8 @@ onBeforeUnmount(() => {
           <div>
             <label class="sr-only" for="nickname">昵称</label>
             <div class="relative" :class="{ 'shake': fieldState.nickname.shaking }">
-              <input
-                id="nickname"
+              <input 
+                id="nickname" 
                 v-model="nickname"
                 type="text"
                 placeholder="昵称 (如: 数据结构补完计划)"
@@ -248,8 +252,8 @@ onBeforeUnmount(() => {
           <div>
             <label class="sr-only" for="studentNo">学号</label>
             <div class="relative" :class="{ 'shake': fieldState.studentNo.shaking }">
-              <input
-                id="studentNo"
+              <input 
+                id="studentNo" 
                 v-model="studentNo"
                 type="text"
                 placeholder="学号 (选填)"
@@ -269,8 +273,8 @@ onBeforeUnmount(() => {
         <div>
           <label class="sr-only" for="email">邮箱</label>
           <div class="relative" :class="{ 'shake': fieldState.email.shaking }">
-            <input
-              id="email"
+            <input 
+              id="email" 
               v-model="email"
               type="text"
               placeholder="name@college.edu"
@@ -285,11 +289,11 @@ onBeforeUnmount(() => {
             {{ fieldState.email.error }}
           </small>
         </div>
-
+        
         <div>
           <label class="sr-only" for="password">密码</label>
           <div class="relative" :class="{ 'shake': fieldState.password.shaking }">
-            <input
+            <input 
               id="password"
               v-model="password"
               type="password"
@@ -313,7 +317,7 @@ onBeforeUnmount(() => {
                 'w-2/3 bg-orange-500': passwordStrength.strength === 'medium',
                 'w-full bg-primary': passwordStrength.strength === 'strong',
                 'w-0': passwordStrength.strength === 'empty'
-              }" />
+              }"></div>
             </div>
             <span class="whitespace-nowrap">强度: {{ passwordStrength.label }}</span>
           </div>
@@ -325,7 +329,7 @@ onBeforeUnmount(() => {
         <div>
           <label class="sr-only" for="confirmPassword">确认密码</label>
           <div class="relative" :class="{ 'shake': fieldState.confirmPassword.shaking }">
-            <input
+            <input 
               id="confirmPassword"
               v-model="confirmPassword"
               type="password"
@@ -345,14 +349,14 @@ onBeforeUnmount(() => {
         <div>
           <label class="sr-only" for="code">验证码</label>
           <div class="relative flex gap-2">
-            <input
+            <input 
               id="code"
               v-model="emailCode"
               type="text"
               placeholder="6位验证码"
               class="flex-grow bg-transparent border border-outline-variant rounded-xl px-4 py-3 font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary transition-colors outline-none"
             />
-            <button
+            <button 
               type="button"
               :disabled="codeLoading || codeCountdown > 0"
               @click="handleSendCode"
@@ -362,8 +366,8 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
-
-        <button
+        
+        <button 
           type="submit"
           :disabled="loading || !canSubmit"
           class="w-full bg-primary text-on-primary font-label-md text-label-md py-3.5 rounded-full hover:opacity-90 transition-opacity flex items-center justify-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -399,20 +403,18 @@ nav {
 }
 
 .glass-panel {
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 22px;
-  box-shadow:
-    0 18px 55px rgba(15, 23, 42, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(24px) saturate(150%);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  background: var(--cf-card-bg);
+  border: 0;
+  border-radius: 20px;
+  box-shadow: var(--cf-shadow-card);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
   overflow: visible;
 }
 
 input {
-  background: var(--cf-bg-base) !important;
-  border-color: var(--cf-border) !important;
+  background: var(--cf-bg-glass-soft) !important;
+  border: 0 !important;
   color: var(--cf-text-primary) !important;
 }
 
@@ -438,8 +440,8 @@ button.bg-surface-container-low {
 }
 
 html[data-theme='dark'] .glass-panel {
-  background: rgba(12, 12, 13, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--cf-card-bg);
+  border: 0;
 }
 
 .shake {

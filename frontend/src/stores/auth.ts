@@ -7,7 +7,12 @@ interface UserInfo {
   avatarUrl: string;
   email: string;
   role: string;
+  points: number;
 }
+
+type UserInfoInput = Omit<UserInfo, 'points'> & {
+  points?: number;
+};
 
 interface AuthState {
   token: string | null;
@@ -30,6 +35,7 @@ export const useAuthStore = defineStore('auth', {
             avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=Guest',
             email: 'guest@campus.edu',
             role: 'GUEST',
+            points: 0,
           }
         : null,
       isLoggedIn: !!token,
@@ -50,13 +56,14 @@ export const useAuthStore = defineStore('auth', {
           avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=Guest',
           email: 'guest@campus.edu',
           role: 'GUEST',
+          points: 0,
         };
         localStorage.setItem('role', 'GUEST');
       }
     },
 
-    setUser(user: UserInfo) {
-      this.user = user;
+    setUser(user: UserInfoInput) {
+      this.user = { ...user, points: user.points ?? 0 };
       localStorage.setItem('role', user.role);
     },
 

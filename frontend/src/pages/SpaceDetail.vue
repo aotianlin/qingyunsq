@@ -29,6 +29,7 @@ import { getMyProfile, getUserById, updateProfile, uploadProfileAsset } from '@/
 import { follow, getFollowCounts, getUserFollowers, getUserFollowing, isFollowing, unfollow } from '@/api/follows';
 import { getUserAchievements } from '@/api/achievement';
 import { getNotifications, getUnreadCount, markRead } from '@/api/notifications';
+import { getBalance, getPointsLogs } from '@/api/points';
 import { acceptAnswer, getQaInfo } from '@/api/qa';
 import { validateNickname } from '@/utils/authValidation';
 import { copyTextToClipboard } from '@/utils/clipboard';
@@ -43,6 +44,7 @@ import type { UserVO } from '@/types/user';
 import type { CheckinChallengeVO } from '@/types/checkin';
 import type { AchievementVO } from '@/types/achievement';
 import type { NotificationVO } from '@/types/notification';
+import type { PointsLogVO } from '@/types/points';
 import type { QaQuestionVO } from '@/types/qa';
 import auroraBg from '@/assets/images/aurora_bg.png';
 
@@ -167,6 +169,10 @@ const profileFollowsTab = ref<'followers' | 'following'>('following');
 const profileFollowsLoading = ref(false);
 const profileFollowUsers = ref<UserVO[]>([]);
 const profileLikesVisible = ref(false);
+const profilePointsVisible = ref(false);
+const profilePointsLoading = ref(false);
+const profilePointsBalance = ref<number | null>(null);
+const profilePointLogs = ref<PointsLogVO[]>([]);
 const postDetailVisible = ref(false);
 const postDetailLoading = ref(false);
 const postDetail = ref<PostVO | null>(null);
@@ -211,6 +217,15 @@ const activeTab = ref('首页');
 const profileTabs = ['动态', '帖子', '打卡', '成就'];
 const uploadAccept = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.webp,.md,.markdown';
 const maxUploadSize = 50 * 1024 * 1024;
+const pointTypeLabels: Record<string, string> = {
+  LOGIN: '每日登录',
+  POST: '发表帖子',
+  LIKED: '收到点赞',
+  ACCEPTED: '回答被采纳',
+  CHECKIN: '每日打卡',
+  BOUNTY: '悬赏支出',
+};
+
 type ProfileFeedItem = {
   id: string;
   title: string;
@@ -427,6 +442,7 @@ const profileDisplay = computed(() => {
     initial: (user?.nickname || '学').charAt(0).toUpperCase(),
     title: [user?.college, user?.major, user?.grade].filter(Boolean).join(' · ') || '正在完善学习档案',
     bio: user?.bio || '还没有写下个人简介。',
+    points: user?.points ?? 0,
     role: user?.role || 'USER',
     email: user?.email || '未绑定邮箱',
   };
@@ -513,6 +529,7 @@ const memberProfileDisplay = computed(() => {
     initial: (user?.nickname || '学').charAt(0).toUpperCase(),
     title: [user?.college, user?.major, user?.grade].filter(Boolean).join(' · ') || '正在完善学习档案',
     bio: user?.bio || '还没有写下个人简介。',
+    points: user?.points ?? 0,
     role: user?.role || 'USER',
     joinedAt: user?.createdAt,
   };
@@ -1118,6 +1135,27 @@ function openProfileLikes() {
   profileLikesVisible.value = true;
 }
 
+async function openProfilePoints() {
+  const userId = myProfile.value?.id;
+  if (!userId) return;
+  profilePointsVisible.value = true;
+  profilePointsLoading.value = true;
+  try {
+    const [balance, logs] = await Promise.all([
+      getBalance(userId).catch(() => profileDisplay.value.points),
+      getPointsLogs(userId, undefined, 30).catch(() => []),
+    ]);
+    profilePointsBalance.value = balance;
+    profilePointLogs.value = logs;
+  } catch {
+    profilePointLogs.value = [];
+    profilePointsBalance.value = profileDisplay.value.points;
+    message.error('积分明细加载失败');
+  } finally {
+    profilePointsLoading.value = false;
+  }
+}
+
 function syncPostInLists(updatedPost: PostVO) {
   posts.value = posts.value.map((item) => (item.id === updatedPost.id ? { ...item, ...updatedPost } : item));
   if (postDetail.value?.id === updatedPost.id) {
@@ -1556,6 +1594,14 @@ function formatCompactNumber(value?: number | null) {
   return String(count);
 }
 
+function pointTypeLabel(type: string) {
+  return pointTypeLabels[type] || type || '积分变动';
+}
+
+function pointReferenceText(reference?: string | null) {
+  return reference?.trim() || '系统结算';
+}
+
 function postTitle(post: PostVO) {
   return post.title || '无标题帖子';
 }
@@ -1587,9 +1633,9 @@ function openPostShare(post: PostVO) {
   postActionVisible.value = false;
 }
 
-function askXiaoqingAboutPost(post?: PostVO | null) {
+function openPostAiSummary(post?: PostVO | null) {
   if (!post) return;
-  router.push({ path: '/ai', query: { mode: 'qa', postId: String(post.id) } });
+  router.push({ path: '/ai', query: { mode: 'summary', postId: String(post.id) }, hash: '#ai-workspace' });
 }
 
 async function copyPostLink(post?: PostVO | null) {
@@ -1759,6 +1805,13 @@ watch(() => route.params.id, () => loadSpace());
                 >
                   <span>获赞</span>
                   <strong>{{ formatCompactNumber(profileLikeCount) }}</strong>
+                </button>
+                <button
+                  type="button"
+                  @click="openProfilePoints"
+                >
+                  <span>积分</span>
+                  <strong>{{ formatCompactNumber(profileDisplay.points) }}</strong>
                 </button>
               </div>
 
@@ -2136,6 +2189,53 @@ watch(() => route.params.id, () => loadSpace());
       </NModal>
 
       <NModal
+        v-model:show="profilePointsVisible"
+        preset="card"
+        title="积分明细"
+        class="space-modal compact-modal"
+        transform-origin="center"
+        :style="{ width: '440px' }"
+      >
+        <div class="profile-stat-summary points">
+          <span>当前可用积分</span>
+          <strong>{{ formatCompactNumber(profilePointsBalance ?? profileDisplay.points) }}</strong>
+        <p>来自登录、发帖、被点赞、打卡等积分记录。</p>
+        </div>
+        <div class="profile-stat-list">
+          <article
+            v-if="profilePointsLoading"
+            class="notice-modal-item"
+          >
+            <p>积分明细加载中...</p>
+          </article>
+          <article
+            v-else-if="profilePointLogs.length === 0"
+            class="notice-modal-item"
+          >
+            <strong>暂无积分记录</strong>
+            <p>参与学习圈互动后，积分变化会同步到这里。</p>
+          </article>
+          <article
+            v-for="entry in profilePointLogs"
+            v-else
+            :key="entry.id"
+            class="profile-points-item"
+          >
+            <span class="stat-item-copy">
+              <strong>{{ pointTypeLabel(entry.type) }}</strong>
+              <small>{{ pointReferenceText(entry.reference) }} · {{ formatTime(entry.createdAt) }}</small>
+            </span>
+            <span
+              class="stat-item-value"
+              :class="{ negative: entry.amount < 0 }"
+            >
+              {{ entry.amount > 0 ? '+' : '' }}{{ entry.amount }}
+            </span>
+          </article>
+        </div>
+      </NModal>
+
+      <NModal
         v-model:show="memberProfileVisible"
         preset="card"
         title="圈内成员资料"
@@ -2189,6 +2289,10 @@ watch(() => route.params.id, () => loadSpace());
               <article>
                 <span>圈内获赞</span>
                 <strong>{{ formatCompactNumber(memberProfileLikeCount) }}</strong>
+              </article>
+              <article>
+                <span>积分</span>
+                <strong>{{ formatCompactNumber(memberProfileDisplay.points) }}</strong>
               </article>
             </div>
 
@@ -2273,7 +2377,7 @@ watch(() => route.params.id, () => loadSpace());
         title="圈内帖子详情"
         class="space-modal post-detail-modal"
         transform-origin="center"
-        :style="{ width: 'min(94vw, 860px)' }"
+        :style="{ width: 'min(94vw, 920px)' }"
       >
         <section class="post-detail-panel">
           <div
@@ -2285,16 +2389,23 @@ watch(() => route.params.id, () => loadSpace());
           </div>
           <template v-else-if="postDetail">
             <article class="detail-post-card">
+              <div class="detail-card-aura" aria-hidden="true" />
               <header class="detail-post-head">
                 <button
                   class="detail-author"
                   type="button"
                   @click="openMemberProfileFromPostDetail(postDetail.authorId)"
                 >
-                  <span class="detail-avatar">{{ postDetailAuthorName.charAt(0).toUpperCase() }}</span>
+                  <img
+                    v-if="postDetail.author?.avatarUrl"
+                    :src="postDetail.author.avatarUrl"
+                    alt="作者头像"
+                    class="detail-avatar-img"
+                  />
+                  <span v-else class="detail-avatar">{{ postDetailAuthorName.charAt(0).toUpperCase() }}</span>
                   <span>
                     <strong>{{ postDetailAuthorName }}</strong>
-                    <small>{{ formatTime(postDetail.createdAt) }} · 阅读 {{ postDetail.viewCount }}</small>
+                    <small>{{ formatTime(postDetail.createdAt) }} · 阅读 {{ postDetail.viewCount }} · 评论 {{ postDetail.commentCount }}</small>
                   </span>
                 </button>
                 <div class="detail-badges">
@@ -2325,8 +2436,10 @@ watch(() => route.params.id, () => loadSpace());
                 v-if="postDetail.type === 'QA' && postDetailQa"
                 class="detail-qa-strip"
               >
-                <strong>问答</strong>
-                <span>{{ postDetailQa.isSolved ? '已采纳答案' : '等待回答' }}</span>
+                <div>
+                  <strong>悬赏 {{ postDetailQa.bountyPoints }} 积分</strong>
+                  <span>{{ postDetailQa.isSolved ? '已采纳答案' : '等待回答' }}</span>
+                </div>
               </div>
               <div class="detail-actions">
                 <button
@@ -2347,10 +2460,10 @@ watch(() => route.params.id, () => loadSpace());
                 </button>
                 <button
                   type="button"
-                  @click="askXiaoqingAboutPost(postDetail)"
+                  @click="openPostAiSummary(postDetail)"
                 >
                   <n-icon><DocumentTextOutline /></n-icon>
-                  问小青
+                  AI 摘要
                 </button>
               </div>
             </article>
@@ -2546,12 +2659,12 @@ watch(() => route.params.id, () => loadSpace());
           </button>
           <button
             :disabled="!postActionTarget"
-            @click="askXiaoqingAboutPost(postActionTarget)"
+            @click="openPostAiSummary(postActionTarget)"
           >
             <n-icon>
               <DocumentTextOutline />
             </n-icon>
-            问小青
+            AI 摘要
           </button>
           <button
             :disabled="!postActionTarget"
@@ -3435,9 +3548,9 @@ watch(() => route.params.id, () => loadSpace());
                     <button
                       class="action right"
                       type="button"
-                      @click.stop="askXiaoqingAboutPost(post)"
+                      @click.stop="openPostAiSummary(post)"
                     >
-                      <n-icon><DocumentTextOutline /></n-icon> 问小青
+                      <n-icon><DocumentTextOutline /></n-icon> 摘要
                     </button>
                   </div>
                 </div>
@@ -5739,6 +5852,12 @@ watch(() => route.params.id, () => loadSpace());
   padding: 16px;
   margin-bottom: 12px;
 
+  &.points {
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--cf-warning) 18%, transparent), transparent 68%),
+      var(--cf-bg-glass);
+  }
+
   span {
     color: var(--cf-text-secondary);
     display: block;
@@ -5767,7 +5886,8 @@ watch(() => route.params.id, () => loadSpace());
   gap: 9px;
 }
 
-.profile-stat-item {
+.profile-stat-item,
+.profile-points-item {
   width: 100%;
   border: 1px solid var(--cf-border-glass);
   border-radius: 12px;
@@ -5794,30 +5914,60 @@ watch(() => route.params.id, () => loadSpace());
 }
 
 .post-detail-modal {
-  --modal-width: min(94vw, 860px);
+  --modal-width: min(94vw, 920px);
 }
 
 .post-detail-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(52, 208, 188, 0.08), transparent 36%),
+    radial-gradient(circle at 100% 24%, rgba(59, 130, 246, 0.05), transparent 34%);
 }
 
 .detail-post-card,
 .detail-comment-editor,
 .detail-comments {
-  border: 1px solid var(--cf-border-glass);
-  border-radius: 16px;
-  background: var(--cf-bg-glass);
-  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--cf-bg-readable) 88%, transparent);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 34px rgba(15, 23, 42, 0.035);
+  padding: 22px;
+}
+
+.detail-post-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.detail-card-aura {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 140px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--cf-primary) 10%, transparent), transparent);
+  pointer-events: none;
+}
+
+.detail-post-head,
+.detail-post-card h3,
+.detail-content,
+.detail-tags,
+.detail-qa-strip,
+.detail-actions {
+  position: relative;
+  z-index: 1;
 }
 
 .detail-post-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 14px;
+  margin-bottom: 22px;
+  padding-left: 14px;
+  border-left: 4px solid var(--cf-primary);
 }
 
 .detail-author {
@@ -5839,6 +5989,7 @@ watch(() => route.params.id, () => loadSpace());
   strong {
     color: var(--cf-text-primary);
     font-size: 15px;
+    font-weight: 900;
   }
 
   small {
@@ -5848,13 +5999,23 @@ watch(() => route.params.id, () => loadSpace());
   }
 }
 
-.detail-avatar {
-  width: 44px;
-  height: 44px;
+.detail-avatar,
+.detail-avatar-img {
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--cf-primary) 22%, transparent);
-  background: var(--cf-gradient-primary);
-  color: var(--cf-text-inverse);
+  border: 2px solid rgba(255, 255, 255, 0.86);
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06);
+  flex: 0 0 auto;
+}
+
+.detail-avatar-img {
+  object-fit: cover;
+}
+
+.detail-avatar {
+  background: var(--cf-primary-soft);
+  color: var(--cf-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5863,10 +6024,16 @@ watch(() => route.params.id, () => loadSpace());
   flex: 0 0 auto;
 
   &.small {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
+    border: none;
     font-size: 13px;
   }
+}
+
+.detail-avatar.small {
+  color: var(--cf-text-inverse);
+  background: var(--cf-gradient-primary);
 }
 
 .detail-badges,
@@ -5884,54 +6051,89 @@ watch(() => route.params.id, () => loadSpace());
   border-radius: 999px;
   background: var(--cf-bg-glass-soft);
   color: var(--cf-text-secondary);
-  padding: 4px 10px;
+  padding: 5px 10px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
+}
+
+.detail-badges span:first-child {
+  background: color-mix(in srgb, var(--cf-warning) 14%, var(--cf-bg-elevated));
+  color: #b7791f;
 }
 
 .detail-post-card h3 {
-  margin: 0 0 10px;
+  max-width: 18ch;
+  margin: 0 0 18px;
   color: var(--cf-text-primary);
-  font-size: 20px;
+  font-family: var(--cf-font-heading);
+  font-size: clamp(1.55rem, 4vw, 2.15rem);
+  line-height: 1.24;
+  letter-spacing: 0;
 }
 
 .detail-content {
-  color: var(--cf-text-primary);
-  line-height: 1.7;
+  color: var(--cf-text-secondary);
+  font-size: 16px;
+  line-height: 1.9;
   white-space: pre-wrap;
   margin: 0;
 }
 
+.detail-tags {
+  margin-top: 22px;
+}
+
 .detail-qa-strip {
-  margin-top: 14px;
-  border: 1px solid color-mix(in srgb, var(--cf-primary) 28%, transparent);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--cf-primary) 8%, var(--cf-bg-glass));
-  padding: 12px 14px;
+  margin-top: 18px;
+  border: 1px solid color-mix(in srgb, var(--cf-primary) 26%, transparent);
+  border-radius: 18px;
+  background: linear-gradient(180deg, var(--cf-primary-soft), var(--cf-bg-glass));
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
+.detail-qa-strip strong,
+.detail-qa-strip span {
+  display: block;
+}
+
+.detail-qa-strip span {
+  margin-top: 3px;
+  color: var(--cf-text-muted);
+  font-size: 13px;
+}
+
 .detail-actions {
-  margin-top: 14px;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--cf-border);
 
   button {
-    border: 1px solid var(--cf-border-glass);
-    border-radius: 12px;
-    background: var(--cf-bg-glass-soft);
+    min-height: 40px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: var(--cf-bg-soft);
     color: var(--cf-text-secondary);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 10px 12px;
+    gap: 7px;
+    padding: 0 15px;
     font: inherit;
+    font-weight: 800;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+
+    &:hover {
+      background: var(--cf-primary-soft);
+      color: var(--cf-primary);
+      transform: translate3d(0, -1px, 0);
+    }
 
     &.active {
-      border-color: color-mix(in srgb, var(--cf-primary) 40%, transparent);
-      background: color-mix(in srgb, var(--cf-primary) 10%, var(--cf-bg-glass-soft));
+      background: var(--cf-primary-soft);
       color: var(--cf-primary);
     }
   }
@@ -5971,13 +6173,20 @@ watch(() => route.params.id, () => loadSpace());
 .detail-comment-editor textarea {
   width: 100%;
   min-height: 110px;
-  border: 1px solid var(--cf-border-glass);
-  border-radius: 14px;
-  background: var(--cf-bg-readable);
+  border: 1px solid var(--cf-border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--cf-bg-readable) 86%, transparent);
   color: var(--cf-text-primary);
-  padding: 12px 14px;
+  padding: 14px 16px;
   resize: vertical;
   outline: none;
+  line-height: 1.7;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.detail-comment-editor textarea:focus {
+  border-color: color-mix(in srgb, var(--cf-primary) 28%, transparent);
+  box-shadow: 0 8px 32px rgba(20, 184, 166, 0.08);
 }
 
 .detail-reply-banner {
@@ -6002,13 +6211,13 @@ watch(() => route.params.id, () => loadSpace());
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 .detail-comments {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 
   > header {
     display: flex;
@@ -6029,10 +6238,11 @@ watch(() => route.params.id, () => loadSpace());
 }
 
 .detail-comment {
-  border: 1px solid var(--cf-border-glass);
-  border-radius: 14px;
-  background: var(--cf-bg-glass-soft);
-  padding: 12px;
+  border: none;
+  border-bottom: 1px solid var(--cf-border);
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 16px;
 }
 
 .detail-comment-main {

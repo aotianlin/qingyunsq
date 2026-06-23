@@ -121,6 +121,12 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true },
       },
       {
+        path: 'points',
+        name: 'points',
+        component: () => import('@/pages/Points.vue'),
+        meta: { requiresAuth: true },
+      },
+      {
         path: 'ai',
         name: 'ai-assistant',
         component: () => import('@/pages/AiAssistant.vue'),
@@ -228,6 +234,13 @@ const router = createRouter({
   routes,
 });
 
+function clearStoredAuth() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('role');
+  localStorage.removeItem('tenantId');
+  localStorage.removeItem('tenantCode');
+}
+
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token');
   const role = localStorage.getItem('role');
@@ -247,12 +260,15 @@ router.beforeEach((to, _from, next) => {
     (to.path.startsWith('/posts/') && to.path !== '/posts/new') ||
     to.path.startsWith('/spaces/');
 
-  if (to.meta.requiresAuth && !token) {
+  if (to.meta.guest) {
+    if (token) {
+      clearStoredAuth();
+    }
+    next();
+  } else if (to.meta.requiresAuth && !token) {
     next('/login');
   } else if (isGuest && to.meta.requiresAuth && !isAllowedGuestPath) {
     next('/login');
-  } else if (to.meta.guest && token && !isGuest) {
-    next('/square');
   } else if (to.path === '/' && token && !isGuest) {
     next('/square');
   } else if (to.meta.requiresAdmin && role !== 'TENANT_ADMIN' && role !== 'SUPER_ADMIN') {

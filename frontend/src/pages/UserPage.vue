@@ -459,6 +459,10 @@ watch(currentUserId, () => {
             </div>
 
             <div class="stats-grid">
+              <div class="stat-cell">
+                <strong>{{ user.points }}</strong>
+                <span>积分</span>
+              </div>
               <button
                 type="button"
                 class="stat-cell clickable"

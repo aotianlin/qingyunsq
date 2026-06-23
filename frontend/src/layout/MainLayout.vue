@@ -11,10 +11,10 @@ import {
   AlbumsOutline,
   ArrowBackOutline,
   ChatbubblesOutline,
-  CheckmarkCircleOutline,
   ChevronDownOutline,
   DocumentTextOutline,
   ExpandOutline,
+  CalendarOutline,
   LogOutOutline,
   NotificationsOutline,
   PersonOutline,
@@ -154,43 +154,32 @@ const robotBubbleLoopItems = computed(() =>
 );
 
 const navLinks = [
-  { name: '广场', path: '/square', icon: PlanetOutline, back: false },
+  { name: '探索', path: '/square', icon: PlanetOutline, back: false },
   { name: '学习圈', path: '/spaces', icon: BonfireOutline, back: false },
   { name: '资源库', path: '/resources', icon: DocumentTextOutline, back: false },
-  { name: '打卡', path: '/checkin', icon: CheckmarkCircleOutline, back: false },
+  { name: '打卡挑战', path: '/checkin', icon: CalendarOutline, back: false },
   { name: 'AI 助手', path: '/ai', icon: SparklesOutline, back: false },
 ];
 
+const isPointsPage = computed(() => route.path.startsWith('/points'));
 const isAiPage = computed(() => route.path.startsWith('/ai'));
-const aiSections = ['chat', 'agents', 'plugins', 'knowledge'] as const;
-type AiSection = (typeof aiSections)[number];
-const currentAiSection = computed<AiSection>(() => {
-  const section = route.query.section;
-  return typeof section === 'string' && aiSections.includes(section as AiSection)
-    ? (section as AiSection)
-    : 'chat';
-});
 const aiNavLinks = [
   { name: '返回广场', path: '/square', icon: ArrowBackOutline, back: true },
-  { name: '对话', path: '/ai?section=chat', icon: ChatbubblesOutline, section: 'chat', back: false },
-  { name: '智能体', path: '/ai?section=agents', icon: SparklesOutline, section: 'agents', back: false },
-  { name: '插件中心', path: '/ai?section=plugins', icon: SettingsOutline, section: 'plugins', back: false },
-  { name: '知识库', path: '/ai?section=knowledge', icon: DocumentTextOutline, section: 'knowledge', back: false },
+  { name: '对话', path: '/ai', icon: ChatbubblesOutline, active: true, back: false },
+  { name: '智能体', path: '/ai', icon: SparklesOutline, back: false },
+  { name: '插件中心', path: '/ai', icon: SettingsOutline, back: false },
+  { name: '知识库', path: '/ai', icon: DocumentTextOutline, back: false },
 ];
 const displayedNavLinks = computed(() => (isAiPage.value ? aiNavLinks : navLinks));
 const searchPlaceholder = computed(() =>
   isAiPage.value
-    ? ({
-        chat: '搜索问题、对话或插件',
-        agents: '搜索智能体',
-        plugins: '搜索插件名称或功能，例如：天气、翻译',
-        knowledge: '搜索知识库、文档或内容',
-      }[currentAiSection.value])
-    : '搜索帖子、用户、资源或话题',
+    ? '搜索问题、对话或插件'
+    : isPointsPage.value
+      ? '搜索积分规则、任务、商品等'
+      : '搜索帖子、话题、用户...',
 );
-const primaryActionLabel = computed(() => '发布');
-const primaryActionPath = computed(() => '/posts/new');
-const brandSubtitle = computed(() => (isAiPage.value ? 'AI 助手' : '智慧校园社区'));
+const primaryActionLabel = computed(() => (isPointsPage.value ? '赚积分' : '发布'));
+const primaryActionPath = computed(() => (isPointsPage.value ? '/points' : '/posts/new'));
 
 const userDropdownOptions = [
   {
@@ -279,13 +268,6 @@ async function handleDropdownSelect(key: string | number) {
 function handleSearch() {
   const query = searchKeyword.value.trim();
   if (!query) return;
-  if (isAiPage.value) {
-    router.push({
-      path: '/ai',
-      query: { ...route.query, q: query, focus: String(Date.now()) },
-    });
-    return;
-  }
   const postId = extractPostIdFromSearchInput(query);
   if (postId) {
     router.push(`/posts/${postId}`);
@@ -329,9 +311,9 @@ function navigate(path: string) {
   router.push(path);
 }
 
-function isTopNavActive(link: { path: string; active?: boolean; back?: boolean; section?: string }) {
+function isTopNavActive(link: { path: string; active?: boolean; back?: boolean }) {
   if (link.back) return false;
-  if (isAiPage.value) return link.section === currentAiSection.value;
+  if (isAiPage.value) return Boolean(link.active);
   return route.path.startsWith(link.path);
 }
 
@@ -641,26 +623,17 @@ async function scrollFloatingAiToBottom() {
 
 <template>
   <div class="main-layout">
-    <div v-if="isAiPage" class="ai-fullscreen-wrapper">
-      <router-view v-slot="{ Component }">
-        <transition name="fade" mode="out-in">
-          <component :is="Component" />
-        </transition>
-      </router-view>
-    </div>
-
-    <nav v-else class="apple-topbar" :class="{ 'is-scrolled': headerScrolled }">
+    <nav class="apple-topbar" :class="{ 'is-scrolled': headerScrolled }">
       <div class="apple-topbar-inner">
         <button class="brand-lockup" @click="navigate('/square')">
           <span class="brand-mark" :class="{ ai: isAiPage }">
-            <n-icon v-if="isAiPage" size="19">
-              <SparklesOutline />
+            <n-icon size="19">
+              <SparklesOutline v-if="isAiPage" />
+              <AlbumsOutline v-else />
             </n-icon>
-            <img v-else src="@/assets/images/logo.png" alt="青云阁" class="w-full h-full rounded-[12px] object-cover" />
           </span>
           <span class="brand-copy">
             <strong>青云阁</strong>
-            <small>{{ brandSubtitle }}</small>
           </span>
         </button>
 
@@ -734,7 +707,7 @@ async function scrollFloatingAiToBottom() {
       </div>
     </nav>
 
-    <div v-if="!isAiPage" class="content-wrapper pt-16">
+    <div class="content-wrapper pt-16">
       <main class="page-content">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
@@ -745,7 +718,7 @@ async function scrollFloatingAiToBottom() {
     </div>
 
     <div
-      v-if="authStore.isLoggedIn && !isAiPage"
+      v-if="authStore.isLoggedIn && !isPointsPage && !isAiPage"
       ref="floatingAiRef"
       class="floating-ai"
       :class="{ open: floatingAiOpen, hidden: floatingAiHidden, dragging: floatingAiDragging }"
@@ -938,14 +911,13 @@ async function scrollFloatingAiToBottom() {
 
 <style scoped lang="scss">
 .main-layout {
+  --layout-max-width: 1440px;
+  --layout-page-padding: clamp(16px, 4vw, 64px);
+
   min-height: 100vh;
   background: transparent;
   display: flex;
   flex-direction: column;
-}
-
-.ai-fullscreen-wrapper {
-  min-height: 100vh;
 }
 
 .brand {
@@ -1060,6 +1032,7 @@ async function scrollFloatingAiToBottom() {
 .content-wrapper {
   width: 100%;
   min-height: calc(100vh - var(--cf-header-height));
+  padding: 86px var(--layout-page-padding) 0;
   display: flex;
   flex-direction: column;
 }
@@ -1160,9 +1133,9 @@ async function scrollFloatingAiToBottom() {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: var(--cf-text-inverse);
-  background: var(--cf-primary);
-  box-shadow: var(--cf-shadow-glow);
+  color: var(--cf-primary);
+  background: var(--cf-primary-soft);
+  box-shadow: var(--cf-shadow-card);
   font-weight: 700;
   transition:
     transform 0.24s var(--cf-motion-ease),
@@ -1171,9 +1144,9 @@ async function scrollFloatingAiToBottom() {
 }
 
 .publish-top-btn:hover {
-  background: var(--cf-primary-hover);
+  background: color-mix(in srgb, var(--cf-primary) 18%, transparent);
   transform: translate3d(0, -2px, 0);
-  box-shadow: 0 18px 54px color-mix(in srgb, var(--cf-primary) 24%, transparent);
+  box-shadow: var(--cf-shadow-card-hover);
 }
 
 .header-icon-btn:hover,
@@ -1213,7 +1186,10 @@ async function scrollFloatingAiToBottom() {
 
 .page-content {
   flex: 1;
-  padding: 24px;
+  width: 100%;
+  max-width: var(--layout-max-width);
+  margin: 0 auto;
+  padding: 0;
   overflow-x: hidden;
 }
 
@@ -1223,19 +1199,19 @@ async function scrollFloatingAiToBottom() {
   left: 0;
   right: 0;
   z-index: 50;
-  padding: 0 32px;
+  padding: 0 var(--layout-page-padding);
   pointer-events: none;
-  background: color-mix(in srgb, var(--cf-bg-card) 96%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--cf-border) 72%, transparent);
-  box-shadow: 0 8px 28px color-mix(in srgb, var(--cf-text-primary) 7%, transparent);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  background: rgba(255, 255, 255, 0.65);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
 }
 
 .apple-topbar-inner {
   width: 100%;
-  max-width: none;
-  min-height: 82px;
+  max-width: var(--layout-max-width);
+  min-height: 86px;
   margin: 0 auto;
   padding: 0;
   border: 0;
@@ -1246,7 +1222,7 @@ async function scrollFloatingAiToBottom() {
   -webkit-backdrop-filter: none;
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 28px;
   pointer-events: auto;
 }
 
@@ -1262,73 +1238,76 @@ async function scrollFloatingAiToBottom() {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  min-width: 222px;
+  min-width: 200px;
   padding: 0;
   color: var(--cf-text-primary);
 }
 
 .brand-mark {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 12px;
   display: grid;
   place-items: center;
-  color: white;
-  background: linear-gradient(
-    145deg,
-    var(--cf-primary),
-    color-mix(in srgb, var(--cf-primary) 72%, #38bdf8)
-  );
-  box-shadow: 0 16px 34px color-mix(in srgb, var(--cf-primary) 28%, transparent);
+  color: var(--cf-primary);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.38)),
+    var(--cf-primary-soft);
+  box-shadow: var(--cf-shadow-card);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
 }
 
 .brand-mark.ai {
-  border-radius: 14px;
+  border-radius: 50%;
   background:
     radial-gradient(circle at 32% 30%, #ffffff 0 8%, transparent 9%),
-    linear-gradient(145deg, #00d8bf, #0ea5a1);
+    var(--cf-gradient-primary);
 }
 
 .brand-copy {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 3px;
 }
 
 .brand-copy strong {
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1;
+  font-weight: 800;
   letter-spacing: 0;
 }
 
-.brand-copy small {
-  color: var(--cf-text-muted);
-  font-size: 11px;
-  line-height: 1;
-}
-
 .apple-nav-links {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: clamp(24px, 3vw, 46px);
-  padding: 0 12px;
+  justify-content: flex-start;
+  gap: clamp(20px, 3vw, 56px);
+  padding: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.apple-nav-links::-webkit-scrollbar {
+  display: none;
 }
 
 .apple-nav-links button {
-  height: 82px;
+  height: 46px;
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 7px;
   color: var(--cf-text-secondary);
-  font-size: 15px;
-  font-weight: 750;
+  border-radius: 0;
+  padding: 0 0;
+  font-size: 16px;
+  font-weight: 800;
   white-space: nowrap;
   transition:
+    background 0.2s ease,
     color 0.2s ease,
     transform 0.2s ease;
 }
@@ -1336,22 +1315,26 @@ async function scrollFloatingAiToBottom() {
 .apple-nav-links button::after {
   content: '';
   position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 0;
+  left: 0;
+  right: 0;
+  bottom: 2px;
   height: 3px;
   border-radius: 999px;
   background: var(--cf-primary);
-  transform: scaleX(0);
-  transition: transform 0.2s ease;
+  opacity: 0;
+  transform: scaleX(0.45);
 }
 
 .apple-nav-links button:hover,
 .apple-nav-links button.active {
   color: var(--cf-primary);
+  background: transparent;
+  transform: none;
+  box-shadow: none;
 }
 
 .apple-nav-links button.active::after {
+  opacity: 1;
   transform: scaleX(1);
 }
 
@@ -1371,24 +1354,30 @@ async function scrollFloatingAiToBottom() {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 14px;
+  margin-left: auto;
   min-width: 0;
 }
 
 .apple-search {
-  width: 284px;
-  height: 40px;
-  padding: 0 16px;
-  border: 1px solid var(--cf-border);
+  width: clamp(320px, 26vw, 430px);
+  height: 46px;
+  padding: 0 20px;
+  border: 1px solid rgba(71, 85, 105, 0.1);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--cf-bg-card) 76%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #ffffff 74%, transparent),
-    0 12px 28px color-mix(in srgb, var(--cf-text-primary) 6%, transparent);
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74), 0 8px 22px rgba(15, 23, 42, 0.04);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
   display: flex;
   align-items: center;
   gap: 9px;
   color: var(--cf-text-muted);
+}
+
+.apple-search:focus-within {
+  transform: scale(1.01);
+  box-shadow: 0 0 0 4px rgba(52, 208, 188, 0.14), var(--cf-shadow-card);
 }
 
 .apple-search input {
@@ -1402,17 +1391,28 @@ async function scrollFloatingAiToBottom() {
 }
 
 .apple-publish {
-  height: 40px;
-  padding: 0 17px;
+  height: 46px;
+  padding: 0 22px;
   border-radius: 999px;
+  background: var(--cf-primary) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 26px rgba(52, 208, 188, 0.24);
+}
+
+.apple-publish:hover {
+  transform: scale(1.02);
+  background: var(--cf-primary-hover) !important;
+  box-shadow: var(--cf-shadow-card-hover);
 }
 
 .apple-icon-btn {
   position: relative;
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   color: var(--cf-text-secondary);
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
   display: grid;
   place-items: center;
   transition:
@@ -1423,6 +1423,7 @@ async function scrollFloatingAiToBottom() {
 .apple-icon-btn:hover {
   color: var(--cf-primary);
   background: var(--cf-primary-soft);
+  transform: translateY(-2px);
 }
 
 .apple-badge {
@@ -1432,16 +1433,20 @@ async function scrollFloatingAiToBottom() {
 }
 
 .apple-theme {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
 }
 
 .apple-user {
-  height: 42px;
-  padding: 0 10px 0 4px;
+  height: 46px;
+  padding: 0 12px 0 6px;
   border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1452,11 +1457,64 @@ async function scrollFloatingAiToBottom() {
 }
 
 .apple-user img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--cf-primary-soft);
+}
+
+.apple-user:hover {
+  color: var(--cf-primary);
+  background: var(--cf-primary-soft);
+  transform: translateY(-2px);
+}
+
+@media (max-width: 1360px) {
+  .apple-topbar-inner {
+    gap: 12px;
+  }
+
+  .brand-lockup {
+    min-width: 164px;
+  }
+
+  .brand-copy small {
+    display: none;
+  }
+
+  .apple-nav-links {
+    gap: 4px;
+  }
+
+  .apple-nav-links button {
+    padding: 0 8px;
+    font-size: 13px;
+  }
+
+  .apple-search {
+    width: 238px;
+  }
+
+  .apple-user span {
+    display: none;
+  }
+
+  .floating-ai:not(.open) .floating-ai-bubble {
+    display: none;
+  }
+
+  .floating-ai:not(.open) {
+    display: none;
+  }
+}
+
+.apple-user img {
   width: 34px;
   height: 34px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid var(--cf-border);
+  border: 0;
 }
 
 .floating-ai {
@@ -2294,11 +2352,87 @@ async function scrollFloatingAiToBottom() {
   }
 
   .page-content {
-    padding: 16px;
+    padding: 0;
   }
 }
 
 @media (max-width: 720px) {
+  .apple-topbar {
+    padding-block: 10px;
+  }
+
+  .apple-topbar-inner {
+    min-height: 104px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-lockup {
+    min-width: 0;
+    grid-column: 1;
+  }
+
+  .brand-copy {
+    display: none;
+  }
+
+  .apple-nav-links {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    order: 3;
+  }
+
+  .apple-nav-links button {
+    height: 34px;
+    padding: 0 10px;
+  }
+
+  .apple-actions {
+    grid-column: 2 / 4;
+    justify-self: end;
+    gap: 6px;
+  }
+
+  .apple-search {
+    width: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .apple-search input {
+    width: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .apple-search:focus-within {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 58px;
+    z-index: 2;
+    width: 100%;
+    padding: 0 14px;
+    justify-content: flex-start;
+  }
+
+  .apple-search:focus-within input {
+    width: 100%;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .publish-top-btn span {
+    display: none;
+  }
+
+  .content-wrapper.pt-16 {
+    padding-top: 112px;
+  }
+
   .header-right {
     gap: 8px;
   }

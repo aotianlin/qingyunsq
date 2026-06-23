@@ -35,13 +35,9 @@ const rememberMe = ref(false);
 
 onMounted(() => {
   const savedEmail = localStorage.getItem('rememberedEmail');
-  const savedPassword = localStorage.getItem('rememberedPassword');
   if (savedEmail) {
     email.value = savedEmail;
     rememberMe.value = true;
-  }
-  if (savedPassword) {
-    password.value = savedPassword;
   }
   const params = new URLSearchParams(window.location.search);
   const wechatCode = params.get('wechat_code') || params.get('code');
@@ -166,17 +162,14 @@ async function handleLogin() {
     }
     if (rememberMe.value) {
       localStorage.setItem('rememberedEmail', email.value.trim());
-      if (loginMode.value === 'password') {
-        localStorage.setItem('rememberedPassword', password.value);
-      }
     } else {
       localStorage.removeItem('rememberedEmail');
-      localStorage.removeItem('rememberedPassword');
     }
     message.success('登录成功');
     router.push('/square');
-  } catch {
-    message.error(loginMode.value === 'password' ? '邮箱或密码错误' : '邮箱或验证码错误');
+  } catch (err: unknown) {
+    const fallback = loginMode.value === 'password' ? '邮箱或密码错误' : '邮箱或验证码错误';
+    message.error(err instanceof Error && err.message ? err.message : fallback);
     resetLoginForm();
   } finally {
     loading.value = false;
@@ -243,6 +236,7 @@ function handleGuestLogin() {
     avatarUrl: 'https://api.dicebear.com/7.x/initials/svg?seed=Guest',
     email: 'guest@campus.edu',
     role: 'GUEST',
+    points: 0,
   });
   message.success('已以游客身份进入社区');
   router.push('/square');

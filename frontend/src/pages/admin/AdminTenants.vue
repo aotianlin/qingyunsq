@@ -155,7 +155,7 @@ onMounted(load);
           <NFormItem label="域名">
             <NInput
               v-model:value="form.domain"
-              placeholder="如 hust.qingyunge.com"
+              placeholder="如 hust.campusforum.com"
             />
           </NFormItem>
         </NForm>

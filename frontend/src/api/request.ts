@@ -15,6 +15,36 @@ function clearAuthSession() {
   localStorage.removeItem('tenantCode');
 }
 
+const anonymousAuthUrls = new Set([
+  '/auth/login',
+  '/auth/register',
+  '/auth/email-code',
+  '/auth/email-exists',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+]);
+
+function isAnonymousAuthRequest(url?: string): boolean {
+  if (!url) return false;
+  const normalized = url.startsWith('/api/v1') ? url.slice('/api/v1'.length) : url;
+  return anonymousAuthUrls.has(normalized.split('?')[0]);
+}
+
+function deleteHeader(headers: AxiosRequestConfig['headers'], name: string) {
+  if (!headers) return;
+  if (typeof (headers as { delete?: (header: string) => void }).delete === 'function') {
+    (headers as { delete: (header: string) => void }).delete(name);
+  }
+  delete (headers as Record<string, unknown>)[name];
+}
+
+function clearAnonymousRequestHeaders(config: AxiosRequestConfig) {
+  deleteHeader(config.headers, 'Authorization');
+  deleteHeader(config.headers, 'authorization');
+  deleteHeader(config.headers, 'X-Tenant-Id');
+  deleteHeader(config.headers, 'x-tenant-id');
+}
+
 async function syncAuthStoreLogout() {
   try {
     const { useAuthStore } = await import('@/stores/auth');
@@ -33,7 +63,9 @@ const instance: AxiosInstance = axios.create({
 // 请求拦截：注入 Token
 instance.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token && token !== 'GUEST_TOKEN') {
+  if (isAnonymousAuthRequest(config.url)) {
+    clearAnonymousRequestHeaders(config);
+  } else if (token && token !== 'GUEST_TOKEN') {
     config.headers.Authorization = token;
   }
   // X-Tenant-Id 不再由前端注入，租户由服务端从 Sa-Token Session 权威解析

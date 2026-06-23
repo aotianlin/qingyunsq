@@ -3,8 +3,6 @@ export interface AiRequest {
   title?: string;
   messages?: ChatMessage[];
   context?: string;
-  model?: string;
-  abilities?: string[];
 }
 
 export interface ChatMessage {

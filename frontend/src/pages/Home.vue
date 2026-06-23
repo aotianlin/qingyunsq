@@ -9,8 +9,40 @@ import {
   CalendarOutline,
   SparklesOutline,
 } from '@vicons/ionicons5';
+import OfficialAnnouncementCarousel from '@/components/OfficialAnnouncementCarousel.vue';
+import type { OfficialAnnouncementItem } from '@/types/announce';
 
 const router = useRouter();
+
+const officialAnnouncements: OfficialAnnouncementItem[] = [
+  {
+    id: 'home-official-welcome',
+    title: '官方公告',
+    summary: 'CampusForum 全新首页已升级，校园动态、学习资源与社区活动会在这里集中展示。',
+    description: 'CampusForum 全新首页已升级，校园动态、学习资源与社区活动会在这里集中展示。',
+    buttonText: '进入广场',
+    badge: '官方公告',
+    link: '/square',
+  },
+  {
+    id: 'home-ai-ready',
+    title: 'AI 助手已就绪',
+    summary: '用 AI 摘要、帖子分析和学习建议，让校园讨论更轻盈、更高效。',
+    description: '用 AI 摘要、帖子分析和学习建议，让校园讨论更轻盈、更高效。',
+    buttonText: '打开 AI 助手',
+    badge: '智能推荐',
+    link: '/ai',
+  },
+  {
+    id: 'home-checkin-reminder',
+    title: '每日打卡提醒',
+    summary: '完成今日学习打卡，连续记录你的成长节奏，并领取积分奖励。',
+    description: '完成今日学习打卡，连续记录你的成长节奏，并领取积分奖励。',
+    buttonText: '去打卡',
+    badge: '校园活动',
+    link: '/checkin',
+  },
+];
 
 const modules = [
   {
@@ -29,6 +61,10 @@ const modules = [
     icon: CloudDownloadOutline,
   },
 ];
+
+function openAnnouncement(item: OfficialAnnouncementItem) {
+  router.push(item.link || '/square');
+}
 </script>
 
 <template>
@@ -36,8 +72,8 @@ const modules = [
     <!-- Top Header -->
     <header class="home-nav">
       <button class="brand" @click="router.push('/')">
-        <img src="@/assets/images/logo.png" alt="青云阁" class="brand-img" />
-        <span class="brand-text">青云阁</span>
+        <span class="brand-mark">CF</span>
+        <span class="brand-text">CampusForum</span>
       </button>
       <nav>
         <button class="nav-btn-secondary" @click="router.push('/login')">登录</button>
@@ -45,19 +81,23 @@ const modules = [
       </nav>
     </header>
 
+    <section class="home-announcement">
+      <OfficialAnnouncementCarousel :items="officialAnnouncements" @open="openAnnouncement" />
+    </section>
+
     <!-- Main Content -->
     <main>
       <!-- Hero Section -->
       <section class="hero-section">
         <div class="hero-content">
-          <span class="cf-pill mb-4">青云阁社区</span>
+          <span class="cf-pill mb-4">Campus Community</span>
           <h1 class="hero-headline">
             校园讨论、学习圈与
             <span class="gradient-text">资源协作</span>
             都在这里
           </h1>
           <p class="hero-sub">
-            从广场交流到打卡挑战，从资料共享到 AI 辅助学习，青云阁
+            从广场交流到打卡挑战，从资料共享到 AI 辅助学习，CampusForum
             帮你把校园里的信息流整理成可参与、可沉淀的社区体验。
           </p>
           <div class="hero-actions">
@@ -75,7 +115,7 @@ const modules = [
         <div class="hero-showcase cf-card">
           <img
             src="@/assets/images/hero_workspace.png"
-            alt="青云阁 Workspace Mockup"
+            alt="CampusForum Workspace Mockup"
             class="showcase-img"
           />
         </div>
@@ -118,7 +158,7 @@ const modules = [
                 <span class="topic-tag tag-primary">学术探索</span>
                 <span class="topic-tag tag-secondary">指南</span>
               </div>
-              <h3 class="featured-title">如何在青云阁中更高效地建立属于你的学术讨论圈</h3>
+              <h3 class="featured-title">如何在 CampusForum 中更高效地建立属于你的学术讨论圈</h3>
               <p class="featured-desc">
                 在这里，你可以按课程、兴趣和项目创建特定的学习板块，邀请同伴一起讨论学习，沉淀知识。
               </p>
@@ -165,7 +205,7 @@ const modules = [
         <div class="cta-banner cf-card">
           <div class="cta-content">
             <h2>开启你的校园协作之旅，与大家一同交流成长</h2>
-            <p>加入青云阁，探索更高效的学习交流与学术研讨空间。</p>
+            <p>加入 CampusForum，探索更高效的学习交流与学术研讨空间。</p>
             <button class="primary-action cta-btn" @click="router.push('/register')">
               立即加入社区
               <NIcon size="18">
@@ -181,8 +221,8 @@ const modules = [
     <footer class="home-footer">
       <div class="footer-grid">
         <div class="footer-brand">
-          <img src="@/assets/images/logo.png" alt="青云阁" class="footer-logo-img" />
-          <span class="footer-brand-name">青云阁</span>
+          <span class="footer-logo">CF</span>
+          <span class="footer-brand-name">CampusForum</span>
         </div>
         <div class="footer-links">
           <div class="link-group">
@@ -198,7 +238,7 @@ const modules = [
         </div>
       </div>
       <div class="footer-bottom">
-        <p>© 2026 青云阁. All Rights Reserved. 激发学术与校园社交的无限可能</p>
+        <p>© 2026 CampusForum. All Rights Reserved. 激发学术与校园社交的无限可能</p>
       </div>
     </footer>
   </div>
@@ -207,10 +247,7 @@ const modules = [
 <style scoped>
 .home-page {
   min-height: 100vh;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(246, 248, 251, 0.98)),
-    radial-gradient(circle at 16% 10%, rgba(0, 216, 191, 0.08), transparent 30%),
-    radial-gradient(circle at 82% 20%, rgba(56, 189, 248, 0.07), transparent 32%);
+  background: var(--cf-page-bg);
   color: var(--cf-text-primary);
   transition:
     background-color 0.36s ease,
@@ -219,10 +256,7 @@ const modules = [
 
 /* Dark theme overrides */
 html[data-theme='dark'] .home-page {
-  background:
-    linear-gradient(180deg, rgba(10, 10, 12, 0.96), rgba(5, 5, 6, 0.98)),
-    radial-gradient(circle at 16% 10%, rgba(0, 245, 212, 0.12), transparent 30%),
-    radial-gradient(circle at 82% 20%, rgba(167, 139, 250, 0.1), transparent 32%);
+  background: var(--cf-page-bg);
 }
 
 .home-nav {
@@ -262,15 +296,7 @@ button {
   color: var(--cf-text-inverse);
   font-size: 13px;
   font-weight: 900;
-  box-shadow: 0 14px 30px rgba(0, 191, 168, 0.2);
-}
-
-.brand-img {
-  width: 38px;
-  height: 38px;
-  border-radius: 13px;
-  object-fit: cover;
-  box-shadow: 0 14px 30px rgba(0, 191, 168, 0.2);
+  box-shadow: var(--cf-shadow-glow);
 }
 
 .brand-text {
@@ -304,9 +330,9 @@ button {
 }
 
 .nav-btn-primary {
-  background: var(--cf-primary);
+  background: var(--cf-gradient-primary);
   color: var(--cf-text-inverse);
-  box-shadow: 0 12px 30px rgba(0, 191, 168, 0.22);
+  box-shadow: var(--cf-shadow-glow);
 }
 
 .nav-btn-primary:hover {
@@ -316,6 +342,11 @@ button {
 
 main {
   width: 100%;
+}
+
+.home-announcement {
+  width: min(var(--cf-home-content-width, var(--cf-max-width)), calc(100% - var(--cf-home-page-gutter, var(--cf-content-padding))));
+  margin: 0 auto;
 }
 
 /* Hero Section */
@@ -364,32 +395,32 @@ main {
 .primary-action {
   height: 48px;
   padding: 0 24px;
-  border-radius: 999px;
+  border-radius: 9px;
   font-weight: 800;
   font-size: 15px;
-  background: var(--cf-primary);
+  background: var(--cf-gradient-primary);
   color: var(--cf-text-inverse);
   display: flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 16px 36px rgba(0, 191, 168, 0.28);
+  box-shadow: var(--cf-shadow-glow);
   transition: all 0.22s ease;
 }
 
 .primary-action:hover {
-  background: var(--cf-primary-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 20px 42px rgba(0, 191, 168, 0.38);
+  background: var(--cf-gradient-primary);
+  transform: scale(1.02);
+  box-shadow: 0 14px 34px rgba(52, 208, 188, 0.26);
 }
 
 .secondary-action {
   height: 48px;
   padding: 0 24px;
-  border-radius: 999px;
+  border-radius: 9px;
   font-weight: 800;
   font-size: 15px;
-  border: 1px solid var(--cf-border);
-  background: rgba(255, 255, 255, 0.76);
+  border: 0;
+  background: var(--cf-bg-glass);
   color: var(--cf-text-secondary);
   transition: all 0.22s ease;
 }
@@ -400,7 +431,6 @@ html[data-theme='dark'] .secondary-action {
 
 .secondary-action:hover {
   background: var(--cf-bg-soft);
-  border-color: var(--cf-primary);
   transform: translateY(-2px);
 }
 
@@ -633,16 +663,16 @@ html[data-theme='dark'] .secondary-action {
   padding: 60px 40px;
   text-align: center;
   background:
-    radial-gradient(circle at 10% 20%, rgba(0, 216, 191, 0.06), transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(123, 97, 255, 0.05), transparent 40%),
-    rgba(255, 255, 255, 0.88);
+    radial-gradient(circle at 10% 20%, rgba(52, 208, 188, 0.08), transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(142, 185, 238, 0.08), transparent 40%),
+    var(--cf-card-bg);
 }
 
 html[data-theme='dark'] .cta-banner {
   background:
-    radial-gradient(circle at 10% 20%, rgba(0, 245, 212, 0.08), transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(167, 139, 250, 0.08), transparent 40%),
-    rgba(20, 20, 24, 0.82);
+    radial-gradient(circle at 10% 20%, rgba(93, 220, 205, 0.1), transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(159, 191, 233, 0.08), transparent 40%),
+    var(--cf-card-bg);
 }
 
 .cta-content {
@@ -676,8 +706,10 @@ html[data-theme='dark'] .cta-banner {
 /* Footer */
 .home-footer {
   width: 100%;
-  border-t: 1px solid var(--cf-border);
-  background: var(--cf-bg-soft);
+  border-top: 0;
+  background: var(--cf-bg-glass);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
   padding: 64px 32px 32px;
 }
 
@@ -705,13 +737,6 @@ html[data-theme='dark'] .cta-banner {
   place-items: center;
   font-size: 13px;
   font-weight: 900;
-}
-
-.footer-logo-img {
-  width: 36px;
-  height: 36px;
-  border-radius: 11px;
-  object-fit: cover;
 }
 
 .footer-brand-name {

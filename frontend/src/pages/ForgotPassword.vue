@@ -139,16 +139,27 @@ async function handleReset() {
         class="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-stack-md w-full mx-auto"
       >
         <div class="flex items-center gap-3">
-          <img src="@/assets/images/logo.png" alt="青云阁" class="w-8 h-8 rounded-lg object-cover" />
+          <svg
+            class="w-8 h-8 text-gray-400/70 dark:text-gray-500/70"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+            />
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+            <line x1="12" y1="22.08" x2="12" y2="12" />
+          </svg>
           <div
             class="font-headline-md text-[24px] font-extrabold tracking-tight h-[32px] overflow-hidden"
           >
             <div class="flex flex-col rolling-text">
               <div class="h-[32px] flex items-center">
-                <span class="text-gray-400/70 dark:text-gray-500/70">青云阁</span>
-              </div>
-              <div class="h-[32px] flex items-center">
-                <span class="text-gray-400/70 dark:text-gray-500/70">青云阁</span>
+                <span class="text-gray-400/70 dark:text-gray-500/70">CampusForum</span>
               </div>
             </div>
           </div>
@@ -401,20 +412,18 @@ nav {
 }
 
 .glass-panel {
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 22px;
-  box-shadow:
-    0 18px 55px rgba(15, 23, 42, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(24px) saturate(150%);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  background: var(--cf-card-bg);
+  border: 0;
+  border-radius: 20px;
+  box-shadow: var(--cf-shadow-card);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
   overflow: visible;
 }
 
 input {
-  background: var(--cf-bg-base) !important;
-  border-color: var(--cf-border) !important;
+  background: var(--cf-bg-glass-soft) !important;
+  border: 0 !important;
   color: var(--cf-text-primary) !important;
 }
 
@@ -440,8 +449,8 @@ button.bg-surface-container-low {
 }
 
 html[data-theme='dark'] .glass-panel {
-  background: rgba(12, 12, 13, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--cf-card-bg);
+  border: 0;
 }
 
 .shake {

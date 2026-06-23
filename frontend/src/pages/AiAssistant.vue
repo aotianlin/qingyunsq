@@ -1,593 +1,189 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import type { Component } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { NIcon, useMessage } from 'naive-ui';
+import { computed, nextTick, ref } from 'vue';
+import { useMessage } from 'naive-ui';
 import {
   AddOutline,
-  ArrowForwardOutline,
   AttachOutline,
-  BarChartOutline,
-  BookOutline,
-  BookmarkOutline,
-  BriefcaseOutline,
   ChatbubbleEllipsesOutline,
-  CheckmarkCircleOutline,
   ChevronForwardOutline,
-  CloudUploadOutline,
   CodeSlashOutline,
   CopyOutline,
   DocumentTextOutline,
   EarthOutline,
-  EyeOutline,
-  FolderOutline,
-  HelpCircleOutline,
-  HomeOutline,
-  LibraryOutline,
-  NotificationsOutline,
-  PaperPlaneOutline,
+  EllipsisHorizontalOutline,
+  ImageOutline,
   RefreshOutline,
-  SearchOutline,
   SendOutline,
-  SettingsOutline,
-  ShareSocialOutline,
   SparklesOutline,
+  StarOutline,
+  ThumbsDownOutline,
+  ThumbsUpOutline,
   TimeOutline,
-  TrashOutline,
 } from '@vicons/ionicons5';
-import { aiChat, aiRagChat } from '@/api/ai';
+import { aiRagChat } from '@/api/ai';
 import { copyTextToClipboard } from '@/utils/clipboard';
 import type { AiCitation } from '@/types/ai';
 
-type ChatRole = 'user' | 'assistant';
-type AiPageMode = 'discover' | 'workspace' | 'wiki';
-type KnowledgeCategory = '产品文档' | '技术文档' | '学习资料' | '公司制度' | '市场与销售';
-
 type ChatMessage = {
-  role: ChatRole;
+  role: 'user' | 'assistant';
   content: string;
   time: string;
   citations?: AiCitation[];
 };
 
-type Conversation = {
-  id: string;
-  title: string;
-  updatedAt: number;
-  favorite: boolean;
-  messages: ChatMessage[];
-  knowledgeBaseId?: string;
-};
-
-type AiModel = {
-  id: string;
-  name: string;
-  provider: string;
-};
-
-type KnowledgeBase = {
-  id: string;
-  name: string;
-  desc: string;
-  category: KnowledgeCategory;
-  type: string;
-  docs: number;
-  vectors: number;
-  updatedAt: string;
-  owner: '我创建的' | '共享给我的';
-  favorite: boolean;
-  color: string;
-};
-
-type ShellNavItem = {
-  key: string;
-  label: string;
-  icon: Component;
-  path?: string;
-  active: boolean;
-  action?: () => void;
-};
-
-type RecommendationCard = {
-  id: string;
-  title: string;
-  meta: string;
-  views: string;
-  icon: Component;
-  color: string;
-  prompt: string;
-};
-
-type TopicItem = {
-  id: string;
-  title: string;
-  desc: string;
-  stats: string;
-  author: string;
-  icon: Component;
-  color: string;
-};
-
-type KnowledgeDocumentItem = {
-  id: string;
-  title: string;
-  kind: '笔记' | '模板' | 'PDF' | '文件夹';
-  meta: string;
-  icon: Component;
-};
-
-const CHAT_STORAGE_KEY = 'campus-ai-conversations';
-const MODEL_KEY = 'campus-ai-model';
-const KNOWLEDGE_STORAGE_KEY = 'campus-ai-knowledge-bases';
-
-const route = useRoute();
-const router = useRouter();
 const message = useMessage();
-
-const pageSearch = ref('');
 const draft = ref('');
 const loading = ref(false);
-const webSearchEnabled = ref(true);
-const conversations = ref<Conversation[]>([]);
-const currentConversationId = ref('');
-const attachedContexts = ref<{ name: string; content: string }[]>([]);
 const chatStreamRef = ref<HTMLElement | null>(null);
-const fileInputRef = ref<HTMLInputElement | null>(null);
-const selectedDocumentId = ref('readme');
-const recommendationOffset = ref(0);
-const selectedModel = ref('deepseek-v4-flash');
-const createKnowledgeVisible = ref(false);
-const importKnowledgeVisible = ref(false);
-const knowledgeDraft = ref({ name: '', category: '学习资料' as KnowledgeCategory, desc: '' });
-const importDraft = ref({ targetId: '', files: '', tags: '' });
+const selectedModel = ref('GPT-4o');
+const activeLeftNav = ref<'chat' | 'favorite' | 'history'>('chat');
+const quickQuestionOffset = ref(0);
 
-const modelOptions: AiModel[] = [
-  { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', provider: 'DeepSeek' },
-  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', provider: 'DeepSeek' },
-  { id: 'mimo-v2.5', name: 'MiMo 2.5', provider: 'MiMo' },
+const upgradeProVisible = ref(false);
+const upgradeOption = ref('monthly');
+const checkoutSimulating = ref(false);
+
+const favoriteConversations = ref([
+  { title: '已收藏：如何学好数据结构与算法？' },
+  { title: '已收藏：期末复习与时间规划技巧' },
+  { title: '已收藏：考研英语高频词汇精选' }
+]);
+const conversations = [
+  { title: '如何高效准备期末考试？', active: true },
+  { title: '推荐一些学习资源' },
+  { title: 'React 和 Vue 的区别' },
+  { title: 'Python 装饰器的应用场景' },
+  { title: '如何制定每日学习计划' },
+  { title: '操作系统的进程和线程区别' },
+  { title: '深度学习入门建议' },
 ];
 
-const defaultKnowledgeBases: KnowledgeBase[] = [
-  {
-    id: 'mathhub-calculus',
-    name: '微积分（高等数学/数学分析）每日一题',
-    desc: '系统收集的高等微积分问题，每日更新，用于严格的数学训练。',
-    category: '学习资料',
-    type: '数学题库',
-    docs: 2247,
-    vectors: 58333,
-    updatedAt: '6/5',
-    owner: '我创建的',
-    favorite: true,
-    color: '#007a52',
-  },
-  {
-    id: 'marketing-q3',
-    name: '第三季度营销策略',
-    desc: '第三季度的综合分析、竞争对手研究和活动规划文档。',
-    category: '市场与销售',
-    type: '营销资料',
-    docs: 186,
-    vectors: 43890,
-    updatedAt: '刚刚',
-    owner: '我创建的',
-    favorite: false,
-    color: '#10b981',
-  },
-  {
-    id: 'frontend-engineering',
-    name: '前端工程中心',
-    desc: '架构指南、组件库和代码审查标准。',
-    category: '技术文档',
-    type: '工程文档',
-    docs: 96,
-    vectors: 29041,
-    updatedAt: '2小时前',
-    owner: '我创建的',
-    favorite: false,
-    color: '#2563eb',
-  },
-  {
-    id: 'product-help',
-    name: '产品帮助文档',
-    desc: '包含产品使用说明、功能介绍、常见问题等。',
-    category: '产品文档',
-    type: '产品文档',
-    docs: 156,
-    vectors: 458642,
-    updatedAt: '5/20',
-    owner: '共享给我的',
-    favorite: true,
-    color: '#16a34a',
-  },
+const quickQuestionPool = ['如何制定学习计划？', '有哪些高效的记忆方法？', '如何克服考试焦虑？', '帮我整理复习清单', '论文开题怎么准备？', '如何提高课堂笔记质量？'];
+const quickQuestions = computed(() => Array.from({ length: 3 }, (_, index) => quickQuestionPool[(quickQuestionOffset.value + index) % quickQuestionPool.length]));
+
+const modelOptions = [
+  { name: 'GPT-4o', desc: '最智能的模型，适合大多数任务', active: true, tag: '推荐', color: '#00bfa8' },
+  { name: 'Claude 3.5 Sonnet', desc: '擅长分析和深度推理', color: '#f97316' },
+  { name: 'Gemini 1.5 Pro', desc: '擅长处理长文本和复杂推理', color: '#4f7cff' },
 ];
 
-const knowledgeBases = ref<KnowledgeBase[]>([]);
-
-const featuredCards: RecommendationCard[] = [
-  {
-    id: 'compute-era',
-    title: '算力时代光纤架构与产业重塑',
-    meta: '报告',
-    views: '4.9k',
-    icon: BarChartOutline,
-    color: '#eaf2ff',
-    prompt: '请总结算力时代光纤架构与产业重塑的关键趋势。',
-  },
-  {
-    id: 'chip-storage',
-    title: '存储芯片进入超级周期',
-    meta: '演示',
-    views: '6.4k',
-    icon: LibraryOutline,
-    color: '#ccefe8',
-    prompt: '请解释存储芯片进入超级周期的产业原因。',
-  },
-  {
-    id: 'low-altitude',
-    title: '低空经济解锁新万亿市场',
-    meta: '文章',
-    views: '5.1k',
-    icon: DocumentTextOutline,
-    color: '#f1f3f5',
-    prompt: '请梳理低空经济的主要商业模式和风险。',
-  },
-  {
-    id: 'ai-career',
-    title: 'AI 新职业生存指南',
-    meta: '指南',
-    views: '11k',
-    icon: BriefcaseOutline,
-    color: '#ebe7fb',
-    prompt: '请给我一份 AI 新职业学习路线和能力清单。',
-  },
-];
-
-const topicTabs = ['热门话题', '科技', '教育', '职场', '金融', '行业', '健康', '法律', '人文'];
-const activeTopicTab = ref(topicTabs[0]);
-const topicItems: TopicItem[] = [
-  {
-    id: 'ai-smart',
-    title: '人工智能 +',
-    desc: 'AGI、ASI、SSI趋势。AI将如何影响学习与工作...',
-    stats: '1004 订阅 · 92 项',
-    author: '@AI模型观察',
-    icon: SparklesOutline,
-    color: '#052e2b',
-  },
-  {
-    id: 'geo',
-    title: '高中地理题库',
-    desc: '高考综合复习资源。',
-    stats: '123 订阅 · 604 项',
-    author: '@GeoLab',
-    icon: EarthOutline,
-    color: '#0f3d2e',
-  },
-  {
-    id: 'agent',
-    title: 'AI 智能体开发',
-    desc: '智能助手、Agentic AI 及结构化工作流...',
-    stats: '3.1k 订阅 · 2480 项',
-    author: '@Huan',
-    icon: SparklesOutline,
-    color: '#eaf2ff',
-  },
-  {
-    id: 'paper',
-    title: 'SCI 论文写作指南',
-    desc: '论文、选题、基金申请和投稿技巧。',
-    stats: '7087 订阅 · 818 项',
-    author: '@Doctor',
-    icon: DocumentTextOutline,
-    color: '#3b9cff',
-  },
-  {
-    id: 'stock',
-    title: 'A股证券（每日）',
-    desc: '市场新闻、公告和研报。',
-    stats: '1.1k 订阅 · 38798 项',
-    author: '@腾讯自选股',
-    icon: BarChartOutline,
-    color: '#f2f2f2',
-  },
-  {
-    id: 'trader',
-    title: '交易大师模型',
-    desc: '你来市场不是为了参与，而是为了建立纪律...',
-    stats: '9861 订阅 · 97 项',
-    author: '@Bull Lab',
-    icon: BriefcaseOutline,
-    color: '#101010',
-  },
-];
-
-const knowledgeDocuments: KnowledgeDocumentItem[] = [
-  { id: 'readme', title: 'README｜介绍与指南', kind: '笔记', meta: '6/5 更新', icon: DocumentTextOutline },
-  { id: 'latex', title: 'LaTeX 数学笔记提示词模板', kind: '模板', meta: '4/19 更新', icon: CodeSlashOutline },
-  { id: 'pdf', title: '高等数学同步辅导.pdf', kind: 'PDF', meta: '6/5', icon: DocumentTextOutline },
-  { id: 'vector', title: '8. 向量代数与空间解析几何', kind: '文件夹', meta: '30 项 · 昨天', icon: FolderOutline },
-  { id: 'differential', title: '7. 微分方程', kind: '文件夹', meta: '54 项 · 昨天', icon: FolderOutline },
-];
-
-const selectedModelInfo = computed(() => modelOptions.find((model) => model.id === selectedModel.value) ?? modelOptions[0]);
-const currentConversation = computed(() => conversations.value.find((item) => item.id === currentConversationId.value));
-const messages = computed({
-  get: () => currentConversation.value?.messages ?? [],
-  set: (value: ChatMessage[]) => {
-    if (currentConversation.value) {
-      currentConversation.value.messages = value;
-      currentConversation.value.updatedAt = Date.now();
-    }
-  },
-});
-const selectedKnowledgeId = computed(() => {
-  const id = route.params.id;
-  return typeof id === 'string' ? id : knowledgeBases.value[0]?.id || '';
-});
-const selectedKnowledge = computed(() => knowledgeBases.value.find((item) => item.id === selectedKnowledgeId.value) ?? knowledgeBases.value[0]);
-const pageMode = computed<AiPageMode>(() => {
-  if (route.name === 'ai-wiki-detail' || route.path.startsWith('/ai/wikis/')) return 'wiki';
-  if (route.name === 'ai-wikis' || route.path === '/ai/wikis') return 'workspace';
-  return 'discover';
-});
-const contextText = computed(() => attachedContexts.value.map((item) => `【${item.name}】\n${item.content}`).join('\n\n'));
-const enabledAbilities = computed(() => (webSearchEnabled.value ? ['web-search'] : []));
-const totalDocs = computed(() => knowledgeBases.value.reduce((sum, item) => sum + item.docs, 0));
-const totalVectors = computed(() => knowledgeBases.value.reduce((sum, item) => sum + item.vectors, 0));
-const recentConversations = computed(() => [...conversations.value].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 4));
-const rotatedFeaturedCards = computed(() =>
-  Array.from({ length: featuredCards.length }, (_, index) => featuredCards[(recommendationOffset.value + index) % featuredCards.length]),
-);
-const shellNav = computed<ShellNavItem[]>(() => [
-  { key: 'knowledge', label: '知识库', icon: LibraryOutline, path: '/ai/wikis', active: pageMode.value === 'workspace' || pageMode.value === 'wiki' },
-  { key: 'discover', label: '发现', icon: SparklesOutline, path: '/ai/discover', active: pageMode.value === 'discover' },
-  { key: 'history', label: '历史', icon: TimeOutline, active: false, action: () => startNewChat() },
-  { key: 'workbench', label: '工作台', icon: BriefcaseOutline, path: '/ai/wikis', active: pageMode.value === 'workspace' },
-  { key: 'community', label: '社区', icon: ChatbubbleEllipsesOutline, path: '/square', active: false },
+const abilities = ref([
+  { label: '联网搜索', icon: EarthOutline, enabled: true },
+  { label: '代码解释器', icon: CodeSlashOutline, enabled: true },
+  { label: '文档分析', icon: DocumentTextOutline, enabled: false },
+  { label: '图像生成', icon: ImageOutline, enabled: false },
 ]);
 
-watch(
-  () => route.query.q,
-  (value) => {
-    pageSearch.value = typeof value === 'string' ? value : '';
+const stats = [
+  { value: 12, label: '今日对话' },
+  { value: 156, label: '本月对话' },
+  { value: '98%', label: '满意度' },
+];
+
+const messages = ref<ChatMessage[]>([
+  {
+    role: 'user',
+    time: '10:30',
+    content: '如何高效准备期末考试？',
   },
-  { immediate: true },
-);
+  {
+    role: 'assistant',
+    time: '10:30',
+    content:
+      '高效准备期末考试需要科学的规划和方法，以下是一些实用的建议：\n\n1. 制定学习计划\n   · 根据考试时间和科目数量，制定详细的学习计划\n   · 将大目标分解为小任务，合理分配每天的学习时间\n\n2. 掌握学习方法\n   · 主动学习：通过总结、提问、讨论等方式加深理解\n   · 间隔重复：定期复习已学内容，强化记忆\n\n3. 善用学习资源\n   · 整理课堂笔记和教材重点\n   · 利用历年真题和模拟题进行练习\n\n4. 保持良好状态\n   · 保证充足的睡眠和适当的运动\n   · 合理安排休息时间，避免过度疲劳',
+  },
+]);
 
-watch(
-  conversations,
-  (value) => localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(value.slice(0, 30))),
-  { deep: true },
-);
-watch(selectedModel, (value) => localStorage.setItem(MODEL_KEY, value));
-watch(knowledgeBases, (value) => localStorage.setItem(KNOWLEDGE_STORAGE_KEY, JSON.stringify(value)), { deep: true });
-
-onMounted(() => {
-  loadLocalState();
-  void scrollToBottom();
-});
-
-function nowLabel() {
-  return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatCompact(value: number) {
-  if (value >= 10000) return `${(value / 10000).toFixed(value >= 100000 ? 0 : 1)}w`;
-  return value.toLocaleString('zh-CN');
-}
-
-function normalizeTitle(question: string) {
-  const compact = question.replace(/\s+/g, ' ').trim();
-  return compact.length > 24 ? `${compact.slice(0, 24)}...` : compact || '新的对话';
-}
-
-function createConversation(title = '新的对话', knowledgeBaseId?: string): Conversation {
-  return {
-    id: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    title,
-    updatedAt: Date.now(),
-    favorite: false,
-    knowledgeBaseId,
-    messages: [
-      {
-        role: 'assistant',
-        content: knowledgeBaseId
-          ? '我已进入知识库问答模式，可以基于选定知识库回答问题或创建任务。'
-          : '你好，我是青云阁 AI 助手。你可以直接提问，也可以从发现页选择一个主题开始。',
-        time: nowLabel(),
-      },
-    ],
-  };
-}
-
-function loadLocalState() {
-  const storedModel = localStorage.getItem(MODEL_KEY);
-  if (storedModel && modelOptions.some((item) => item.id === storedModel)) selectedModel.value = storedModel;
-
-  try {
-    const parsed = JSON.parse(localStorage.getItem(CHAT_STORAGE_KEY) || '[]') as Conversation[];
-    conversations.value = parsed.length ? parsed : [createConversation('如何高效准备期末考试？')];
-  } catch {
-    conversations.value = [createConversation()];
-  }
-  currentConversationId.value = conversations.value[0]?.id || '';
-
-  try {
-    const storedKnowledge = JSON.parse(localStorage.getItem(KNOWLEDGE_STORAGE_KEY) || '[]') as KnowledgeBase[];
-    knowledgeBases.value = storedKnowledge.length ? storedKnowledge : defaultKnowledgeBases.map((item) => ({ ...item }));
-  } catch {
-    knowledgeBases.value = defaultKnowledgeBases.map((item) => ({ ...item }));
-  }
-  importDraft.value.targetId = selectedKnowledge.value?.id || knowledgeBases.value[0]?.id || '';
-}
+const historyGroups = computed(() => [
+  { title: '今天', items: conversations.slice(0, 3) },
+  { title: '昨天', items: conversations.slice(3, 5) },
+  { title: '更早', items: conversations.slice(5) },
+]);
 
 async function scrollToBottom() {
   await nextTick();
-  if (chatStreamRef.value) chatStreamRef.value.scrollTop = chatStreamRef.value.scrollHeight;
-}
-
-function navigateShell(item: ShellNavItem) {
-  if (item.action) {
-    item.action();
-    return;
+  if (chatStreamRef.value) {
+    chatStreamRef.value.scrollTop = chatStreamRef.value.scrollHeight;
   }
-  if (item.path) void router.push(item.path);
 }
 
-function goWorkspace() {
-  void router.push('/ai/wikis');
-}
-
-function startNewChat() {
-  const chat = createConversation();
-  conversations.value.unshift(chat);
-  currentConversationId.value = chat.id;
-  attachedContexts.value = [];
-  draft.value = '';
-  void router.push('/ai');
-  void scrollToBottom();
-}
-
-function openConversation(id: string) {
-  currentConversationId.value = id;
-  const conversation = conversations.value.find((item) => item.id === id);
-  if (conversation?.knowledgeBaseId) {
-    void router.push(`/ai/wikis/${conversation.knowledgeBaseId}`);
-  } else {
-    void router.push('/ai');
-  }
-  void scrollToBottom();
-}
-
-function askFromPrompt(prompt: string, knowledgeBaseId?: string) {
-  draft.value = prompt;
-  if (knowledgeBaseId) ensureKnowledgeConversation(knowledgeBaseId);
-  void sendQuestion(knowledgeBaseId);
-}
-
-function ensureKnowledgeConversation(knowledgeBaseId: string) {
-  const existing = conversations.value.find((item) => item.knowledgeBaseId === knowledgeBaseId);
-  if (existing) {
-    currentConversationId.value = existing.id;
-    return;
-  }
-  const chat = createConversation(`基于 ${selectedKnowledge.value?.name || '知识库'} 提问`, knowledgeBaseId);
-  conversations.value.unshift(chat);
-  currentConversationId.value = chat.id;
-}
-
-async function sendQuestion(knowledgeBaseId?: string) {
+async function sendQuestion() {
   const question = draft.value.trim();
   if (!question || loading.value) return;
 
   draft.value = '';
-  if (knowledgeBaseId) ensureKnowledgeConversation(knowledgeBaseId);
-  if (!currentConversation.value) {
-    const chat = createConversation('新的对话', knowledgeBaseId);
-    conversations.value.unshift(chat);
-    currentConversationId.value = chat.id;
-  }
-  if (currentConversation.value?.title === '新的对话') currentConversation.value.title = normalizeTitle(question);
-
-  messages.value = [...messages.value, { role: 'user', content: question, time: nowLabel() }];
+  messages.value.push({ role: 'user', content: question, time: '现在' });
   loading.value = true;
   await scrollToBottom();
 
   try {
-    const history = messages.value.slice(-10).map((item) => ({ role: item.role, content: item.content }));
-    const knowledgeContext = knowledgeBaseId && selectedKnowledge.value
-      ? `当前知识库：${selectedKnowledge.value.name}\n${selectedKnowledge.value.desc}\n\n${contextText.value}`
-      : contextText.value;
-    const result = webSearchEnabled.value || knowledgeBaseId
-      ? await aiRagChat(history, knowledgeContext, selectedModel.value, enabledAbilities.value)
-      : await aiChat(history, knowledgeContext, selectedModel.value, enabledAbilities.value);
-
-    messages.value = [
-      ...messages.value,
-      {
-        role: 'assistant',
-        content: result.reply || '没有生成有效回复，请换一种问法再试。',
-        time: nowLabel(),
-        citations: result.citations || [],
-      },
-    ];
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : '请求失败';
-    messages.value = [
-      ...messages.value,
-      {
-        role: 'assistant',
-        content: `这次问答请求失败：${reason}`,
-        time: nowLabel(),
-      },
-    ];
+    const history = messages.value.slice(-8).map((item) => ({ role: item.role, content: item.content }));
+    const result = await aiRagChat(history);
+    messages.value.push({
+      role: 'assistant',
+      content: result.reply || '暂时没有生成有效回复，请换一种问法再试。',
+      time: '现在',
+      citations: result.citations || [],
+    });
+  } catch {
+    messages.value.push({
+      role: 'assistant',
+      content: '这次问答请求失败了，请稍后再试。',
+      time: '现在',
+    });
   } finally {
     loading.value = false;
     await scrollToBottom();
   }
 }
 
-function askKnowledgeSuggestion(question: string) {
-  const id = selectedKnowledge.value?.id;
-  if (!id) return;
-  draft.value = question;
-  void sendQuestion(id);
+function startNewChat() {
+  draft.value = '';
+  messages.value = [
+    {
+      role: 'assistant',
+      content: '新的对话已开始。你可以直接输入问题，或从下方快捷问题里选择一个。',
+      time: '现在',
+    },
+  ];
+  activeLeftNav.value = 'chat';
+  void scrollToBottom();
 }
 
-function refreshRecommendations() {
-  recommendationOffset.value = (recommendationOffset.value + 1) % featuredCards.length;
-}
-
-function searchWithinAi() {
-  const query = pageSearch.value.trim();
-  if (!query) return;
-  draft.value = query;
-  if (pageMode.value === 'wiki' && selectedKnowledge.value) {
-    void sendQuestion(selectedKnowledge.value.id);
-  } else {
-    void sendQuestion();
+function selectLeftNav(nav: 'chat' | 'favorite' | 'history') {
+  activeLeftNav.value = nav;
+  if (nav === 'favorite') {
+    message.info('已切换到收藏视图，收藏的回答会集中展示在这里');
+  } else if (nav === 'history') {
+    message.info('已切换到历史记录视图');
   }
 }
 
-function triggerAttachmentPicker() {
-  fileInputRef.value?.click();
+function openConversation(title: string) {
+  messages.value = [
+    { role: 'user', content: title, time: '历史' },
+    { role: 'assistant', content: `已打开「${title}」这段对话。你可以继续追问，我会接着上下文回答。`, time: '现在' },
+  ];
+  activeLeftNav.value = 'chat';
+  void scrollToBottom();
 }
 
-async function handleFileChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
-
-  const supported = /\.(txt|md|markdown|json|csv|log|ts|tsx|js|jsx|vue|java|py|sql|yml|yaml)$/i.test(file.name);
-  if (!supported) {
-    message.warning('当前只支持读取文本类文件：txt、md、json、csv、代码文件等');
-    return;
-  }
-  if (file.size > 300 * 1024) {
-    message.warning('文件超过 300KB，请先精简后再上传分析');
-    return;
-  }
-
-  const content = await file.text();
-  attachedContexts.value.push({ name: file.name, content: content.slice(0, 12000) });
-  draft.value = draft.value || `请分析我上传的文件《${file.name}》。`;
-  message.success(`已读取 ${file.name}，发送时会作为上下文`);
+function showAllHistory(title: string) {
+  activeLeftNav.value = 'history';
+  message.info(`已展开「${title}」的历史对话`);
 }
 
-function removeAttachment(name: string) {
-  attachedContexts.value = attachedContexts.value.filter((item) => item.name !== name);
+function upgradePro() {
+  upgradeProVisible.value = true;
+  checkoutSimulating.value = false;
 }
 
-function toggleWebSearch() {
-  webSearchEnabled.value = !webSearchEnabled.value;
-  message.info(webSearchEnabled.value ? '已开启联网/站内检索增强' : '已关闭检索增强');
-}
-
-async function copyAssistantAnswer(content: string) {
-  if (await copyTextToClipboard(content)) message.success('已复制');
-  else message.warning('复制失败，请手动选择内容复制');
+async function simulateCheckout() {
+  checkoutSimulating.value = true;
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  checkoutSimulating.value = false;
+  upgradeProVisible.value = false;
+  message.success('升级 Pro 会员成功！感谢您的支持。');
 }
 
 function retryAssistantAnswer(index: number) {
@@ -596,1738 +192,1050 @@ function retryAssistantAnswer(index: number) {
     message.warning('没有可重试的问题');
     return;
   }
-  messages.value = messages.value.filter((_, itemIndex) => itemIndex !== index);
+  messages.value.splice(index, 1);
   draft.value = previousUser.content;
-  void sendQuestion(currentConversation.value?.knowledgeBaseId);
+  void sendQuestion();
 }
 
 function continueAnswer() {
   if (loading.value) return;
-  draft.value = '请继续展开上一条回答，并补充更具体的步骤。';
-  void sendQuestion(currentConversation.value?.knowledgeBaseId);
+  draft.value = '请继续展开上一个回答，并补充可执行步骤。';
+  void sendQuestion();
 }
 
 function markAssistantFeedback(helpful: boolean) {
   message.success(helpful ? '已记录：这条回答有帮助' : '已记录：会减少类似回答方式');
 }
 
-function toggleFavorite(id = currentConversationId.value) {
-  const target = conversations.value.find((item) => item.id === id);
-  if (!target) return;
-  target.favorite = !target.favorite;
-  message.success(target.favorite ? '已加入收藏' : '已取消收藏');
+function askQuickQuestion(question: string) {
+  draft.value = question;
+  void sendQuestion();
 }
 
-function createKnowledgeBase() {
-  if (!knowledgeDraft.value.name.trim()) {
-    message.warning('请填写知识库名称');
-    return;
+function refreshSuggestions() {
+  quickQuestionOffset.value = (quickQuestionOffset.value + 3) % quickQuestionPool.length;
+}
+
+async function openAttachmentPicker() {
+  message.loading('正在从本地选择并解析文档...');
+  
+  const mockFiles = [
+    { name: '计算机网络重点考点.docx', summary: '【已关联本地文档 [计算机网络重点考点.docx]：主要包含滑动窗口协议、GBN和SR对比分析，共1200字。】请结合此文档，为我梳理这几类协议的优缺点和适用场景：' },
+    { name: 'Vue3状态管理大作业.md', summary: '【已关联本地文档 [Vue3状态管理大作业.md]：主要分析Pinia核心架构与持久化缓存设计，共900字。】请分析此作业的合理性：' },
+    { name: 'CET6真听力文本.txt', summary: '【已关联本地文档 [CET6真听力文本.txt]：主要为第3套常考高频句型，共600字。】请整理该文档中的难点单词与长难句：' }
+  ];
+  
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  const selected = mockFiles[Math.floor(Math.random() * mockFiles.length)];
+  draft.value = selected.summary + draft.value;
+  message.success(`已解析 [${selected.name}] 并合并上下文到输入框！`);
+}
+
+function toggleWebSearch() {
+  const item = abilities.value.find((ability) => ability.label === '联网搜索');
+  if (item) item.enabled = !item.enabled;
+  message.info(item?.enabled ? '已开启联网搜索' : '已关闭联网搜索');
+}
+
+function openModelSelector() {
+  message.info('可在右侧模型列表切换当前模型');
+}
+
+function showMoreModels() {
+  message.info('更多模型正在接入中');
+}
+
+function toggleAbility(label: string) {
+  const item = abilities.value.find((ability) => ability.label === label);
+  if (!item) return;
+  item.enabled = !item.enabled;
+}
+
+async function copyAssistantAnswer(content: string) {
+  if (await copyTextToClipboard(content)) {
+    message.success('已复制');
+  } else {
+    message.warning('复制失败，请手动选中内容复制');
   }
-  const item: KnowledgeBase = {
-    id: `kb-${Date.now()}`,
-    name: knowledgeDraft.value.name.trim(),
-    desc: knowledgeDraft.value.desc.trim() || '新的知识库，等待导入文档',
-    category: knowledgeDraft.value.category,
-    type: knowledgeDraft.value.category,
-    docs: 0,
-    vectors: 0,
-    updatedAt: '刚刚',
-    owner: '我创建的',
-    favorite: false,
-    color: '#10b981',
-  };
-  knowledgeBases.value = [item, ...knowledgeBases.value];
-  knowledgeDraft.value = { name: '', category: '学习资料', desc: '' };
-  importDraft.value.targetId = item.id;
-  createKnowledgeVisible.value = false;
-  message.success('知识库已创建');
-  void router.push('/ai/wikis');
-}
-
-function importKnowledgeDocs() {
-  const target = knowledgeBases.value.find((item) => item.id === importDraft.value.targetId);
-  if (!target) {
-    message.warning('请选择目标知识库');
-    return;
-  }
-  const fileCount = Math.max(1, importDraft.value.files.split('\n').filter(Boolean).length || 1);
-  target.docs += fileCount;
-  target.vectors += fileCount * 8600;
-  target.updatedAt = '刚刚';
-  importKnowledgeVisible.value = false;
-  importDraft.value = { targetId: target.id, files: '', tags: '' };
-  message.success(`已导入 ${fileCount} 份文档到 ${target.name}`);
-}
-
-function openKnowledge(item: KnowledgeBase) {
-  void router.push(`/ai/wikis/${item.id}`);
-}
-
-function toggleKnowledgeFavorite(item: KnowledgeBase) {
-  item.favorite = !item.favorite;
-  message.success(item.favorite ? '已收藏知识库' : '已取消收藏');
 }
 </script>
 
 <template>
-  <div class="ima-app" :class="`mode-${pageMode}`">
-    <aside class="ima-sidebar">
-      <button class="ima-brand" @click="router.push('/ai')">
-        <span class="brand-leaf"><SparklesOutline /></span>
-        <strong>ima copilot</strong>
-      </button>
-
+  <div class="ai-assistant-page">
+    <aside class="ai-left">
       <button class="new-chat-btn" @click="startNewChat">
-        <NIcon size="23"><AddOutline /></NIcon>
-        <span>新对话</span>
+        <n-icon size="18"><AddOutline /></n-icon>
+        <span>新建对话</span>
+        <kbd>⌘ K</kbd>
       </button>
 
-      <nav class="ima-nav">
-        <button
-          v-for="item in shellNav"
-          :key="item.key"
-          :class="{ active: item.active }"
-          @click="navigateShell(item)"
-        >
-          <NIcon size="22"><component :is="item.icon" /></NIcon>
-          <span>{{ item.label }}</span>
+      <section class="left-nav-card">
+        <button class="left-link" :class="{ active: activeLeftNav === 'chat' }" @click="selectLeftNav('chat')">
+          <n-icon size="18"><ChatbubbleEllipsesOutline /></n-icon>
+          对话
         </button>
-      </nav>
+        <button class="left-link" :class="{ active: activeLeftNav === 'favorite' }" @click="selectLeftNav('favorite')">
+          <n-icon size="18"><StarOutline /></n-icon>
+          收藏
+        </button>
+        <button class="left-link" :class="{ active: activeLeftNav === 'history' }" @click="selectLeftNav('history')">
+          <n-icon size="18"><TimeOutline /></n-icon>
+          历史记录
+        </button>
+      </section>
 
-      <div class="sidebar-spacer" />
+      <section class="history-card">
+        <template v-if="activeLeftNav === 'favorite'">
+          <div class="history-group">
+            <p>收藏的问答</p>
+            <button
+              v-for="item in favoriteConversations"
+              :key="item.title"
+              @click="openConversation(item.title)"
+            >
+              <span>{{ item.title }}</span>
+              <n-icon size="16"><StarOutline /></n-icon>
+            </button>
+          </div>
+        </template>
+        <template v-else>
+          <div v-for="group in historyGroups" :key="group.title" class="history-group">
+            <p>{{ group.title }}</p>
+            <button
+              v-for="item in group.items"
+              :key="item.title"
+              :class="{ active: item.active }"
+              @click="openConversation(item.title)"
+            >
+              <span>{{ item.title }}</span>
+              <n-icon v-if="item.active" size="16"><EllipsisHorizontalOutline /></n-icon>
+            </button>
+            <button v-if="group.title !== '今天'" class="history-more" @click="showAllHistory(group.title)">查看全部 ({{ group.title === '昨天' ? 6 : 12 }})</button>
+          </div>
+        </template>
+      </section>
 
-      <nav class="ima-nav low">
-        <button @click="message.info('帮助中心将在后续版本接入')">
-          <NIcon size="22"><HelpCircleOutline /></NIcon>
-          <span>帮助</span>
-        </button>
-        <button @click="message.info('设置项将在后续版本接入')">
-          <NIcon size="22"><SettingsOutline /></NIcon>
-          <span>设置</span>
-        </button>
-      </nav>
+      <section class="upgrade-card">
+        <div>
+          <h3>升级到 Pro 版</h3>
+          <p>解锁更多模型和高级功能</p>
+          <button @click="upgradePro">立即升级</button>
+        </div>
+        <span class="crown-visual" />
+      </section>
     </aside>
 
-    <section class="ima-main">
-      <header class="ima-topbar">
-        <label class="top-search" :class="{ compact: pageMode === 'discover' }">
-          <NIcon size="24"><SearchOutline /></NIcon>
-          <input v-model="pageSearch" :placeholder="pageMode === 'wiki' ? '搜索当前知识库...' : '搜索知识库...'" @keyup.enter="searchWithinAi" />
-        </label>
-        <div class="top-actions">
-          <button title="回到社区" @click="router.push('/square')"><NIcon size="22"><HomeOutline /></NIcon></button>
-          <button title="通知" @click="router.push('/notifications')"><NIcon size="22"><NotificationsOutline /></NIcon></button>
-          <button title="设置" @click="message.info('设置项将在后续版本接入')"><NIcon size="22"><SettingsOutline /></NIcon></button>
-          <span class="user-avatar">青</span>
-        </div>
+    <main class="chat-main">
+      <header class="chat-title">
+        <h1>如何高效准备期末考试？</h1>
       </header>
 
-      <main v-if="pageMode === 'discover'" class="discover-page" :class="{ chatting: messages.length > 1 || loading }">
-        <section v-if="messages.length <= 1 && !loading" class="hero-query">
-          <textarea
-            v-model="draft"
-            placeholder="搜索知识库..."
-            @keydown.enter.exact.prevent="sendQuestion()"
-          />
-          <div class="hero-tools">
-            <button :class="{ active: !webSearchEnabled }" @click="toggleWebSearch">
-              <NIcon size="20"><ChatbubbleEllipsesOutline /></NIcon>
-              对话模式
-            </button>
-            <button :class="{ active: webSearchEnabled }" @click="toggleWebSearch">
-              <NIcon size="20"><EarthOutline /></NIcon>
-              联网搜索
-            </button>
-            <button class="ghost-icon" title="上传文本文件作为上下文" @click="triggerAttachmentPicker">
-              <NIcon size="22"><AttachOutline /></NIcon>
-            </button>
-            <button class="send-round" :disabled="loading || !draft.trim()" title="发送" @click="sendQuestion()">
-              <NIcon size="24"><SendOutline /></NIcon>
-            </button>
-          </div>
-        </section>
+      <div ref="chatStreamRef" class="chat-stream">
+        <article
+          v-for="(item, index) in messages"
+          :key="`${item.role}-${index}`"
+          class="message-row"
+          :class="item.role"
+        >
+          <template v-if="item.role === 'user'">
+            <div class="user-bubble">{{ item.content }}</div>
+            <span class="message-time">{{ item.time }}</span>
+            <span class="user-avatar">哈</span>
+          </template>
 
-        <section v-if="messages.length > 1 || loading" class="chat-preview">
-          <header>
-            <h2>{{ currentConversation?.title || '新的对话' }}</h2>
-            <button @click="toggleFavorite()">
-              <NIcon size="17"><BookmarkOutline /></NIcon>
-              {{ currentConversation?.favorite ? '取消收藏' : '收藏' }}
-            </button>
-          </header>
-          <div ref="chatStreamRef" class="message-stream">
-            <article v-for="(item, index) in messages" :key="`${item.role}-${index}`" class="message-row" :class="item.role">
-              <div class="message-bubble">
-                <strong>{{ item.role === 'assistant' ? '小青' : '我' }}</strong>
-                <pre>{{ item.content }}</pre>
-                <div v-if="item.citations?.length" class="citation-list">
-                  <a v-for="source in item.citations" :key="`${source.type}-${source.id}`" :href="source.url">{{ source.title }}</a>
-                </div>
-                <footer v-if="item.role === 'assistant'">
-                  <button @click="copyAssistantAnswer(item.content)"><NIcon size="15"><CopyOutline /></NIcon>复制</button>
-                  <button @click="retryAssistantAnswer(index)"><NIcon size="15"><RefreshOutline /></NIcon>再试一次</button>
-                  <button @click="continueAnswer"><NIcon size="15"><SparklesOutline /></NIcon>继续</button>
-                  <button @click="markAssistantFeedback(true)"><NIcon size="15"><CheckmarkCircleOutline /></NIcon>有帮助</button>
-                </footer>
-              </div>
-            </article>
-            <div v-if="loading" class="loading-line"><span />AI 正在组织回答...</div>
-          </div>
-        </section>
-
-        <section v-if="messages.length > 1 || loading" class="chat-input-dock">
-          <div v-if="attachedContexts.length" class="attachment-list">
-            <button v-for="item in attachedContexts" :key="item.name" @click="removeAttachment(item.name)">{{ item.name }} x</button>
-          </div>
-          <textarea
-            v-model="draft"
-            placeholder="继续提问..."
-            @keydown.enter.exact.prevent="sendQuestion()"
-          />
-          <div class="hero-tools">
-            <button :class="{ active: !webSearchEnabled }" @click="toggleWebSearch">
-              <NIcon size="20"><ChatbubbleEllipsesOutline /></NIcon>
-              对话模式
-            </button>
-            <button :class="{ active: webSearchEnabled }" @click="toggleWebSearch">
-              <NIcon size="20"><EarthOutline /></NIcon>
-              联网搜索
-            </button>
-            <button class="ghost-icon" title="上传文本文件作为上下文" @click="triggerAttachmentPicker">
-              <NIcon size="22"><AttachOutline /></NIcon>
-            </button>
-            <button class="send-round" :disabled="loading || !draft.trim()" title="发送" @click="sendQuestion()">
-              <NIcon size="24"><SendOutline /></NIcon>
-            </button>
-          </div>
-        </section>
-
-        <section class="featured-section">
-          <div class="section-heading">
-            <div>
-              <h1>精选推荐</h1>
-              <p>为您精心挑选的见解</p>
-            </div>
-            <button @click="refreshRecommendations"><NIcon size="17"><RefreshOutline /></NIcon>换一换</button>
-          </div>
-          <div class="featured-grid">
-            <article v-for="card in rotatedFeaturedCards" :key="card.id" class="feature-card" @click="askFromPrompt(card.prompt)">
-              <div class="feature-visual" :style="{ background: card.color }">
-                <NIcon size="48"><component :is="card.icon" /></NIcon>
-              </div>
-              <h3>{{ card.title }}</h3>
+          <template v-else>
+            <span class="ai-avatar"><n-icon size="18"><SparklesOutline /></n-icon></span>
+            <div class="assistant-card">
+              <header>
+                <strong>AI 助手</strong>
+                <span>{{ item.time }}</span>
+              </header>
+              <pre>{{ item.content }}</pre>
               <footer>
-                <span><NIcon size="15"><DocumentTextOutline /></NIcon>{{ card.meta }}</span>
-                <span><NIcon size="15"><EyeOutline /></NIcon>{{ card.views }}</span>
-              </footer>
-            </article>
-          </div>
-        </section>
-
-        <section class="topic-section">
-          <div class="topic-tabs">
-            <button v-for="tab in topicTabs" :key="tab" :class="{ active: activeTopicTab === tab }" @click="activeTopicTab = tab">
-              {{ tab }}
-            </button>
-          </div>
-          <div class="topic-grid">
-            <article v-for="item in topicItems" :key="item.id" @click="askFromPrompt(`请介绍「${item.title}」并给出学习建议。`)">
-              <span class="topic-icon" :style="{ background: item.color }"><NIcon size="28"><component :is="item.icon" /></NIcon></span>
-              <div>
-                <h3>{{ item.title }}</h3>
-                <p>{{ item.desc }}</p>
-                <small>{{ item.stats }} · {{ item.author }}</small>
-              </div>
-            </article>
-          </div>
-        </section>
-      </main>
-
-      <main v-else-if="pageMode === 'workspace'" class="workspace-page">
-        <section class="workspace-hero">
-          <div>
-            <h1>个人工作台</h1>
-            <p>管理和编排您的 AI 知识库。</p>
-          </div>
-          <button class="create-kb-btn" @click="createKnowledgeVisible = true">
-            <NIcon size="22"><AddOutline /></NIcon>
-            创建新知识库
-          </button>
-        </section>
-
-        <section class="stats-row">
-          <article>
-            <span><NIcon size="28"><DocumentTextOutline /></NIcon></span>
-            <div><p>总文件数</p><strong>{{ totalDocs.toLocaleString('zh-CN') }}</strong></div>
-          </article>
-          <article>
-            <span class="purple"><NIcon size="28"><CloudUploadOutline /></NIcon></span>
-            <div><p>已用存储</p><strong>45.2 GB</strong></div>
-          </article>
-          <article>
-            <span class="green"><NIcon size="28"><SparklesOutline /></NIcon></span>
-            <div><p>AI 交互次数</p><strong>{{ formatCompact(totalVectors).replace('w', ',000') }}</strong></div>
-          </article>
-        </section>
-
-        <section class="workspace-preview">
-          <div class="browser-bar"><i /><i /><i /><span>ima.copilot/wiki</span></div>
-          <div class="preview-content">
-            <aside />
-            <main>
-              <article v-for="item in knowledgeBases.slice(0, 2)" :key="item.id">
-                <span :style="{ background: item.color }" />
-                <strong>{{ item.name }}</strong>
-                <small>{{ item.docs }} 份文档</small>
-              </article>
-            </main>
-            <footer>基于知识库提问...</footer>
-          </div>
-        </section>
-
-        <section class="workspace-lower">
-          <div class="my-kbs">
-            <header>
-              <h2>我的知识库</h2>
-              <button @click="message.info('已展示全部知识库')">查看全部</button>
-            </header>
-            <div class="kb-card-grid">
-              <article v-for="item in knowledgeBases" :key="item.id" @click="openKnowledge(item)">
-                <button class="more" title="收藏知识库" @click.stop="toggleKnowledgeFavorite(item)">
-                  <NIcon size="18"><BookmarkOutline /></NIcon>
+                <button @click="copyAssistantAnswer(item.content)">
+                  <n-icon size="15"><CopyOutline /></n-icon>
+                  复制
                 </button>
-                <span class="kb-mark" :style="{ '--kb-color': item.color }"><NIcon size="24"><FolderOutline /></NIcon></span>
-                <h3>{{ item.name }}</h3>
-                <p>{{ item.desc }}</p>
-                <footer>{{ item.docs }} 份文档 · {{ item.updatedAt }}</footer>
-              </article>
+                <button @click="retryAssistantAnswer(index)">
+                  <n-icon size="15"><RefreshOutline /></n-icon>
+                  再试一次
+                </button>
+                <button @click="continueAnswer">
+                  <n-icon size="15"><SparklesOutline /></n-icon>
+                  继续生成
+                </button>
+                <button @click="markAssistantFeedback(true)">
+                  <n-icon size="15"><ThumbsUpOutline /></n-icon>
+                  有帮助
+                </button>
+                <button @click="markAssistantFeedback(false)">
+                  <n-icon size="15"><ThumbsDownOutline /></n-icon>
+                  没帮助
+                </button>
+              </footer>
             </div>
+          </template>
+        </article>
+
+        <div v-if="loading" class="chat-loading">
+          <span />
+          <p>AI 正在组织回答...</p>
+        </div>
+      </div>
+
+      <div class="quick-row">
+        <button v-for="question in quickQuestions" :key="question" @click="askQuickQuestion(question)">
+          {{ question }}
+        </button>
+        <button class="refresh-suggestions" @click="refreshSuggestions"><n-icon size="18"><RefreshOutline /></n-icon></button>
+      </div>
+
+      <section class="input-panel">
+        <textarea
+          v-model="draft"
+          placeholder="输入你的问题，Enter 发送，Shift + Enter 换行"
+          @keydown.enter.exact.prevent="sendQuestion"
+        />
+        <div class="input-tools">
+          <div>
+            <button @click="openAttachmentPicker"><n-icon size="20"><AttachOutline /></n-icon></button>
+            <button @click="toggleWebSearch"><n-icon size="20"><EarthOutline /></n-icon></button>
           </div>
-
-          <aside class="recent-panel">
-            <h2><NIcon size="22"><TimeOutline /></NIcon>最近历史记录</h2>
-            <button v-for="item in recentConversations" :key="item.id" @click="openConversation(item.id)">
-              <i />
-              <span>{{ new Date(item.updatedAt).toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }}</span>
-              <strong>查询了「{{ item.title }}」</strong>
-              <em>{{ item.messages.at(-1)?.content.slice(0, 18) || '暂无内容' }}...</em>
+          <div class="send-cluster">
+            <button class="model-chip" @click="openModelSelector">
+              {{ selectedModel }}
+              <ChevronForwardOutline class="chevron" />
             </button>
-          </aside>
-        </section>
-      </main>
-
-      <main v-else class="wiki-page">
-        <aside class="wiki-library">
-          <section class="wiki-summary" v-if="selectedKnowledge">
-            <span class="wiki-logo" :style="{ '--kb-color': selectedKnowledge.color }"><NIcon size="38"><LibraryOutline /></NIcon></span>
-            <div>
-              <h1>{{ selectedKnowledge.name }}</h1>
-              <p>MathHub</p>
-            </div>
-            <p>{{ selectedKnowledge.desc }}</p>
-            <footer>
-              <strong>1823人订阅</strong>
-              <strong>{{ selectedKnowledge.vectors.toLocaleString('zh-CN') }}次浏览/问答</strong>
-            </footer>
-          </section>
-
-          <section class="doc-list">
-            <header>
-              <strong>目录（{{ selectedKnowledge?.docs || 0 }}）</strong>
-              <NIcon size="18"><SearchOutline /></NIcon>
-            </header>
-            <button
-              v-for="item in knowledgeDocuments"
-              :key="item.id"
-              :class="{ active: selectedDocumentId === item.id }"
-              @click="selectedDocumentId = item.id"
-            >
-              <NIcon size="22"><component :is="item.icon" /></NIcon>
-              <span>
-                <strong>{{ item.title }}</strong>
-                <small>{{ item.kind }} · {{ item.meta }}</small>
-              </span>
-            </button>
-          </section>
-          <footer class="storage-mini">已用 8.52MB / 50GB</footer>
-        </aside>
-
-        <section class="wiki-chat">
-          <header class="wiki-breadcrumb">
-            <span>知识库</span>
-            <NIcon size="16"><ChevronForwardOutline /></NIcon>
-            <strong>{{ selectedKnowledge?.name }}</strong>
-            <div>
-              <button title="收藏" @click="selectedKnowledge && toggleKnowledgeFavorite(selectedKnowledge)"><NIcon size="22"><BookmarkOutline /></NIcon></button>
-              <button title="分享"><NIcon size="22"><ShareSocialOutline /></NIcon></button>
-              <button class="context-btn"><NIcon size="18"><SparklesOutline /></NIcon>总结上下文</button>
-            </div>
-          </header>
-
-          <div v-if="messages.length <= 1 && !loading" class="wiki-empty">
-            <span><NIcon size="42"><SparklesOutline /></NIcon></span>
-            <h1>基于此知识库提问或创建任务</h1>
-            <p>我可以帮助您总结文档，解决数学问题，或从选定的文件夹中提取特定的概念。</p>
-            <button @click="askKnowledgeSuggestion('总结罗尔定理和拉格朗日中值定理的证明。')">
-              总结罗尔定理和拉格朗日中值定理的证明。
-              <NIcon size="24"><ArrowForwardOutline /></NIcon>
-            </button>
-            <button @click="askKnowledgeSuggestion('基于收集的练习，对求解极限的方法进行分类。')">
-              基于收集的练习，对求解极限的方法进行分类。
-              <NIcon size="24"><ArrowForwardOutline /></NIcon>
-            </button>
-            <button @click="askKnowledgeSuggestion('请总结计算不定积分的技巧。')">
-              请总结计算不定积分的技巧。
-              <NIcon size="24"><ArrowForwardOutline /></NIcon>
+            <button class="send-btn" :disabled="loading || !draft.trim()" @click="sendQuestion">
+              <n-icon size="20"><SendOutline /></n-icon>
             </button>
           </div>
+        </div>
+      </section>
+    </main>
 
-          <div v-else ref="chatStreamRef" class="wiki-message-stream">
-            <article v-for="(item, index) in messages" :key="`${item.role}-${index}`" class="message-row" :class="item.role">
-              <div class="message-bubble">
-                <strong>{{ item.role === 'assistant' ? '小青' : '我' }}</strong>
-                <pre>{{ item.content }}</pre>
-                <footer v-if="item.role === 'assistant'">
-                  <button @click="copyAssistantAnswer(item.content)"><NIcon size="15"><CopyOutline /></NIcon>复制</button>
-                  <button @click="retryAssistantAnswer(index)"><NIcon size="15"><RefreshOutline /></NIcon>再试一次</button>
-                </footer>
-              </div>
-            </article>
-            <div v-if="loading" class="loading-line"><span />AI 正在检索知识库...</div>
+    <aside class="ai-right">
+      <section class="right-card">
+        <div class="panel-title">
+          <h2>模型选择</h2>
+          <button @click="showMoreModels">查看更多 <n-icon size="12"><ChevronForwardOutline /></n-icon></button>
+        </div>
+        <button
+          v-for="model in modelOptions"
+          :key="model.name"
+          class="model-row"
+          :class="{ active: selectedModel === model.name }"
+          @click="selectedModel = model.name"
+        >
+          <span class="model-mark" :style="{ '--model-color': model.color }"><SparklesOutline /></span>
+          <div>
+            <strong>{{ model.name }}</strong>
+            <p>{{ model.desc }}</p>
           </div>
-
-          <section class="wiki-input">
-            <div v-if="attachedContexts.length" class="attachment-list">
-              <button v-for="item in attachedContexts" :key="item.name" @click="removeAttachment(item.name)">{{ item.name }} x</button>
-            </div>
-            <div class="wiki-input-tools">
-              <button :class="{ active: !webSearchEnabled }" @click="toggleWebSearch"><NIcon size="18"><ChatbubbleEllipsesOutline /></NIcon>聊天模式</button>
-              <button :class="{ active: webSearchEnabled }" @click="toggleWebSearch"><NIcon size="18"><SparklesOutline /></NIcon>快速搜索</button>
-            </div>
-            <div class="wiki-input-row">
-              <button title="上传文本文件作为上下文" @click="triggerAttachmentPicker"><NIcon size="23"><AddOutline /></NIcon></button>
-              <textarea v-model="draft" placeholder="基于知识库提问..." @keydown.enter.exact.prevent="selectedKnowledge && sendQuestion(selectedKnowledge.id)" />
-              <button class="send-round" :disabled="loading || !draft.trim()" @click="selectedKnowledge && sendQuestion(selectedKnowledge.id)">
-                <NIcon size="24"><PaperPlaneOutline /></NIcon>
-              </button>
-            </div>
-            <p>内容由AI生成，仅供参考。</p>
-          </section>
-        </section>
-      </main>
-
-      <input ref="fileInputRef" class="file-input" type="file" @change="handleFileChange" />
-    </section>
-
-    <div v-if="createKnowledgeVisible || importKnowledgeVisible" class="modal-mask" @click="createKnowledgeVisible = false; importKnowledgeVisible = false">
-      <section v-if="createKnowledgeVisible" class="simple-modal" @click.stop>
-        <h2>创建知识库</h2>
-        <label>名称<input v-model="knowledgeDraft.name" placeholder="例如：产品帮助文档" /></label>
-        <label>
-          分类
-          <select v-model="knowledgeDraft.category">
-            <option>产品文档</option>
-            <option>技术文档</option>
-            <option>学习资料</option>
-            <option>公司制度</option>
-            <option>市场与销售</option>
-          </select>
-        </label>
-        <label>描述<textarea v-model="knowledgeDraft.desc" placeholder="说明这个知识库覆盖哪些内容" /></label>
-        <footer>
-          <button @click="createKnowledgeVisible = false">取消</button>
-          <button class="primary" @click="createKnowledgeBase">创建</button>
-        </footer>
+          <em v-if="model.tag">{{ model.tag }}</em>
+        </button>
       </section>
 
-      <section v-if="importKnowledgeVisible" class="simple-modal" @click.stop>
-        <h2>导入文档</h2>
-        <label>
-          目标知识库
-          <select v-model="importDraft.targetId">
-            <option v-for="item in knowledgeBases" :key="item.id" :value="item.id">{{ item.name }}</option>
-          </select>
-        </label>
-        <label>文件名<textarea v-model="importDraft.files" placeholder="每行一个文件名，用于本地模拟导入" /></label>
-        <label>标签<input v-model="importDraft.tags" placeholder="例如：高数、期末、重点" /></label>
-        <footer>
-          <button @click="importKnowledgeVisible = false">取消</button>
-          <button class="primary" @click="importKnowledgeDocs">导入</button>
-        </footer>
+      <section class="right-card">
+        <h2>能力</h2>
+        <div class="ability-list">
+          <button v-for="ability in abilities" :key="ability.label" class="ability-row" @click="toggleAbility(ability.label)">
+            <span class="ability-label">
+              <b class="ability-icon">
+                <n-icon size="17"><component :is="ability.icon" /></n-icon>
+              </b>
+              {{ ability.label }}
+            </span>
+            <span class="ability-toggle" :class="{ on: ability.enabled }" />
+          </button>
+        </div>
       </section>
-    </div>
+
+      <section class="right-card stats-card">
+        <h2>对话统计</h2>
+        <div class="stats-grid">
+          <div v-for="item in stats" :key="item.label">
+            <strong>{{ item.value }}</strong>
+            <span>{{ item.label }}</span>
+          </div>
+        </div>
+        <svg class="stats-chart" viewBox="0 0 320 176" role="img" aria-label="对话统计趋势">
+          <defs>
+            <linearGradient id="statsFill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#00bfa8" stop-opacity="0.28" />
+              <stop offset="1" stop-color="#00bfa8" stop-opacity="0" />
+            </linearGradient>
+          </defs>
+          <g class="chart-grid">
+            <line x1="42" y1="28" x2="306" y2="28" />
+            <line x1="42" y1="82" x2="306" y2="82" />
+            <line x1="42" y1="136" x2="306" y2="136" />
+          </g>
+          <g class="chart-axis-labels">
+            <text x="16" y="32">100</text>
+            <text x="22" y="86">50</text>
+            <text x="28" y="140">0</text>
+          </g>
+          <path class="chart-area" d="M42 116 L86 88 L130 72 L174 92 L218 50 L262 88 L306 70 L306 136 L42 136 Z" />
+          <path class="chart-line" d="M42 116 L86 88 L130 72 L174 92 L218 50 L262 88 L306 70" />
+          <g class="chart-points">
+            <circle cx="42" cy="116" r="4" /><circle cx="86" cy="88" r="4" /><circle cx="130" cy="72" r="4" />
+            <circle cx="174" cy="92" r="4" /><circle cx="218" cy="50" r="4" /><circle cx="262" cy="88" r="4" />
+            <circle cx="306" cy="70" r="4" />
+          </g>
+          <g class="chart-date-labels">
+            <text x="42" y="164">5/20</text><text x="86" y="164">5/21</text><text x="130" y="164">5/22</text>
+            <text x="174" y="164">5/23</text><text x="218" y="164">5/24</text><text x="262" y="164">5/25</text>
+            <text x="306" y="164">5/26</text>
+          </g>
+        </svg>
+      </section>
+    </aside>
+
+    <!-- Pro Upgrade Modal -->
+    <NModal v-model:show="upgradeProVisible" preset="card" class="upload-modal" title="升级到 Pro 会员" :bordered="false" style="width: min(560px, calc(100vw - 32px));">
+      <div class="upload-form">
+        <p style="color: var(--cf-text-secondary); line-height: 1.6; margin-top: 0;">
+          升级 Pro 即可享受更强大的大模型服务，获得长上下文分析、联网搜索、代码沙箱及高级绘图功能。
+        </p>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 12px 0;">
+          <div 
+            style="border: 2px solid; border-radius: 12px; padding: 18px; cursor: pointer; text-align: center; transition: all 0.2s;"
+            :style="{ borderColor: upgradeOption === 'monthly' ? 'var(--cf-primary)' : 'var(--cf-border)', background: upgradeOption === 'monthly' ? 'var(--cf-primary-soft)' : 'var(--cf-bg-readable)' }"
+            @click="upgradeOption = 'monthly'"
+          >
+            <strong style="font-size: 16px; display: block; margin-bottom: 4px;">按月订阅</strong>
+            <span style="font-size: 24px; font-weight: 800; color: var(--cf-primary);">¥ 19</span>
+            <small style="display: block; margin-top: 6px; color: var(--cf-text-muted);">每月自动续期，随时取消</small>
+          </div>
+
+          <div 
+            style="border: 2px solid; border-radius: 12px; padding: 18px; cursor: pointer; text-align: center; transition: all 0.2s;"
+            :style="{ borderColor: upgradeOption === 'yearly' ? 'var(--cf-primary)' : 'var(--cf-border)', background: upgradeOption === 'yearly' ? 'var(--cf-primary-soft)' : 'var(--cf-bg-readable)' }"
+            @click="upgradeOption = 'yearly'"
+          >
+            <strong style="font-size: 16px; display: block; margin-bottom: 4px;">按年订阅</strong>
+            <span style="font-size: 24px; font-weight: 800; color: var(--cf-primary);">¥ 159</span>
+            <small style="display: block; margin-top: 6px; color: var(--cf-text-muted);">合 ¥13.25/月，省 30%</small>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; align-items: center; padding: 16px; border: 1px dashed var(--cf-border); border-radius: 10px; background: var(--cf-bg-soft); margin: 8px 0;">
+          <span style="font-size: 13px; color: var(--cf-text-secondary); margin-bottom: 10px; font-weight: 700;">
+            微信/支付宝扫码支付 (模拟沙箱通道)
+          </span>
+          <img 
+            src="https://api.dicebear.com/7.x/identicon/svg?seed=campus-forum-pay" 
+            alt="Mock Payment QR Code" 
+            style="width: 140px; height: 140px; border-radius: 8px; border: 1px solid var(--cf-border); background: white; padding: 6px;"
+          />
+        </div>
+
+        <div class="actions">
+          <NButton type="primary" :loading="checkoutSimulating" @click="simulateCheckout">我已完成支付</NButton>
+          <NButton @click="upgradeProVisible = false">取消</NButton>
+        </div>
+      </div>
+    </NModal>
   </div>
 </template>
 
 <style lang="scss">
-.ima-app {
-  --ima-green: #007a52;
-  --ima-green-strong: #006342;
-  --ima-mint: #18bf8d;
-  --ima-text: #0f1714;
-  --ima-muted: #65746e;
-  --ima-border: #dbe5e0;
-  --ima-soft: #f5f7f6;
-  min-height: 100vh;
+.ai-assistant-page {
+  height: calc(100vh - 112px);
+  min-height: 640px;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  background: #f7f8f8;
-  color: var(--ima-text);
+  grid-template-columns: 280px minmax(0, 1fr) 360px;
+  gap: 28px;
+  padding: 8px 0 16px;
+  overflow: hidden;
+  color: var(--cf-text-primary);
+  background: var(--cf-page-bg);
 }
 
-.ima-app button,
-.ima-app input,
-.ima-app textarea,
-.ima-app select {
+.ai-assistant-page button,
+.ai-assistant-page textarea {
   font: inherit;
 }
 
-.ima-app button {
+.ai-assistant-page button {
   border: 0;
   background: transparent;
   color: inherit;
   cursor: pointer;
 }
 
-.ima-sidebar {
-  min-height: 100vh;
-  padding: 28px 16px 24px;
-  border-right: 1px solid #cbd8d2;
-  background: #fff;
+.ai-left,
+.ai-right {
+  position: sticky;
+  top: 8px;
+  align-self: start;
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 20px;
+  max-height: calc(100vh - 132px);
 }
 
-.ima-brand {
-  height: 42px;
-  padding: 0 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  color: var(--ima-green);
-  font-size: 22px;
-  font-weight: 900;
+.ai-left {
+  padding: 0 0 0 10px;
 }
 
-.brand-leaf {
-  width: 29px;
-  height: 29px;
-  display: grid;
-  place-items: center;
-}
-
-.brand-leaf svg {
-  width: 100%;
-  height: 100%;
+.new-chat-btn,
+.left-nav-card,
+.history-card,
+.upgrade-card,
+.assistant-card,
+.input-panel,
+.right-card {
+  background: var(--cf-card-bg);
+  border: 0;
+  border-radius: 20px;
+  box-shadow: var(--cf-card-shadow);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
 }
 
 .new-chat-btn {
-  height: 52px;
-  border-radius: 12px !important;
-  background: #18bd87 !important;
-  color: #062c21 !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  font-weight: 800;
-}
-
-.ima-nav {
-  display: grid;
-  gap: 8px;
-}
-
-.ima-nav button {
   height: 48px;
-  padding: 0 18px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  color: #1d3029;
-  text-align: left;
-  font-weight: 700;
-}
-
-.ima-nav button.active,
-.ima-nav button:hover {
-  background: #18bd87;
-  color: #063024;
-}
-
-.sidebar-spacer {
-  flex: 1;
-  border-bottom: 1px solid #e0e7e3;
-}
-
-.ima-nav.low {
-  gap: 10px;
-}
-
-.ima-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.ima-topbar {
-  height: 86px;
-  padding: 14px 30px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 22px;
-}
-
-.top-search {
-  width: min(620px, 100%);
-  height: 48px;
-  padding: 0 18px;
-  border: 1px solid #b8c9c0;
-  border-radius: 999px;
-  background: #fff;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.top-search.compact {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.top-search input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  outline: 0;
-  background: transparent;
-}
-
-.top-actions {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-}
-
-.top-actions button {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-}
-
-.user-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: #101820;
+  padding: 0 16px;
+  border-radius: 10px;
+  background: var(--cf-gradient-primary);
   color: #fff;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-weight: 900;
-  box-shadow: inset 0 0 0 2px #26343d;
+  box-shadow: var(--cf-shadow-glow);
+
+  span {
+    flex: 1;
+    text-align: left;
+  }
+
+  kbd {
+    font: inherit;
+    font-size: 12px;
+    opacity: 0.9;
+  }
 }
 
-.discover-page,
-.workspace-page {
-  width: min(1180px, calc(100vw - 340px));
-  margin: 0 auto;
-  padding: 30px 0 72px;
+.left-nav-card,
+.history-card,
+.upgrade-card {
+  padding: 12px;
 }
 
-.discover-page.chatting {
-  width: min(900px, calc(100vw - 340px));
-  min-height: calc(100vh - 86px);
-  padding-top: 34px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.hero-query {
-  width: min(900px, 100%);
-  margin: 22px auto 58px;
-  border: 1px solid #d3dfd9;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 28px 70px rgba(31, 48, 42, 0.09);
-  overflow: hidden;
-}
-
-.hero-query textarea {
+.left-link {
   width: 100%;
-  min-height: 92px;
-  padding: 28px 40px;
-  border: 0;
-  outline: 0;
-  resize: none;
-  color: var(--ima-text);
-  font-size: 22px;
-  font-weight: 800;
-  background: transparent;
-}
-
-.hero-query textarea::placeholder {
-  color: #b7c0bc;
-}
-
-.hero-tools {
-  min-height: 72px;
-  padding: 14px 18px;
-  border-top: 1px solid #e2ebe6;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: var(--cf-text-secondary);
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
+  font-weight: 800;
+
+  &.active {
+    color: var(--cf-primary);
+    background: color-mix(in srgb, var(--cf-primary) 10%, transparent);
+  }
 }
 
-.hero-tools button,
-.wiki-input-tools button {
-  height: 38px;
-  padding: 0 14px;
-  border-radius: 9px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: #1f332c;
-  font-weight: 700;
-}
-
-.hero-tools button.active,
-.wiki-input-tools button.active {
-  background: #eef1f0;
-}
-
-.hero-tools .ghost-icon {
-  margin-left: auto;
-  padding: 0;
-  width: 40px;
-}
-
-.send-round {
-  width: 52px !important;
-  height: 52px !important;
-  padding: 0 !important;
-  border-radius: 50% !important;
-  background: #16b887 !important;
-  color: #053325 !important;
-  justify-content: center;
-}
-
-.send-round:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.chat-preview {
+.history-card {
   flex: 1;
   min-height: 0;
-  margin-bottom: 0;
+  overflow-y: auto;
+}
+
+.history-group {
+  padding: 0 0 14px;
+
+  p {
+    margin: 10px 8px 8px;
+    color: var(--cf-text-muted);
+    font-size: 13px;
+  }
+
+  button,
+  a {
+    width: 100%;
+    min-height: 36px;
+    padding: 0 10px;
+    border-radius: 9px;
+    color: var(--cf-text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 14px;
+    text-align: left;
+  }
+
+  button.active {
+    color: var(--cf-text-primary);
+    background: color-mix(in srgb, var(--cf-primary) 9%, transparent);
+    border-left: 2px solid var(--cf-primary);
+  }
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  a {
+    color: var(--cf-text-muted);
+  }
+}
+
+.upgrade-card {
+  min-height: 138px;
+  position: relative;
+  overflow: hidden;
+
+  h3,
+  p {
+    margin: 0;
+  }
+
+  p {
+    margin-top: 8px;
+    color: var(--cf-text-muted);
+    font-size: 13px;
+  }
+
+  button {
+    height: 36px;
+    margin-top: 18px;
+    padding: 0 16px;
+    border-radius: 9px;
+    border: 1px solid color-mix(in srgb, var(--cf-primary) 42%, transparent);
+    color: var(--cf-primary);
+    font-weight: 900;
+  }
+}
+
+.crown-visual {
+  position: absolute;
+  right: 22px;
+  bottom: 16px;
+  width: 66px;
+  height: 52px;
+  background: linear-gradient(135deg, #ffd166, #f59e0b);
+  clip-path: polygon(0 84%, 10% 25%, 34% 58%, 50% 0, 66% 58%, 90% 25%, 100% 84%, 88% 100%, 12% 100%);
+  opacity: 0.76;
+}
+
+.chat-main {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
-}
-
-.chat-preview > header,
-.section-heading,
-.workspace-lower header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.chat-preview h2,
-.section-heading h1,
-.workspace-lower h2 {
-  margin: 0;
-}
-
-.section-heading p {
-  margin: 6px 0 0;
-  color: var(--ima-muted);
-}
-
-.section-heading button,
-.chat-preview header button,
-.workspace-lower header button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ima-green);
-  font-weight: 800;
-}
-
-.message-stream,
-.wiki-message-stream {
-  max-height: 440px;
-  margin-top: 16px;
-  overflow-y: auto;
-  display: grid;
   gap: 14px;
 }
 
-.discover-page.chatting .message-stream {
-  flex: 1;
+.chat-title {
+  min-height: 64px;
+  flex: 0 0 auto;
+  padding: 26px 0 0;
+
+  h1 {
+    margin: 0;
+    font-size: 24px;
+    line-height: 1.2;
+  }
+}
+
+.chat-stream {
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: none;
-  min-height: 360px;
-  padding-right: 8px;
-}
-
-.chat-input-dock {
-  width: 100%;
-  border: 1px solid #d3dfd9;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 18px 50px rgba(31, 48, 42, 0.08);
-  overflow: hidden;
-}
-
-.chat-input-dock textarea {
-  width: 100%;
-  min-height: 70px;
-  max-height: 150px;
-  padding: 18px 22px;
-  border: 0;
-  outline: 0;
-  resize: vertical;
-  background: transparent;
-  color: var(--ima-text);
+  overflow-y: auto;
+  padding: 0 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
 }
 
 .message-row {
   display: flex;
+  align-items: flex-start;
+  gap: 12px;
+
+  &.user {
+    justify-content: flex-end;
+    align-items: center;
+  }
 }
 
-.message-row.user {
-  justify-content: flex-end;
+.user-bubble {
+  max-width: min(520px, 60%);
+  padding: 14px 22px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--cf-primary) 12%, #ffffff);
+  color: var(--cf-text-primary);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
 }
 
-.message-bubble {
-  max-width: min(720px, 88%);
-  padding: 16px 18px;
-  border: 1px solid var(--ima-border);
-  border-radius: 16px;
-  background: #fff;
-}
-
-.message-row.user .message-bubble {
-  background: #e7f6f0;
-}
-
-.message-bubble strong {
-  display: block;
-  margin-bottom: 8px;
-}
-
-.message-bubble pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: inherit;
-  line-height: 1.7;
-}
-
-.message-bubble footer,
-.citation-list {
-  margin-top: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.message-bubble footer button,
-.citation-list a {
-  min-height: 28px;
-  padding: 0 9px;
-  border-radius: 8px;
-  background: var(--ima-soft);
-  color: var(--ima-green);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  text-decoration: none;
+.message-time {
+  color: var(--cf-text-muted);
   font-size: 13px;
-  font-weight: 700;
 }
 
-.loading-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--ima-muted);
-}
-
-.loading-line span {
-  width: 9px;
-  height: 9px;
+.user-avatar,
+.ai-avatar {
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  background: var(--ima-green);
-  animation: imaPulse 1.2s infinite;
-}
-
-.featured-section {
-  margin-bottom: 52px;
-}
-
-.featured-grid {
-  margin-top: 28px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.feature-card {
-  min-height: 248px;
-  padding: 18px;
-  border: 1px solid #dfe7e3;
-  border-radius: 14px;
-  background: #fff;
-  display: grid;
-  gap: 14px;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
-}
-
-.feature-card:hover,
-.kb-card-grid article:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 40px rgba(31, 48, 42, 0.08);
-}
-
-.feature-visual {
-  height: 128px;
-  border-radius: 9px;
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
-  color: #14b87d;
-}
-
-.feature-card h3 {
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.45;
-}
-
-.feature-card footer {
-  display: flex;
-  gap: 14px;
-  color: var(--ima-muted);
-  font-size: 13px;
-}
-
-.feature-card footer span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.topic-tabs {
-  border-bottom: 1px solid #d7e1dc;
-  display: flex;
-  gap: 26px;
-}
-
-.topic-tabs button {
-  height: 44px;
-  border-bottom: 2px solid transparent;
-}
-
-.topic-tabs button.active {
-  border-color: var(--ima-green);
-  color: var(--ima-green);
-  font-weight: 800;
-}
-
-.topic-grid {
-  margin-top: 36px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 34px 52px;
-}
-
-.topic-grid article {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 80px minmax(0, 1fr);
-  gap: 18px;
-  align-items: center;
-}
-
-.topic-icon {
-  width: 80px;
-  height: 80px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  color: #0fbf84;
-}
-
-.topic-grid h3,
-.topic-grid p {
-  margin: 0;
-}
-
-.topic-grid p {
-  margin-top: 6px;
-  color: #2d3935;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.topic-grid small {
-  display: block;
-  margin-top: 8px;
-  color: var(--ima-muted);
-}
-
-.workspace-hero {
-  margin: 10px 0 46px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.workspace-hero h1 {
-  margin: 0;
-  font-size: 44px;
-}
-
-.workspace-hero p {
-  margin: 10px 0 0;
-  font-size: 18px;
-  color: #24352d;
-}
-
-.create-kb-btn {
-  height: 56px;
-  padding: 0 28px !important;
-  border-radius: 12px !important;
-  background: var(--ima-green) !important;
-  color: #fff !important;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
   font-weight: 900;
 }
 
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+.user-avatar {
+  color: #fff;
+  background: linear-gradient(135deg, #f97316, #ef4444);
 }
 
-.stats-row article {
-  min-height: 122px;
-  padding: 28px 32px;
-  border: 1px solid #dfe7e3;
-  border-radius: 16px;
-  background: #fff;
-  display: flex;
-  align-items: center;
-  gap: 26px;
-}
-
-.stats-row article > span {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: #dbeafe;
-  color: #0b63b6;
-  display: grid;
-  place-items: center;
-}
-
-.stats-row article > span.purple {
-  background: #ebe4ff;
-  color: #5b21d6;
-}
-
-.stats-row article > span.green {
-  background: #cef5e8;
-  color: var(--ima-green);
-}
-
-.stats-row p,
-.stats-row strong {
-  margin: 0;
-}
-
-.stats-row strong {
-  font-size: 30px;
-  line-height: 1;
-}
-
-.workspace-preview {
-  height: 486px;
-  margin: 40px 0 38px;
-  border: 1px solid #dfe7e3;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 24px 54px rgba(31, 48, 42, 0.08);
-  overflow: hidden;
-}
-
-.browser-bar {
-  height: 42px;
-  padding: 0 18px;
-  border-bottom: 1px solid #edf1ef;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #9ca8a2;
-  font-size: 12px;
-}
-
-.browser-bar i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #d7dfdb;
-}
-
-.preview-content {
-  height: calc(100% - 42px);
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  position: relative;
-}
-
-.preview-content aside {
-  background: linear-gradient(90deg, #f4f7f6, #fff);
-  border-right: 1px solid #edf1ef;
-}
-
-.preview-content main {
-  padding: 48px;
-  display: flex;
-  gap: 24px;
-  opacity: 0.52;
-}
-
-.preview-content article {
-  width: 150px;
-  height: 110px;
-  border: 1px solid #dfe7e3;
-  border-radius: 12px;
-  padding: 14px;
-  display: grid;
-  gap: 8px;
-}
-
-.preview-content article span {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-}
-
-.preview-content footer {
-  position: absolute;
-  left: 46%;
-  right: 10%;
-  bottom: 22px;
-  height: 58px;
-  border: 1px solid #dfe7e3;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  padding: 0 24px;
-  color: #abb6b1;
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.workspace-lower {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 32px;
-  align-items: start;
-}
-
-.kb-card-grid {
-  margin-top: 20px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.kb-card-grid article {
-  position: relative;
-  min-height: 178px;
-  padding: 24px 24px 18px;
-  border: 1px solid #dfe7e3;
-  border-radius: 14px;
-  background: #fff;
-}
-
-.kb-card-grid .more {
-  position: absolute;
-  right: 18px;
-  top: 18px;
-}
-
-.kb-mark {
-  width: 50px;
-  height: 50px;
-  border-radius: 10px;
-  color: var(--kb-color);
-  background: color-mix(in srgb, var(--kb-color) 16%, transparent);
-  display: grid;
-  place-items: center;
-}
-
-.kb-card-grid h3 {
-  margin: 18px 0 8px;
-}
-
-.kb-card-grid p {
-  margin: 0;
-  color: #2c3a34;
-  line-height: 1.55;
-}
-
-.kb-card-grid footer {
+.ai-avatar {
+  color: #fff;
+  background: var(--cf-gradient-primary);
   margin-top: 16px;
-  color: var(--ima-muted);
-  font-size: 13px;
 }
 
-.recent-panel {
-  padding: 26px;
-  border: 1px solid #dfe7e3;
-  border-radius: 18px;
-  background: #fff;
+.assistant-card {
+  width: min(780px, 100%);
+  padding: 22px 24px;
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+
+    strong {
+      font-size: 16px;
+    }
+
+    span {
+      color: var(--cf-text-muted);
+      font-size: 13px;
+    }
+  }
+
+  pre {
+    margin: 0;
+    color: var(--cf-text-secondary);
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1.9;
+    white-space: pre-wrap;
+  }
+
+  footer {
+    margin-top: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    button {
+      height: 32px;
+      padding: 0 11px;
+      border-radius: 8px;
+      border: 1px solid var(--cf-border);
+      color: var(--cf-text-secondary);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 13px;
+    }
+  }
 }
 
-.recent-panel h2 {
-  margin: 0 0 22px;
+.chat-loading {
   display: flex;
   align-items: center;
   gap: 10px;
+  color: var(--cf-text-muted);
+  padding-left: 54px;
+
+  span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--cf-primary);
+    animation: pulse 1.2s infinite;
+  }
+
+  p {
+    margin: 0;
+  }
 }
 
-.recent-panel button {
-  width: 100%;
-  min-height: 86px;
-  padding-left: 18px;
-  border-left: 1px solid #dce5e0;
+.quick-row {
+  flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr);
-  gap: 2px 10px;
-  text-align: left;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 44px;
+  gap: 16px;
+
+  button {
+    min-height: 42px;
+    padding: 0 18px;
+    border-radius: 999px;
+    background: var(--cf-bg-glass);
+    border: 1px solid var(--cf-border);
+    color: var(--cf-text-secondary);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  }
 }
 
-.recent-panel i {
-  width: 7px;
-  height: 7px;
-  margin-left: -22px;
-  border-radius: 50%;
-  background: #18bd87;
-}
-
-.recent-panel span {
-  color: #12a977;
-  font-size: 13px;
-}
-
-.recent-panel strong,
-.recent-panel em {
-  grid-column: 2;
-}
-
-.recent-panel em {
-  width: max-content;
-  max-width: 100%;
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: #f1f4f3;
-  color: var(--ima-muted);
-  font-style: normal;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wiki-page {
-  flex: 1;
-  min-height: calc(100vh - 86px);
-  display: grid;
-  grid-template-columns: 425px minmax(0, 1fr);
-  border-top: 1px solid #b8c9c0;
-}
-
-.wiki-library {
-  border-right: 1px solid #b8c9c0;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-}
-
-.wiki-summary {
-  padding: 26px 30px 22px;
-  border-bottom: 1px solid #dfe7e3;
-  display: grid;
-  grid-template-columns: 70px minmax(0, 1fr);
-  gap: 18px;
-}
-
-.wiki-logo {
-  width: 70px;
-  height: 70px;
-  border-radius: 9px;
-  color: var(--kb-color);
-  background: color-mix(in srgb, var(--kb-color) 12%, #f1f4f3);
+.refresh-suggestions {
   display: grid;
   place-items: center;
 }
 
-.wiki-summary h1 {
-  margin: 0;
-  font-size: 20px;
-  line-height: 1.35;
+.input-panel {
+  min-height: 108px;
+  flex: 0 0 auto;
+  padding: 14px;
+
+  textarea {
+    width: 100%;
+    min-height: 42px;
+    max-height: 140px;
+    border: 0;
+    outline: 0;
+    resize: vertical;
+    background: transparent;
+    color: var(--cf-text-primary);
+    line-height: 1.6;
+  }
 }
 
-.wiki-summary p {
-  grid-column: 1 / -1;
-  margin: 0;
-  line-height: 1.55;
-}
-
-.wiki-summary footer {
-  grid-column: 1 / -1;
-  display: flex;
-  gap: 24px;
-  font-size: 13px;
-}
-
-.doc-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.doc-list header {
-  height: 60px;
-  padding: 0 24px;
-  border-bottom: 1px solid #dfe7e3;
+.input-tools,
+.input-tools > div,
+.send-cluster {
   display: flex;
   align-items: center;
+}
+
+.input-tools {
   justify-content: space-between;
+
+  button {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    color: var(--cf-text-muted);
+    display: grid;
+    place-items: center;
+  }
 }
 
-.doc-list button {
-  width: calc(100% - 24px);
-  min-height: 80px;
-  margin: 10px 12px;
-  padding: 0 16px;
-  border-radius: 10px;
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: center;
-  gap: 14px;
-  text-align: left;
-}
-
-.doc-list button.active {
-  background: #e9ebeb;
-  box-shadow: inset 4px 0 0 #10a876;
-}
-
-.doc-list small {
-  display: block;
-  margin-top: 6px;
-  color: #0db581;
-}
-
-.storage-mini {
-  height: 40px;
-  border-top: 1px solid #dfe7e3;
-  display: grid;
-  place-items: center;
-  color: var(--ima-muted);
-  font-size: 13px;
-}
-
-.wiki-chat {
-  min-width: 0;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  background: #fff;
-}
-
-.wiki-breadcrumb {
-  height: 64px;
-  padding: 0 32px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.wiki-breadcrumb > div {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-}
-
-.context-btn {
-  height: 42px;
-  padding: 0 16px !important;
-  border: 1px solid #d7e1dc !important;
-  border-radius: 9px !important;
-  display: inline-flex;
-  align-items: center;
+.send-cluster {
   gap: 8px;
 }
 
-.wiki-empty {
-  width: min(760px, calc(100% - 72px));
-  margin: auto;
-  transform: translateY(-48px);
-  text-align: center;
+.model-chip {
+  width: auto !important;
+  padding: 0 12px !important;
+  background: var(--cf-bg-soft) !important;
+  color: var(--cf-text-primary) !important;
+  font-weight: 800;
+  display: inline-flex !important;
+  gap: 6px;
+
+  .chevron {
+    width: 14px;
+    transform: rotate(90deg);
+  }
 }
 
-.wiki-empty > span {
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 30px;
-  border-radius: 20px;
-  background: #cdf7e9;
-  color: var(--ima-green);
-  display: grid;
-  place-items: center;
+.send-btn {
+  color: #fff !important;
+  background: var(--cf-gradient-primary) !important;
+  box-shadow: var(--cf-shadow-glow);
+
+  &:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+  }
 }
 
-.wiki-empty h1 {
-  margin: 0 0 18px;
-  font-size: 30px;
+.ai-right {
+  padding-right: 10px;
 }
 
-.wiki-empty p {
-  margin: 0 0 42px;
-  color: #314139;
+.right-card {
+  padding: 22px;
+
+  h2 {
+    margin: 0;
+    font-size: 18px;
+  }
 }
 
-.wiki-empty button {
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+
+  button {
+    color: var(--cf-text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 800;
+  }
+}
+
+.model-row {
   width: 100%;
   min-height: 72px;
-  margin-top: 14px;
-  padding: 0 22px;
-  border: 1px solid #d7e1dc !important;
-  border-radius: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  text-align: left;
-  font-size: 16px;
-}
-
-.wiki-message-stream {
-  flex: 1;
-  max-height: none;
-  padding: 28px 36px 180px;
-}
-
-.wiki-input {
-  position: sticky;
-  bottom: 0;
-  width: min(760px, calc(100% - 72px));
-  margin: 0 auto 28px;
-  border: 1px solid #cfdcd6;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 16px 40px rgba(31, 48, 42, 0.08);
-}
-
-.wiki-input-tools {
-  height: 36px;
-  padding: 8px 18px 0;
-  display: flex;
-  gap: 8px;
-}
-
-.wiki-input-row {
-  min-height: 82px;
-  padding: 10px 14px 12px;
+  padding: 12px;
+  border-radius: 12px;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 52px;
-  align-items: center;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   gap: 12px;
+  align-items: center;
+  text-align: left;
+
+  &.active {
+    border: 1px solid var(--cf-primary);
+    background: color-mix(in srgb, var(--cf-primary) 6%, var(--cf-bg-card));
+  }
+
+  strong,
+  p {
+    margin: 0;
+  }
+
+  p {
+    margin-top: 4px;
+    color: var(--cf-text-muted);
+    font-size: 12px;
+  }
+
+  em {
+    padding: 4px 7px;
+    border-radius: 8px;
+    background: var(--cf-primary-soft);
+    color: var(--cf-primary);
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 900;
+  }
 }
 
-.wiki-input-row > button:first-child {
-  width: 34px;
-  height: 34px;
-  border: 1px solid #14372c !important;
+.model-mark {
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: grid;
   place-items: center;
+  color: var(--model-color);
+  background: color-mix(in srgb, var(--model-color) 12%, transparent);
+
+  svg {
+    width: 18px;
+  }
 }
 
-.wiki-input textarea {
-  min-height: 46px;
-  max-height: 120px;
-  border: 0;
-  outline: 0;
-  resize: vertical;
-  background: transparent;
+.ability-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
 }
 
-.wiki-input > p {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -30px;
-  margin: 0;
-  color: var(--ima-muted);
+.ability-row {
+  width: 100%;
+  min-height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+
+  .ability-label {
+    color: var(--cf-text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 750;
+  }
+
+  .ability-toggle {
+    width: 30px;
+    height: 18px;
+    border-radius: 999px;
+    background: #d8dee7;
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 0.2s ease;
+    }
+
+    &.on {
+      background: var(--cf-primary);
+
+      &::after {
+        transform: translateX(12px);
+      }
+    }
+  }
+}
+
+.ability-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  color: #64748b;
+  flex: 0 0 auto;
+
+  .n-icon {
+    display: grid;
+  }
+}
+
+.stats-card {
+  min-height: 280px;
+  overflow: hidden;
+}
+
+.stats-grid {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   text-align: center;
+
+  strong,
+  span {
+    display: block;
+  }
+
+  strong {
+    color: var(--cf-text-primary);
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  span {
+    margin-top: 8px;
+    color: var(--cf-text-muted);
+    font-size: 12px;
+  }
+}
+
+.stats-chart {
+  width: 100%;
+  height: 164px;
+  margin-top: 20px;
+  overflow: visible;
+}
+
+.chart-grid line {
+  stroke: rgba(100, 116, 139, 0.14);
+  stroke-width: 1;
+}
+
+.chart-axis-labels,
+.chart-date-labels {
+  fill: #64748b;
   font-size: 12px;
 }
 
-.attachment-list {
-  padding: 10px 14px 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.chart-date-labels {
+  text-anchor: middle;
 }
 
-.attachment-list button {
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: #edf4f1;
-  color: var(--ima-green);
+.chart-area {
+  fill: url(#statsFill);
 }
 
-.file-input {
-  display: none;
+.chart-line {
+  fill: none;
+  stroke: var(--cf-primary);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
 }
 
-.modal-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: rgba(5, 16, 12, 0.38);
-  display: grid;
-  place-items: center;
-  padding: 24px;
+.chart-points {
+  fill: var(--cf-primary);
+  stroke: #ffffff;
+  stroke-width: 2;
 }
 
-.simple-modal {
-  width: min(520px, 100%);
-  padding: 24px;
-  border-radius: 18px;
-  background: #fff;
-  display: grid;
-  gap: 16px;
-}
-
-.simple-modal h2 {
-  margin: 0;
-}
-
-.simple-modal label {
-  display: grid;
-  gap: 7px;
-  color: #273a32;
-  font-weight: 800;
-}
-
-.simple-modal input,
-.simple-modal textarea,
-.simple-modal select {
-  width: 100%;
-  border: 1px solid #d7e1dc;
-  border-radius: 10px;
-  padding: 10px 12px;
-  outline: none;
-}
-
-.simple-modal textarea {
-  min-height: 96px;
-  resize: vertical;
-}
-
-.simple-modal footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.simple-modal footer button {
-  height: 38px;
-  padding: 0 16px;
-  border: 1px solid #d7e1dc;
-  border-radius: 10px;
-  font-weight: 800;
-}
-
-.simple-modal footer .primary {
-  background: var(--ima-green);
-  border-color: var(--ima-green);
-  color: #fff;
-}
-
-@keyframes imaPulse {
+@keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(0, 122, 82, 0.28);
+    box-shadow: 0 0 0 0 rgba(52, 208, 188, 0.34);
   }
   70% {
-    box-shadow: 0 0 0 9px rgba(0, 122, 82, 0);
+    box-shadow: 0 0 0 9px rgba(52, 208, 188, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(0, 122, 82, 0);
+    box-shadow: 0 0 0 0 rgba(52, 208, 188, 0);
   }
 }
 
 @media (max-width: 1180px) {
-  .ima-app {
-    grid-template-columns: 220px minmax(0, 1fr);
+  .ai-assistant-page {
+    grid-template-columns: 240px minmax(0, 1fr);
   }
 
-  .discover-page,
-  .workspace-page {
-    width: calc(100vw - 270px);
-  }
-
-  .featured-grid,
-  .topic-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .workspace-lower,
-  .wiki-page {
-    grid-template-columns: 1fr;
-  }
-
-  .wiki-library {
-    display: none;
+  .ai-right {
+    grid-column: 1 / -1;
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding-right: 0;
   }
 }
 
-@media (max-width: 780px) {
-  .ima-app {
+@media (max-width: 840px) {
+  .ai-assistant-page {
+    height: auto;
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .ai-left,
+  .ai-right {
+    position: static;
+    max-height: none;
+    padding: 0;
+  }
+
+  .quick-row,
+  .ai-right {
     grid-template-columns: 1fr;
   }
+}
 
-  .ima-sidebar {
-    min-height: auto;
-    padding: 12px;
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    border-right: 0;
-    border-bottom: 1px solid #d7e1dc;
-  }
-
-  .ima-brand,
-  .sidebar-spacer,
-  .ima-nav.low {
-    display: none;
-  }
-
-  .new-chat-btn {
-    height: 42px;
-  }
-
-  .ima-nav {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 6px;
-  }
-
-  .ima-nav button {
-    height: 40px;
-    padding: 0 8px;
-    justify-content: center;
-    gap: 6px;
-    font-size: 12px;
-  }
-
-  .ima-topbar {
-    height: auto;
-    padding: 14px;
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .top-search.compact {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .top-actions {
-    justify-content: flex-end;
-  }
-
-  .discover-page,
-  .workspace-page {
-    width: 100%;
-    padding: 16px;
-  }
-
-  .hero-query {
-    margin-top: 0;
-  }
-
-  .hero-query textarea {
-    padding: 20px;
-    font-size: 18px;
-  }
-
-  .hero-tools {
-    flex-wrap: wrap;
-  }
-
-  .hero-tools .ghost-icon {
-    margin-left: 0;
-  }
-
-  .featured-grid,
-  .topic-grid,
-  .stats-row,
-  .kb-card-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .workspace-hero {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .workspace-hero h1 {
-    font-size: 34px;
-  }
-
-  .workspace-preview {
-    height: 320px;
-  }
-
-  .wiki-page {
-    min-height: auto;
-    border-top: 0;
-  }
-
-  .wiki-breadcrumb {
-    height: auto;
-    padding: 14px;
-    flex-wrap: wrap;
-  }
-
-  .wiki-breadcrumb > div {
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .wiki-empty,
-  .wiki-input {
-    width: calc(100% - 28px);
-  }
-
-  .wiki-empty {
-    transform: none;
-    margin: 40px auto 180px;
-  }
+html[data-theme='dark'] .user-bubble {
+  background: color-mix(in srgb, var(--cf-primary) 15%, #050505);
+}
+html[data-theme='dark'] .ability-toggle {
+  background: var(--cf-border) !important;
+}
+html[data-theme='dark'] .chart-points {
+  stroke: var(--cf-bg-card);
 }
 </style>

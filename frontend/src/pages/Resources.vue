@@ -139,7 +139,7 @@ const fallbackResources: ResourceVO[] = [
 
 const visibleResources = computed(() => {
   let base = resources.value.length ? resources.value : fallbackResources;
-
+  
   if (activePersonalView.value !== 'all') {
     base = base.filter((item) => {
       const absId = Math.abs(item.id);
@@ -277,26 +277,15 @@ async function loadPreview() {
   if (!selectedResource.value || selectedResource.value.id < 0) return;
   previewText.value = null;
   previewError.value = '';
+  if (getPreviewKind(selectedResource.value) !== 'text') return;
 
-  const kind = getPreviewKind(selectedResource.value);
-  if (kind === 'text') {
-    previewLoading.value = true;
-    try {
-      previewText.value = await getResourcePreviewText(selectedResource.value.id);
-    } catch {
-      previewError.value = '预览内容加载失败';
-    } finally {
-      previewLoading.value = false;
-    }
-  } else if (kind === 'pdf' || kind === 'image') {
-    previewLoading.value = true;
-    try {
-      previewUrl.value = await getPreviewUrl(selectedResource.value.id);
-    } catch {
-      previewError.value = '预览链接加载失败';
-    } finally {
-      previewLoading.value = false;
-    }
+  previewLoading.value = true;
+  try {
+    previewText.value = await getResourcePreviewText(selectedResource.value.id);
+  } catch {
+    previewError.value = '预览内容加载失败';
+  } finally {
+    previewLoading.value = false;
   }
 }
 
@@ -453,7 +442,7 @@ async function handleDownload(resource = selectedResource.value) {
     }
 
     const content = `# ${resource.fileName}
-本文件是由 青云阁 模拟生成的下载包。
+本文件是由 CampusForum 模拟生成的下载包。
 资源名称: ${resource.fileName}
 资源类型: ${resource.fileType}
 分享作者: ${resource.uploader?.nickname || '未知'}
@@ -461,7 +450,7 @@ async function handleDownload(resource = selectedResource.value) {
 存储路径: cf-archive/resources/${Math.abs(resource.id)}/payload.${resource.fileType}
 
 --------------------------------------------------
-[模拟内容] 感谢您下载 青云阁 校园学术共享平台的资源。本资源包已通过云端安全检测，可放心查看。
+[模拟内容] 感谢您下载 CampusForum 校园学术共享平台的资源。本资源包已通过云端安全检测，可放心查看。
 `;
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -736,7 +725,7 @@ onMounted(load);
           </div>
           <div v-if="previewLoading" class="preview-state"><n-spin /></div>
           <NAlert v-else-if="previewError" type="error" :show-icon="false">{{ previewError }}</NAlert>
-          <iframe v-else-if="getPreviewKind(selectedResource) === 'pdf'" class="preview-frame" :src="previewUrl" title="PDF 预览" />
+          <iframe v-else-if="getPreviewKind(selectedResource) === 'pdf'" class="preview-frame" :src="previewUrl" title="PDF 预览" sandbox="allow-scripts" />
           <img v-else-if="getPreviewKind(selectedResource) === 'image'" class="preview-image" :src="previewUrl" :alt="selectedResource.fileName" />
           <iframe v-else-if="getPreviewKind(selectedResource) === 'text' && previewText" class="markdown-frame" :srcdoc="markdownSrcdoc" title="文本预览" />
           <NAlert v-else type="info" :show-icon="false">当前格式暂不支持在线预览，可直接下载查看。</NAlert>
@@ -834,10 +823,11 @@ onMounted(load);
 .apple-card,
 .resource-card {
   background: var(--cf-card-bg);
-  border: 1px solid var(--cf-card-border);
-  border-radius: 18px;
+  border: 0;
+  border-radius: 20px;
   box-shadow: var(--cf-card-shadow);
-  backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(var(--cf-backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--cf-backdrop-blur));
 }
 
 .nav-card,
@@ -871,7 +861,7 @@ onMounted(load);
 .category-row.active {
   padding: 0 12px;
   color: var(--cf-primary);
-  background: rgba(0, 216, 191, 0.09);
+  background: var(--cf-primary-soft);
 }
 
 .category-row strong {
@@ -966,8 +956,8 @@ onMounted(load);
 .view-toggle button {
   height: 40px;
   min-width: 76px;
-  border: 1px solid var(--cf-border);
-  border-radius: 11px;
+  border: 0;
+  border-radius: 10px;
   background: var(--cf-bg-glass);
   color: var(--cf-text-secondary);
   font-weight: 760;
@@ -977,8 +967,7 @@ onMounted(load);
 .type-tabs button.active,
 .view-toggle button.active {
   color: var(--cf-primary);
-  background: rgba(0, 216, 191, 0.1);
-  border-color: rgba(0, 216, 191, 0.2);
+  background: var(--cf-primary-soft);
 }
 
 .filter-row {
@@ -1014,8 +1003,8 @@ onMounted(load);
 }
 
 .resource-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.1);
+  transform: translateY(-2px);
+  box-shadow: var(--cf-shadow-card-hover);
 }
 
 .file-art {
